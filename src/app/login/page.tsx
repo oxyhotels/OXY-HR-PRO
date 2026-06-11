@@ -225,7 +225,7 @@ export default function LoginPage() {
         
         {/* Branding header */}
         <div className="flex flex-col items-center mb-6">
-          <img src="/logo.png" alt="OxyHotels Logo" className="h-10 w-auto mb-2 object-contain" />
+          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-10 w-auto mb-2 object-contain" />
           <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-widest">Enterprise Hospitality Suite</p>
         </div>
 

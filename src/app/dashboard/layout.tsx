@@ -139,7 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="hidden md:flex flex-col w-64 bg-card-dark border-r border-slate-800/80 p-5 flex-shrink-0 z-30">
         {/* Logo */}
         <div className="flex flex-col items-start gap-2 px-2 mb-8 border-b border-slate-800/40 pb-4">
-          <img src="/logo.png" alt="OxyHotels Logo" className="h-8 w-auto object-contain" />
+          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-8 w-auto object-contain" />
           <div className="text-[9px] text-gold tracking-widest uppercase font-bold truncate max-w-[180px] mt-1">
             {getHotelLabel()}
           </div>
@@ -205,7 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }`}
       >
         <div className="flex justify-between items-center mb-8 border-b border-slate-800/40 pb-4">
-          <img src="/logo.png" alt="OxyHotels Logo" className="h-7 w-auto object-contain" />
+          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-7 w-auto object-contain" />
           <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-white">
             <X size={20} />
           </button>
