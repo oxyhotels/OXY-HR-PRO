@@ -227,16 +227,9 @@ export default function LmsPage() {
   const categoriesList = ['All', 'Safety Training', 'Guest Relations', 'Kitchen Hygiene', 'Housekeeping', 'F&B Operations', 'General Compliance'];
   const departmentsList = ['Operations', 'Front Office', 'Kitchen', 'Housekeeping', 'F&B Service', 'Maintenance', 'Human Resources', 'Security', 'Finance'];
 
-  useEffect(() => {
-    fetchCoreData();
-  }, [selectedCategory, selectedDifficulty, selectedDeptFilter, sortBy]);
-
-  // Load comment board when selected module changes
-  useEffect(() => {
-    if (selectedCourse) {
-      fetchComments();
-    }
-  }, [selectedCourse, activeModuleIndex]);
+  const isEmployee = (role?: string) => {
+    return role === 'EMPLOYEE';
+  };
 
   const fetchCoreData = async () => {
     try {
@@ -282,10 +275,6 @@ export default function LmsPage() {
     }
   };
 
-  const isEmployee = (role?: string) => {
-    return role === 'EMPLOYEE';
-  };
-
   const fetchComments = async () => {
     if (!selectedCourse) return;
     try {
@@ -295,6 +284,17 @@ export default function LmsPage() {
       console.error('Error fetching comments:', err);
     }
   };
+
+  useEffect(() => {
+    fetchCoreData();
+  }, [selectedCategory, selectedDifficulty, selectedDeptFilter, sortBy]);
+
+  // Load comment board when selected module changes
+  useEffect(() => {
+    if (selectedCourse) {
+      fetchComments();
+    }
+  }, [selectedCourse, activeModuleIndex]);
 
   const handlePostComment = async () => {
     if (!selectedCourse || !newCommentText.trim()) return;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
@@ -62,21 +62,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => clearInterval(interval);
   }, []);
 
+  const checkInProgress = useRef(false);
+
   // Authenticate / session validation check
   useEffect(() => {
     const checkSession = async () => {
+      if (checkInProgress.current) return;
+      checkInProgress.current = true;
       try {
         const response = await api.get('/auth/me');
         const userData = response.data.user;
-        const currentToken = useAuthStore.getState().accessToken;
-        if (currentToken) {
-          setAuth(userData, currentToken);
-        }
+        const currentToken = useAuthStore.getState().accessToken || '';
+        setAuth(userData, currentToken);
         setLoading(false);
       } catch (error) {
         console.error('Session expired or invalid', error);
         clearAuth();
         router.push('/login');
+      } finally {
+        checkInProgress.current = false;
       }
     };
 

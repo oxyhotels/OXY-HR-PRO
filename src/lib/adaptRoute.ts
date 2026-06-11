@@ -60,7 +60,6 @@ export function adaptRoute(handler: Function, options: {
         const contentType = request.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const rawText = await request.text();
-          console.log('[DEBUG] Raw body text in adaptRoute:', rawText);
           let parsed = rawText ? JSON.parse(rawText) : {};
           while (typeof parsed === 'string') {
             parsed = JSON.parse(parsed);
@@ -78,7 +77,6 @@ export function adaptRoute(handler: Function, options: {
         console.error('Error parsing request body in adaptRoute:', e);
       }
     }
-    console.log('[DEBUG] req.body in adaptRoute after parsing:', req.body);
 
     let statusCode = 200;
     let jsonPayload: any = null;
@@ -181,10 +179,11 @@ export function adaptRoute(handler: Function, options: {
 
       // Set cookies in response
       cookiesToSet.forEach(({ name, value, options }) => {
+        const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL || !!process.env.NEXT_PUBLIC_VERCEL_ENV;
         finalResponse.cookies.set(name, value, {
           httpOnly: options.httpOnly ?? true,
-          secure: options.secure ?? process.env.NODE_ENV === 'production',
-          sameSite: options.sameSite ?? 'strict',
+          secure: options.secure ?? isProd,
+          sameSite: options.sameSite ?? 'lax',
           maxAge: options.maxAge ? options.maxAge / 1000 : undefined,
           path: options.path ?? '/',
         });
@@ -192,10 +191,11 @@ export function adaptRoute(handler: Function, options: {
 
       // Clear cookies in response
       cookiesToClear.forEach(({ name, options }) => {
+        const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL || !!process.env.NEXT_PUBLIC_VERCEL_ENV;
         finalResponse.cookies.set(name, '', {
           httpOnly: options.httpOnly ?? true,
-          secure: options.secure ?? process.env.NODE_ENV === 'production',
-          sameSite: options.sameSite ?? 'strict',
+          secure: options.secure ?? isProd,
+          sameSite: options.sameSite ?? 'lax',
           maxAge: 0,
           path: options.path ?? '/',
         });

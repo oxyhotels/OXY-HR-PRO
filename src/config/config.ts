@@ -3,6 +3,23 @@ import path from 'path';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
+// Validate required environment variables
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  if (isProduction || !process.env.MONGODB_URI) {
+    throw new Error(
+      `\n================================================================\n` +
+      `[CRITICAL CONFIG ERROR] Missing required environment variables:\n` +
+      `  ${missingEnvVars.join(', ')}\n` +
+      `Please define these in your environment configuration or .env file.\n` +
+      `================================================================\n`
+    );
+  }
+}
+
 export const config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000', 10),

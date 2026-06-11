@@ -100,11 +100,21 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 
     const { accessToken, refreshToken } = generateTokens(user);
 
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
+    // Set access token in HTTP-only cookie
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: config.jwt.accessExpirationMinutes * 60 * 1000,
+    });
+
     // Set refresh token in HTTP-only cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProd,
+      sameSite: 'lax',
       maxAge: config.jwt.refreshExpirationDays * 24 * 60 * 60 * 1000,
     });
 
@@ -139,10 +149,18 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
       await logAudit(req.user.id, req.user.hotel, 'LOGOUT', `User logged out`);
     }
 
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+    });
+
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProd,
+      sameSite: 'lax',
     });
 
     res.status(200).json({
@@ -176,11 +194,19 @@ export const refresh = async (req: Request, res: Response, next: NextFunction): 
 
     const tokens = generateTokens(user);
 
-    // Refresh the cookie
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
+    res.cookie('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: config.jwt.accessExpirationMinutes * 60 * 1000,
+    });
+
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProd,
+      sameSite: 'lax',
       maxAge: config.jwt.refreshExpirationDays * 24 * 60 * 60 * 1000,
     });
 

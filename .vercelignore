@@ -1,0 +1,22 @@
+# Ignore local development/Docker configs
+docker-compose.yml
+Dockerfile
+
+# Ignore build artifacts and dependencies
+.next/
+node_modules/
+out/
+build/
+*.log
+tsconfig.tsbuildinfo
+
+# Ignore local secret environment overrides
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore developer scratch test scripts
+src/scripts/test-*
+git credential-manager diagnose
+deployment_and_docs.md
