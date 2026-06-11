@@ -49,6 +49,13 @@ export interface IUser extends Document {
     fileUrl: string;
     uploadedAt: Date;
   }[];
+  // Gamification & Operational Tracking
+  xp?: number;
+  level?: number;
+  badges?: string[];
+  accountabilityIndex?: number;
+  capacityLimit?: number;
+  dailyWorkingHours?: number;
   comparePassword(password: string): Promise<boolean>;
   createdAt: Date;
   updatedAt: Date;
@@ -121,6 +128,13 @@ const UserSchema = new Schema<IUser>(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
+    // Advanced Execution Metrics
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
+    badges: [{ type: String, default: [] }],
+    accountabilityIndex: { type: Number, default: 100 },
+    capacityLimit: { type: Number, default: 5 },
+    dailyWorkingHours: { type: Number, default: 8 },
   },
   { timestamps: true }
 );

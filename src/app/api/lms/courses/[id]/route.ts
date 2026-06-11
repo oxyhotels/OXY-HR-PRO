@@ -1,9 +1,12 @@
 import { adaptRoute } from '@/lib/adaptRoute';
-import { getCourses, createCourse } from '@/controllers/lms.controller';
+import { editCourse, deleteCourse } from '@/controllers/lms.controller';
 import { authMiddleware } from '@/middlewares/auth.middleware';
 import { restrictTo } from '@/middlewares/role.middleware';
 
-export const GET = adaptRoute(getCourses, { middlewares: [authMiddleware] });
-export const POST = adaptRoute(createCourse, {
+export const PUT = adaptRoute(editCourse, {
+  middlewares: [authMiddleware]
+});
+
+export const DELETE = adaptRoute(deleteCourse, {
   middlewares: [authMiddleware]
 });

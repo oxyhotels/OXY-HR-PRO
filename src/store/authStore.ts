@@ -31,6 +31,11 @@ export interface UserProfile {
     ifsc?: string;
   };
   documents?: { name: string; fileUrl: string; uploadedAt: string }[];
+  // Intelligent Ops Gamification
+  xp?: number;
+  level?: number;
+  badges?: string[];
+  accountabilityIndex?: number;
 }
 
 interface AuthState {

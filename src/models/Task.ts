@@ -20,6 +20,33 @@ export interface ITask extends Document {
   evidenceLocation?: { lat: number; lng: number };
   isRecurring: boolean;
   recurringInterval: 'Daily' | 'Weekly' | 'None';
+  // Advanced Ops Center fields
+  slaDuration?: number; // In minutes
+  slaStart?: Date;
+  slaBreached?: boolean;
+  healthScore?: number;
+  reworkCount?: number;
+  escalationLevel?: number;
+  rca?: {
+    reason: string;
+    category: string;
+    loggedAt: Date;
+  };
+  businessImpact?: {
+    guestSatisfaction: number;
+    revenueImpact: number;
+    complianceImpact: number;
+  };
+  geoVerified?: {
+    verified: boolean;
+    lat: number;
+    lng: number;
+    selfieUrl: string;
+    isSuspicious: boolean;
+    fraudFlags: string[];
+  };
+  isDeleted: boolean;
+  deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +89,33 @@ const TaskSchema = new Schema<ITask>(
       enum: ['Daily', 'Weekly', 'None'],
       default: 'None',
     },
+    // Advanced Operations Execution Fields
+    slaDuration: { type: Number, default: 30 },
+    slaStart: { type: Date },
+    slaBreached: { type: Boolean, default: false },
+    healthScore: { type: Number, default: 100 },
+    reworkCount: { type: Number, default: 0 },
+    escalationLevel: { type: Number, default: 0 },
+    rca: {
+      reason: { type: String },
+      category: { type: String },
+      loggedAt: { type: Date },
+    },
+    businessImpact: {
+      guestSatisfaction: { type: Number, default: 5 },
+      revenueImpact: { type: Number, default: 0 },
+      complianceImpact: { type: Number, default: 0 },
+    },
+    geoVerified: {
+      verified: { type: Boolean, default: false },
+      lat: { type: Number },
+      lng: { type: Number },
+      selfieUrl: { type: String },
+      isSuspicious: { type: Boolean, default: false },
+      fraudFlags: [{ type: String }],
+    },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
   },
   { timestamps: true }
 );
