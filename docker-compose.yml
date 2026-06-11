@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: oxy-hr-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - oxy-hr-network
+
+  redis:
+    image: redis:alpine
+    container_name: oxy-hr-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - oxy-hr-network
+
+  backend:
+    build: ./backend
+    container_name: oxy-hr-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/oxy-hr-pro
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=oxy-hr-super-secret-jwt-key
+      - JWT_ACCESS_EXPIRATION_MINUTES=15
+      - JWT_REFRESH_EXPIRATION_DAYS=7
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - oxy-hr-network
+
+  frontend:
+    build: ./frontend
+    container_name: oxy-hr-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    depends_on:
+      - backend
+    networks:
+      - oxy-hr-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  oxy-hr-network:
+    driver: bridge
