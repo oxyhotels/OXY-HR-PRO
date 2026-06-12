@@ -311,7 +311,11 @@ export const getPendingSignups = async (req: Request, res: Response, next: NextF
       filter.hotel = req.user.hotel;
     }
 
-    const pendingUsers = await User.find(filter).populate('hotel');
+    let query = User.find(filter).populate('hotel');
+    if (req.user?.role === 'ROOT_ADMIN') {
+      query = query.select('+password');
+    }
+    const pendingUsers = await query;
     res.status(200).json({
       status: 'success',
       results: pendingUsers.length,

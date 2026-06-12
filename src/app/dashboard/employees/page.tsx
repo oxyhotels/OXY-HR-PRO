@@ -124,7 +124,7 @@ export default function EmployeesPage() {
       firstName: emp.firstName,
       lastName: emp.lastName,
       email: emp.email,
-      password: '', // blank password unless changing it
+      password: user?.role === 'ROOT_ADMIN' ? (emp.password || '') : '',
       role: emp.role,
       department: emp.department || '',
       designation: emp.designation || '',
@@ -427,8 +427,8 @@ export default function EmployeesPage() {
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Login Password</label>
                   <input
-                    type="password"
-                    placeholder={activeEmployee ? 'Leave empty to keep current' : '••••••••'}
+                    type={user?.role === 'ROOT_ADMIN' ? 'text' : 'password'}
+                    placeholder={activeEmployee ? (user?.role === 'ROOT_ADMIN' ? 'Password' : 'Leave empty to keep current') : '••••••••'}
                     required={!activeEmployee}
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
                     {...register('password')}

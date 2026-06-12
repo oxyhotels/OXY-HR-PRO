@@ -22,7 +22,8 @@ import {
   GraduationCap,
   LifeBuoy,
   Shield,
-  Trophy
+  Trophy,
+  MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
@@ -126,6 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Compliance Audits', href: '/dashboard/compliance', icon: Shield, roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'] },
     { name: 'Performance Hub', href: '/dashboard/performance', icon: Trophy, roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Policy Center', href: '/dashboard/policy', icon: FileText, roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
+    { name: 'Community Hub', href: '/dashboard/community', icon: MessageSquare, roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
   ];
 
   const visibleMenuItems = menuItems.filter((item) => user && item.roles.includes(user.role));

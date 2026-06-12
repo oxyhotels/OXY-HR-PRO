@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Unified OXY-HR PRO Multi-Hotel HRMS (Next.js + TypeScript)",
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx src/server.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint src",
     "seed": "tsx src/scripts/seed.ts"
   },

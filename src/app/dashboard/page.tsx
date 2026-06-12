@@ -1019,6 +1019,12 @@ export default function DashboardPage() {
                   <p className="text-slate-500 font-semibold uppercase text-[9px]">Registered Email</p>
                   <p className="text-white font-mono mt-0.5">{selectedPendingUser.email}</p>
                 </div>
+                {user?.role === 'ROOT_ADMIN' && selectedPendingUser.password && (
+                  <div>
+                    <p className="text-amber-500 font-semibold uppercase text-[9px]">🔑 Login Password</p>
+                    <p className="text-amber-400 font-mono mt-0.5 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-900/40 w-fit">{selectedPendingUser.password}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-slate-500 font-semibold uppercase text-[9px]">Mobile / Phone</p>
                   <p className="text-white mt-0.5">{selectedPendingUser.phone || 'N/A'}</p>
