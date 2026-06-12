@@ -31,6 +31,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
   const config: RequestInit = {
     ...options,
     headers,
+    credentials: options.credentials || 'include',
   };
 
   try {
@@ -45,6 +46,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
           const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
           });
 
           if (refreshRes.ok) {
@@ -72,7 +74,13 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
       const retryPromise = new Promise((resolve) => {
         subscribeTokenRefresh((newToken) => {
           headers.set('Authorization', `Bearer ${newToken}`);
-          resolve(fetch(`${BASE_URL}${endpoint}`, { ...options, headers }));
+          resolve(
+            fetch(`${BASE_URL}${endpoint}`, {
+              ...options,
+              headers,
+              credentials: options.credentials || 'include',
+            })
+          );
         });
       });
 

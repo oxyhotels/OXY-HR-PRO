@@ -29,14 +29,10 @@ export function adaptRoute(handler: Function, options: {
       headers[key] = value;
     });
 
-    // Parse cookies
+    // Parse cookies using Next.js native RequestCookies API
     const cookies: Record<string, string> = {};
-    const cookieHeader = request.headers.get('cookie') || '';
-    cookieHeader.split(';').forEach((cookie) => {
-      const parts = cookie.split('=');
-      if (parts.length === 2) {
-        cookies[parts[0].trim()] = parts[1].trim();
-      }
+    request.cookies.getAll().forEach((cookie) => {
+      cookies[cookie.name] = cookie.value;
     });
 
     // Build mock Request
@@ -180,9 +176,10 @@ export function adaptRoute(handler: Function, options: {
       // Set cookies in response
       cookiesToSet.forEach(({ name, value, options }) => {
         const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL || !!process.env.NEXT_PUBLIC_VERCEL_ENV;
+        const isSecure = options.secure ?? (isProd && !request.url.startsWith('http://localhost') && !request.url.startsWith('http://127.0.0.1'));
         finalResponse.cookies.set(name, value, {
           httpOnly: options.httpOnly ?? true,
-          secure: options.secure ?? isProd,
+          secure: isSecure,
           sameSite: options.sameSite ?? 'lax',
           maxAge: options.maxAge ? options.maxAge / 1000 : undefined,
           path: options.path ?? '/',
@@ -192,9 +189,10 @@ export function adaptRoute(handler: Function, options: {
       // Clear cookies in response
       cookiesToClear.forEach(({ name, options }) => {
         const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL || !!process.env.NEXT_PUBLIC_VERCEL_ENV;
+        const isSecure = options.secure ?? (isProd && !request.url.startsWith('http://localhost') && !request.url.startsWith('http://127.0.0.1'));
         finalResponse.cookies.set(name, '', {
           httpOnly: options.httpOnly ?? true,
-          secure: options.secure ?? isProd,
+          secure: isSecure,
           sameSite: options.sameSite ?? 'lax',
           maxAge: 0,
           path: options.path ?? '/',
