@@ -80,18 +80,23 @@ export default function DashboardPage() {
   // Fetch dashboard numbers
   const fetchDashboardData = async () => {
     try {
-      const statsRes = await api.get('/reports/dashboard');
-      setStats(statsRes.data.stats);
-      setDepts(statsRes.data.departmentBreakdown || []);
-      
-      // Fetch user's today's attendance status
-      try {
-        const attRes = await api.get('/attendance/me');
+      const statsPromise = api.get('/reports/dashboard');
+      const attPromise = api.get('/attendance/me').catch(err => {
+        console.error('My attendance details not loaded', err);
+        return null;
+      });
+
+      const [statsRes, attRes] = await Promise.all([statsPromise, attPromise]);
+
+      if (statsRes) {
+        setStats(statsRes.data.stats);
+        setDepts(statsRes.data.departmentBreakdown || []);
+      }
+
+      if (attRes) {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayLog = attRes.data.logs.find((log: any) => log.date === todayStr);
         setTodayAttendance(todayLog || null);
-      } catch (attErr) {
-        console.error('My attendance details not loaded', attErr);
       }
     } catch (err: any) {
       console.error('Failed to fetch dashboard reports', err);

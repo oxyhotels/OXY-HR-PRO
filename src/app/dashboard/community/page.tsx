@@ -49,6 +49,7 @@ export default function CommunityHubPage() {
   
   // Active Section Tab: 'chat' | 'social' | 'knowledge' | 'analytics'
   const [activeTab, setActiveTab] = useState<'chat' | 'social' | 'knowledge' | 'analytics'>('chat');
+  const [mobileShowSidebar, setMobileShowSidebar] = useState(true);
   
   // Real-time Chat States
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -175,14 +176,21 @@ export default function CommunityHubPage() {
   // Fetch initial group layout
   useEffect(() => {
     store.fetchGroups();
-    store.fetchSocialPosts();
-    store.fetchKnowledgeItems();
     
     // Load members for appreciation recipient picker
     api.get('/employees').then((res) => {
       setRecipientList(res.data.employees || []);
     }).catch(console.error);
   }, []);
+
+  // Fetch tab data lazily on tab change
+  useEffect(() => {
+    if (activeTab === 'social') {
+      store.fetchSocialPosts();
+    } else if (activeTab === 'knowledge') {
+      store.fetchKnowledgeItems();
+    }
+  }, [activeTab]);
 
   // Sync group rooms on navigation selection
   useEffect(() => {
@@ -479,14 +487,14 @@ export default function CommunityHubPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] text-slate-100 relative">
+    <div className="flex flex-col h-[calc(100vh-14rem)] md:h-[calc(100vh-8rem)] text-slate-100 relative">
       
       {/* Top Header Modules / Tabs Selector */}
-      <div className="flex flex-wrap items-center justify-between border-b border-slate-800/80 pb-4 mb-4 gap-3">
-        <div className="flex bg-slate-900/60 p-1.5 rounded-xl border border-slate-800/50">
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800/80 pb-4 mb-4 gap-3 w-full overflow-hidden">
+        <div className="flex bg-slate-900/60 p-1.5 rounded-xl border border-slate-800/50 overflow-x-auto whitespace-nowrap max-w-full scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
           <button
-            onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            onClick={() => { setActiveTab('chat'); setMobileShowSidebar(true); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
               activeTab === 'chat'
                 ? 'bg-gold text-slate-dark gold-glow'
                 : 'text-slate-400 hover:text-slate-200'
@@ -497,7 +505,7 @@ export default function CommunityHubPage() {
           </button>
           <button
             onClick={() => setActiveTab('social')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
               activeTab === 'social'
                 ? 'bg-gold text-slate-dark gold-glow'
                 : 'text-slate-400 hover:text-slate-200'
@@ -508,7 +516,7 @@ export default function CommunityHubPage() {
           </button>
           <button
             onClick={() => setActiveTab('knowledge')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
               activeTab === 'knowledge'
                 ? 'bg-gold text-slate-dark gold-glow'
                 : 'text-slate-400 hover:text-slate-200'
@@ -519,7 +527,7 @@ export default function CommunityHubPage() {
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0 ${
               activeTab === 'analytics'
                 ? 'bg-gold text-slate-dark gold-glow'
                 : 'text-slate-400 hover:text-slate-200'
@@ -531,12 +539,14 @@ export default function CommunityHubPage() {
         </div>
 
         {/* Global Hub Search Bar */}
-        <div className="flex items-center gap-2 relative">
+        <div className="flex items-center gap-2 relative w-full md:w-auto">
           <Search size={16} className="absolute left-3 text-slate-500" />
           <input
             type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search channels, post achievements, SOPs..."
-            className="bg-card-dark text-xs pl-9 pr-4 py-2 w-72 rounded-lg border border-slate-800 focus:border-gold outline-none text-slate-300"
+            className="bg-card-dark text-xs pl-9 pr-4 py-2 w-full md:w-72 rounded-lg border border-slate-800 focus:border-gold outline-none text-slate-300"
           />
         </div>
       </div>
@@ -548,7 +558,9 @@ export default function CommunityHubPage() {
         {activeTab === 'chat' && (
           <>
             {/* Sidebar Pane (Groups / Channels list) */}
-            <div className="w-80 flex flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden flex-shrink-0">
+            <div className={`w-full md:w-80 flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden flex-shrink-0 ${
+              mobileShowSidebar ? 'flex' : 'hidden md:flex'
+            }`}>
               <div className="p-4 border-b border-slate-800/60 flex items-center justify-between">
                 <span className="text-xs font-bold text-gold uppercase tracking-wider">OXY Channels</span>
                 {['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'].includes(user?.role || '') && (
@@ -571,7 +583,10 @@ export default function CommunityHubPage() {
                   return (
                     <button
                       key={g._id}
-                      onClick={() => store.selectGroup(g)}
+                      onClick={() => {
+                        store.selectGroup(g);
+                        setMobileShowSidebar(false);
+                      }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
                         isActive
                           ? 'bg-slate-800/80 border-l-2 border-gold text-white'
@@ -603,22 +618,33 @@ export default function CommunityHubPage() {
             </div>
 
             {/* Chat Workspace Center Pane */}
-            <div className="flex-1 flex flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden min-w-0">
+            <div className={`flex-1 flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden min-w-0 ${
+              !mobileShowSidebar ? 'flex' : 'hidden md:flex'
+            }`}>
               
               {store.activeGroup ? (
                 <>
                   {/* Active Header */}
-                  <div className="h-16 bg-slate-900/60 border-b border-slate-800/60 px-6 flex items-center justify-between flex-shrink-0">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xs font-bold text-white uppercase tracking-wider">{store.activeGroup.name}</h3>
-                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-gold font-semibold uppercase font-mono">
-                          {store.activeGroup.type}
-                        </span>
+                  <div className="h-16 bg-slate-900/60 border-b border-slate-800/60 px-4 md:px-6 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <button
+                        onClick={() => setMobileShowSidebar(true)}
+                        className="md:hidden p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-gold transition-colors mr-1 flex-shrink-0 font-bold"
+                        title="Back to Channels"
+                      >
+                        &larr;
+                      </button>
+                      <div className="overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-bold text-white uppercase tracking-wider truncate">{store.activeGroup.name}</h3>
+                          <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-gold font-semibold uppercase font-mono flex-shrink-0">
+                            {store.activeGroup.type}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 truncate mt-0.5 max-w-[200px] sm:max-w-[400px]">
+                          {activeGroupTypingStr() || store.activeGroup.description || 'Corporate operations hub'}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-slate-400 truncate mt-0.5 max-w-[400px]">
-                        {activeGroupTypingStr() || store.activeGroup.description || 'Corporate operations hub'}
-                      </p>
                     </div>
 
                     {/* Stubs: Calls Buttons */}
@@ -963,7 +989,7 @@ export default function CommunityHubPage() {
 
         {/* =================================== TAB 2: SOCIAL WALL =================================== */}
         {activeTab === 'social' && (
-          <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-y-auto md:overflow-hidden min-h-0">
             {/* Feed Left Box - Create Post */}
             <div className="w-full md:w-96 bg-card-dark border border-slate-800 rounded-xl p-5 self-start space-y-4">
               <h3 className="text-xs font-bold text-gold uppercase tracking-wider">Share an Achievement</h3>
@@ -1019,7 +1045,7 @@ export default function CommunityHubPage() {
             </div>
 
             {/* Social Feed List */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="flex-1 md:overflow-y-auto space-y-4 pr-1">
               {store.socialPosts.length > 0 ? (
                 store.socialPosts.map((post) => (
                   <div key={post._id} className="bg-card-dark border border-slate-800 rounded-xl p-5 shadow-lg">
@@ -1158,8 +1184,8 @@ export default function CommunityHubPage() {
         {/* =================================== TAB 3: KNOWLEDGE BASE =================================== */}
         {activeTab === 'knowledge' && (
           <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 relative">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+              <div className="flex flex-wrap items-center gap-2">
                 {['SOP', 'Training', 'Tip', 'Document'].map((cat) => (
                   <button
                     key={cat}
