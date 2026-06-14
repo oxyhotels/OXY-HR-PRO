@@ -1,5 +1,5 @@
 import { adaptRoute } from '@/lib/adaptRoute';
-import { getAttendanceReport } from '@/controllers/report.controller';
+import { getAttendanceReportLogs } from '@/controllers/report.controller';
 import { authMiddleware } from '@/middlewares/auth.middleware';
 
-export const GET = adaptRoute(getAttendanceReport, { middlewares: [authMiddleware] });
+export const GET = adaptRoute(getAttendanceReportLogs, { middlewares: [authMiddleware] });

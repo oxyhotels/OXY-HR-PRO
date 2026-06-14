@@ -86,6 +86,7 @@ export default function IntelligentTasksPage() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'board' | 'war-room' | 'handover' | 'gamification' | 'ai-copilot'>('board');
   const [tasks, setTasks] = useState<TaskProfile[]>([]);
+  const [mobileSubTab, setMobileSubTab] = useState<'pending' | 'completed' | 'overdue'>('pending');
   const [employees, setEmployees] = useState<any[]>([]);
   const [hotels, setHotels] = useState<any[]>([]);
   const [incidents, setIncidents] = useState<IncidentProfile[]>([]);
@@ -550,37 +551,189 @@ export default function IntelligentTasksPage() {
       {/* Tab Contents */}
       
       {/* 1. OPERATIONS BOARD */}
-      {activeTab === 'board' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {columns.map((col) => {
-            const colTasks = tasks.filter((t) => t.status === col.status);
-            return (
-              <div key={col.status} className="bg-slate-900/40 rounded-xl p-4 border border-slate-800/80 flex flex-col h-[70vh]">
-                <div className="flex justify-between items-center mb-4 border-b border-slate-800/60 pb-2">
-                  <span className="font-extrabold text-xs text-white uppercase tracking-wider">{col.title}</span>
-                  <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold">
-                    {colTasks.length}
-                  </span>
-                </div>
+      {activeTab === 'board' && (() => {
+        const pendingTasks = tasks.filter((t) => t.status !== 'Completed');
+        const completedTasks = tasks.filter((t) => t.status === 'Completed');
+        const overdueTasks = tasks.filter((t) => {
+          const isTaskOverdue = t.dueDate && new Date(t.dueDate).getTime() < new Date().getTime();
+          return isTaskOverdue && t.status !== 'Completed';
+        });
+        const currentMobileTasks = mobileSubTab === 'pending' ? pendingTasks : mobileSubTab === 'completed' ? completedTasks : overdueTasks;
 
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-                  {colTasks.map((task) => {
-                    const isTaskOverdue = task.dueDate && new Date(task.dueDate).getTime() < new Date().getTime();
-                    return (
-                      <div
-                        key={task._id}
-                        onClick={() => handleOpenUpdate(task)}
-                        className="bg-card-dark border border-slate-800/60 rounded-lg p-4 hover:border-gold/30 transition-all cursor-pointer space-y-3 relative overflow-hidden"
-                      >
-                        {/* SLA Breach Indicator */}
-                        {task.slaBreached && (
-                          <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-bl shadow">
-                            SLA Breached
+        return (
+          <>
+            {/* Desktop View */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {columns.map((col) => {
+                const colTasks = tasks.filter((t) => t.status === col.status);
+                return (
+                  <div key={col.status} className="bg-slate-900/40 rounded-xl p-4 border border-slate-800/80 flex flex-col h-[70vh]">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-800/60 pb-2">
+                      <span className="font-extrabold text-xs text-white uppercase tracking-wider">{col.title}</span>
+                      <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                        {colTasks.length}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+                      {colTasks.map((task) => {
+                        const isTaskOverdue = task.dueDate && new Date(task.dueDate).getTime() < new Date().getTime();
+                        return (
+                          <div
+                            key={task._id}
+                            onClick={() => handleOpenUpdate(task)}
+                            className="bg-card-dark border border-slate-800/60 rounded-lg p-4 hover:border-gold/30 transition-all cursor-pointer space-y-3 relative overflow-hidden"
+                          >
+                            {/* SLA Breach Indicator */}
+                            {task.slaBreached && (
+                              <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-bl shadow">
+                                SLA Breached
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-start gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold border uppercase ${getPriorityColor(task.priority)}`}>
+                                {task.priority}
+                              </span>
+                              <span className="text-slate-500 font-mono text-[9px] flex items-center gap-1">
+                                <Calendar size={10} />
+                                {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+
+                            <h4 className="font-semibold text-xs text-slate-200 line-clamp-1">{task.title}</h4>
+                            <p className="text-[10px] text-slate-500 line-clamp-2">{task.description}</p>
+
+                            {/* SLA Countdown Timer */}
+                            {task.status === 'In_Progress' && task.slaStart && task.slaDuration && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                                <Clock size={11} className="text-gold" />
+                                <span>SLA Target: {task.slaDuration}m</span>
+                              </div>
+                            )}
+
+                            {/* Task Health Score */}
+                            {task.healthScore !== undefined && (
+                              <div className="flex justify-between items-center text-[10px]">
+                                <span className="text-slate-500">Ops Health:</span>
+                                <span className={`font-bold ${
+                                  task.healthScore >= 80 ? 'text-green-400' : task.healthScore >= 60 ? 'text-amber-400' : 'text-red-400'
+                                }`}>
+                                  {task.healthScore}/100
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Progress bar */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9px] text-slate-400">
+                                <span>Progress</span>
+                                <span>{task.progress}%</span>
+                              </div>
+                              <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden">
+                                <div className="h-full bg-gold" style={{ width: `${task.progress}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Assignee */}
+                            <div className="pt-2 border-t border-slate-800/40 flex justify-between items-center text-[10px]">
+                              <span className="text-slate-500">Assignee:</span>
+                              <span className="text-slate-300 font-medium text-right truncate max-w-[120px]">
+                                {task.assignedTo 
+                                  ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` 
+                                  : task.department 
+                                    ? `${task.department} Dept` 
+                                    : 'All Hotel Staff'}
+                              </span>
+                            </div>
+
+                            {/* Digital command timeline button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTask(task);
+                                setTimelineModalOpen(true);
+                              }}
+                              className="w-full py-1 bg-slate-950/40 border border-slate-800 hover:border-gold/30 rounded text-[9px] font-bold text-slate-400 hover:text-white uppercase transition-all"
+                            >
+                              View Audit Timeline
+                            </button>
                           </div>
-                        )}
+                        );
+                      })}
 
-                        <div className="flex justify-between items-start gap-2">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold border uppercase ${getPriorityColor(task.priority)}`}>
+                      {colTasks.length === 0 && (
+                        <div className="text-center py-8 text-slate-600 text-[11px] border border-dashed border-slate-800/60 rounded-lg">
+                          No tasks
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {/* Mobile Sub-tabs */}
+              <div className="flex bg-slate-950/60 p-1 rounded-xl border border-slate-850 gap-1 shadow-inner">
+                {[
+                  { id: 'pending', label: 'Pending', count: pendingTasks.length },
+                  { id: 'completed', label: 'Completed', count: completedTasks.length },
+                  { id: 'overdue', label: 'Overdue', count: overdueTasks.length },
+                ].map((subTab) => (
+                  <button
+                    key={subTab.id}
+                    type="button"
+                    onClick={() => setMobileSubTab(subTab.id as any)}
+                    className={`flex-1 py-2.5 rounded-lg text-center font-bold text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      mobileSubTab === subTab.id
+                        ? 'bg-gold text-slate-dark shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {subTab.label}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-black ${
+                      mobileSubTab === subTab.id ? 'bg-slate-dark text-gold' : 'bg-slate-850 text-slate-400'
+                    }`}>
+                      {subTab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Task Cards */}
+              <div className="space-y-3">
+                {currentMobileTasks.map((task) => {
+                  return (
+                    <div
+                      key={task._id}
+                      onClick={() => handleOpenUpdate(task)}
+                      className="bg-card-dark border border-slate-800/80 rounded-xl p-4 flex items-start gap-3 hover:border-gold/30 transition-all cursor-pointer relative overflow-hidden shadow-lg"
+                    >
+                      {/* SLA Breach Indicator */}
+                      {task.slaBreached && (
+                        <div className="absolute top-0 right-0 bg-red-650 text-white text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-bl shadow">
+                          SLA Breached
+                        </div>
+                      )}
+
+                      {/* Quick Completion Checkbox / Modal Trigger */}
+                      <div className="mt-0.5 flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={task.status === 'Completed'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleOpenUpdate(task);
+                          }}
+                          className="w-4.5 h-4.5 rounded border-slate-800 bg-slate-950 text-gold accent-gold cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase ${getPriorityColor(task.priority)}`}>
                             {task.priority}
                           </span>
                           <span className="text-slate-500 font-mono text-[9px] flex items-center gap-1">
@@ -589,21 +742,21 @@ export default function IntelligentTasksPage() {
                           </span>
                         </div>
 
-                        <h4 className="font-semibold text-xs text-slate-200 line-clamp-1">{task.title}</h4>
-                        <p className="text-[10px] text-slate-500 line-clamp-2">{task.description}</p>
+                        <h4 className="font-bold text-xs text-slate-200 truncate">{task.title}</h4>
+                        <p className="text-[10px] text-slate-450 line-clamp-2 leading-relaxed">{task.description}</p>
 
-                        {/* SLA Countdown Timer */}
+                        {/* SLA Info */}
                         {task.status === 'In_Progress' && task.slaStart && task.slaDuration && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                            <Clock size={11} className="text-gold" />
-                            <span>SLA Target: {task.slaDuration}m</span>
+                          <div className="flex items-center gap-1 text-[9px] text-slate-400 font-mono">
+                            <Clock size={10} className="text-gold" />
+                            <span>SLA: {task.slaDuration}m</span>
                           </div>
                         )}
 
-                        {/* Task Health Score */}
+                        {/* Health Score */}
                         {task.healthScore !== undefined && (
-                          <div className="flex justify-between items-center text-[10px]">
-                            <span className="text-slate-500">Ops Health:</span>
+                          <div className="flex justify-between items-center text-[9px] text-slate-500">
+                            <span>Health Index:</span>
                             <span className={`font-bold ${
                               task.healthScore >= 80 ? 'text-green-400' : task.healthScore >= 60 ? 'text-amber-400' : 'text-red-400'
                             }`}>
@@ -612,9 +765,9 @@ export default function IntelligentTasksPage() {
                           </div>
                         )}
 
-                        {/* Progress bar */}
+                        {/* Progress */}
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[9px] text-slate-400">
+                          <div className="flex justify-between text-[8px] text-slate-500">
                             <span>Progress</span>
                             <span>{task.progress}%</span>
                           </div>
@@ -623,44 +776,39 @@ export default function IntelligentTasksPage() {
                           </div>
                         </div>
 
-                        {/* Assignee */}
-                        <div className="pt-2 border-t border-slate-800/40 flex justify-between items-center text-[10px]">
-                          <span className="text-slate-500">Assignee:</span>
-                          <span className="text-slate-300 font-medium text-right truncate max-w-[120px]">
-                            {task.assignedTo 
-                              ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` 
-                              : task.department 
-                                ? `${task.department} Dept` 
-                                : 'All Hotel Staff'}
+                        {/* Assignee & Audit Button */}
+                        <div className="pt-2 border-t border-slate-800/40 flex justify-between items-center text-[9px] text-slate-500 gap-4">
+                          <span className="truncate">
+                            Assignee: <strong className="text-slate-350">{task.assignedTo ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` : task.department ? `${task.department} Dept` : 'All'}</strong>
                           </span>
+                          
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setTimelineModalOpen(true);
+                            }}
+                            className="bg-slate-950/60 hover:bg-slate-900 border border-slate-800 hover:border-gold/30 px-2 py-0.5 rounded text-[8px] font-bold text-slate-400 hover:text-white uppercase transition-all whitespace-nowrap cursor-pointer"
+                          >
+                            Audit Log
+                          </button>
                         </div>
-
-                        {/* Digital command timeline button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                            setTimelineModalOpen(true);
-                          }}
-                          className="w-full py-1 bg-slate-950/40 border border-slate-800 hover:border-gold/30 rounded text-[9px] font-bold text-slate-400 hover:text-white uppercase transition-all"
-                        >
-                          View Audit Timeline
-                        </button>
                       </div>
-                    );
-                  })}
-
-                  {colTasks.length === 0 && (
-                    <div className="text-center py-8 text-slate-600 text-[11px] border border-dashed border-slate-800/60 rounded-lg">
-                      No tasks
                     </div>
-                  )}
-                </div>
+                  );
+                })}
+
+                {currentMobileTasks.length === 0 && (
+                  <div className="text-center py-12 text-slate-650 text-xs border border-dashed border-slate-800/60 rounded-xl">
+                    No tasks in this list.
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* 2. WAR ROOM HUD */}
       {activeTab === 'war-room' && (

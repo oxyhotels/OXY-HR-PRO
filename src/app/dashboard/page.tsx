@@ -6,6 +6,10 @@ import { api } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 import { formatRole } from '../../lib/utils';
 import GoogleIcon from '../../components/GoogleIcon';
+import WorkLogDrawer from '../../components/reports/WorkLogDrawer';
+import EmployeeReportModal from '../../components/reports/EmployeeReportModal';
+import AttendanceAnalytics from '../../components/reports/AttendanceAnalytics';
+import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/reportExport';
 import {
   AreaChart,
   Area,
@@ -105,6 +109,8 @@ export default function DashboardPage() {
   const [selectedStaffName, setSelectedStaffName] = useState<string>('');
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
   const [selectedWorkLog, setSelectedWorkLog] = useState<any | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
+  const [reportEmployeeId, setReportEmployeeId] = useState<string | null>(null);
 
   // Staff Graph Specific States
   const [selectedStaffLogs, setSelectedStaffLogs] = useState<any[]>([]);
@@ -151,6 +157,18 @@ export default function DashboardPage() {
     } finally {
       setAttendanceLoading(false);
     }
+  };
+
+  const handleCSVExport = () => {
+    exportToCSV(filteredLogs, 'work_updates_report.csv');
+  };
+
+  const handleExcelExport = () => {
+    exportToExcel(filteredLogs, 'OXY Hotels HRMS - Employee Work Updates Report', 'work_updates_report.xlsx');
+  };
+
+  const handlePDFExport = () => {
+    exportToPDF(filteredLogs, 'OXY Hotels HRMS - Employee Work Updates Report', 'work_updates_report.pdf');
   };
 
   const fetchPendingUsers = async () => {
@@ -250,6 +268,17 @@ export default function DashboardPage() {
     }
     if (user && user.role !== 'EMPLOYEE') {
       fetchLiveAttendance();
+    }
+    if (user?.role === 'ROOT_ADMIN') {
+      const fetchHotelsList = async () => {
+        try {
+          const res = await api.get('/hotels/public');
+          setHotels(res.data.hotels || []);
+        } catch (err) {
+          console.error('Failed to fetch hotels', err);
+        }
+      };
+      fetchHotelsList();
     }
   }, [user]);
 
@@ -681,9 +710,11 @@ export default function DashboardPage() {
     }));
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Welcome Banner */}
-      <div className="relative glass-panel rounded-2xl p-6 md:p-8 overflow-hidden border border-gold/10">
+    <div className="max-w-7xl mx-auto">
+      {/* Desktop Dashboard Overview Layout */}
+      <div className="hidden md:block space-y-8">
+        {/* Welcome Banner */}
+        <div className="relative glass-panel rounded-2xl p-6 md:p-8 overflow-hidden border border-gold/10">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <span className="text-xs font-bold text-gold uppercase tracking-wider">Hospitality Administration Hub</span>
@@ -930,7 +961,47 @@ export default function DashboardPage() {
               <h2 className="text-base font-bold text-white">Employee Work Updates Logs</h2>
               <p className="text-slate-400 text-xs mt-0.5">Historical shift logs, daily tasks summaries, and evidence documents.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Analytics & Export Actions Toolbar */}
+              <div className="flex items-center gap-2 mr-2 border-r border-slate-800 pr-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAnalytics(true)}
+                  className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-900/50 hover:border-indigo-700 text-indigo-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Fullscreen Analytics Dashboard"
+                >
+                  <GoogleIcon name="analytics" size={14} />
+                  📊 Analytics
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCSVExport}
+                  className="px-3 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Export CSV"
+                >
+                  <GoogleIcon name="description" size={14} />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExcelExport}
+                  className="px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-900/50 hover:border-emerald-700 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Export Excel"
+                >
+                  <GoogleIcon name="table_view" size={14} />
+                  Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePDFExport}
+                  className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-900/50 hover:border-red-700 text-red-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Export PDF"
+                >
+                  <GoogleIcon name="picture_as_pdf" size={14} />
+                  PDF
+                </button>
+              </div>
+
               <div className="relative">
                 <GoogleIcon name="search" className="absolute left-3 top-2.5 text-slate-500" size={16} />
                 <input
@@ -944,7 +1015,7 @@ export default function DashboardPage() {
               <button
                 onClick={fetchLiveAttendance}
                 disabled={attendanceLoading}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-gold px-3 py-1.5 rounded border border-slate-700 disabled:opacity-40"
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-gold px-3 py-1.5 rounded border border-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 {attendanceLoading ? 'Refreshing...' : 'Refresh Logs'}
               </button>
@@ -1066,12 +1137,12 @@ export default function DashboardPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (log.employee) {
-                                router.push(`/dashboard/analytics?employeeId=${log.employee._id}`);
+                                setReportEmployeeId(log.employee._id);
                               }
                             }}
                             className="bg-slate-800 text-slate-300 hover:text-gold border border-slate-700 px-2.5 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer"
                           >
-                            Analytics
+                            View Report
                           </button>
                         </td>
                       </tr>
@@ -1153,6 +1224,198 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      </div>
+
+      {/* Mobile-First Dashboard Overview Layout */}
+      <div className="md:hidden space-y-6 pb-12">
+        {/* Mobile Greeting Header Card */}
+        <div className="bg-card-dark border border-slate-800/80 p-5 rounded-2xl shadow-lg flex items-center justify-between border-gold/10">
+          <div>
+            <span className="text-[10px] font-bold text-gold uppercase tracking-wider block">OXY Staff App</span>
+            <h2 className="text-base font-extrabold text-white mt-1">Hello, {user?.firstName}!</h2>
+            <p className="text-[10px] text-slate-400 mt-0.5">Let's make today productive.</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-slate-800 border border-gold/30 text-gold font-bold overflow-hidden flex items-center justify-center flex-shrink-0">
+            {user?.photoUrl ? (
+              <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs uppercase">{user?.firstName[0]}{user?.lastName[0]}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Date & Time Widget */}
+        <div className="grid grid-cols-2 gap-3 bg-slate-950/45 border border-slate-900/60 p-4 rounded-xl">
+          <div className="flex items-center gap-2">
+            <GoogleIcon name="calendar_today" className="text-gold" size={16} />
+            <div className="text-[10.5px]">
+              <span className="text-slate-500 block">Date</span>
+              <span className="font-bold text-slate-200">{currentDateStr}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <GoogleIcon name="schedule" className="text-gold" size={16} />
+            <div className="text-[10.5px]">
+              <span className="text-slate-500 block">Clock</span>
+              <span className="font-bold text-slate-200 font-mono">{currentTime || '--:--:--'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Feedback Banner */}
+        {feedback && (
+          <div className={`p-3 rounded-xl border text-[11px] flex items-center gap-2 ${
+            feedback.type === 'success' 
+              ? 'bg-green-950/30 border-green-500/30 text-green-300' 
+              : 'bg-red-950/30 border-red-500/30 text-red-300'
+          }`}>
+            <GoogleIcon name="info" size={14} />
+            <span>{feedback.message}</span>
+          </div>
+        )}
+
+        {/* Work Status Tracker Panel */}
+        {user?.role !== 'ROOT_ADMIN' && (
+          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg space-y-4 border-gold/10">
+            <div className="flex justify-between items-center border-b border-slate-800/60 pb-3">
+              <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Shift Status</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-gold/10 text-gold font-mono">
+                {todayAttendance ? (
+                  todayAttendance.checkOut ? 'Shift Ended' : isBreakActive ? 'On Break' : 'Active Duty'
+                ) : (
+                  'Off Duty'
+                )}
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-505 text-slate-500">Assigned Shift:</span>
+                <span className="font-semibold text-slate-355 text-slate-300">{user?.shift || 'General Shift'}</span>
+              </div>
+              {todayAttendance && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Clock-In Time:</span>
+                    <span className="font-semibold text-slate-250 font-mono">
+                      {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-505 text-slate-500">Total Working Duration:</span>
+                    <span className="font-semibold text-slate-250 font-mono">{todayAttendance.totalWorkingHours || 0} hrs</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Quick action buttons */}
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+                disabled={actionLoading || !!todayAttendance}
+                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+              >
+                <GoogleIcon name="play_arrow" size={14} /> Check In
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+                disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
+                className="bg-red-650 hover:bg-red-550 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+              >
+                <GoogleIcon name="stop" size={14} /> Check Out
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
+                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+              >
+                <GoogleIcon name="coffee" size={14} /> Break Start
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+              >
+                <GoogleIcon name="play_arrow" size={14} /> Break End
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Summary Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-card-dark border border-slate-800/80 p-4 rounded-xl shadow-md border-gold/5 flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">My Tasks</span>
+              <GoogleIcon name="fact_check" size={16} className="text-gold" />
+            </div>
+            <div className="mt-3">
+              <h3 className="text-xl font-extrabold text-slate-200">{stats?.pendingTasks || 0}</h3>
+              <p className="text-[9.5px] text-slate-500 mt-0.5">Pending assigned</p>
+            </div>
+          </div>
+          <div className="bg-card-dark border border-slate-800/80 p-4 rounded-xl shadow-md border-gold/5 flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <span className="text-[9px] text-slate-505 text-slate-500 font-bold uppercase tracking-wider">Leave Balances</span>
+              <GoogleIcon name="description" size={16} className="text-gold" />
+            </div>
+            <div className="mt-3">
+              <h3 className="text-xl font-extrabold text-slate-200">{stats?.pendingLeaves || 0}</h3>
+              <p className="text-[9.5px] text-slate-500 mt-0.5">Pending approvals</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Pending onboarding approvals for Admins */}
+        {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') && pendingUsers.length > 0 && (
+          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg border-gold/10 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Staff Onboarding</span>
+              <span className="text-[9.5px] text-red-400 font-bold font-mono">{pendingUsers.length} Action Needed</span>
+            </div>
+            <p className="text-[11px] text-slate-400">There are pending staff registration requests waiting for review.</p>
+            <button
+              type="button"
+              onClick={() => setShowApprovalModal(true)}
+              className="w-full bg-gold hover:bg-gold-light text-slate-dark text-[10.5px] font-extrabold py-2.5 rounded-xl transition-all shadow-md gold-glow cursor-pointer border-0"
+            >
+              Review Requests ({pendingUsers.length})
+            </button>
+          </div>
+        )}
+
+        {/* Team updates feed for managers */}
+        {user?.role !== 'EMPLOYEE' && (
+          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg border-gold/10 space-y-4">
+            <h3 className="text-[10px] font-bold text-gold uppercase tracking-wider">Team Activity Stream</h3>
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              {filteredLogs.slice(0, 10).map((log) => (
+                <div key={log._id} className="flex gap-3 p-2.5 bg-slate-950/20 border border-slate-900 rounded-xl text-[11px]">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-gold font-bold uppercase flex-shrink-0">
+                    {log.employee?.photoUrl ? (
+                      <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      <span>{log.employee?.firstName[0]}{log.employee?.lastName[0]}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-200 truncate">{log.employee?.firstName} {log.employee?.lastName}</p>
+                    <p className="text-slate-505 text-slate-500 text-[10px] mt-0.5">{log.status} &bull; {log.totalWorkingHours || 8} hrs</p>
+                  </div>
+                </div>
+              ))}
+              {filteredLogs.length === 0 && (
+                <p className="text-slate-500 text-center py-4 italic text-[10.5px]">No logs matching query.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Work Out Evidence Input Modal */}
       {workOutModalOpen && (
@@ -1587,179 +1850,27 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Employee Work Update Details Modal */}
-      {selectedWorkLog && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-card-dark border border-gold/30 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
-            {/* Header */}
-            <div className="flex justify-between items-start border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-bold text-sm">
-                  {selectedWorkLog.employee?.photoUrl ? (
-                    <img src={selectedWorkLog.employee.photoUrl} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    selectedWorkLog.employee?.firstName?.[0] || 'U'
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-sm">
-                    {selectedWorkLog.employee?.firstName} {selectedWorkLog.employee?.lastName}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-slate-400 font-mono">{selectedWorkLog.employee?.email}</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-600" />
-                    <span className="text-[9px] bg-gold/10 text-gold border border-gold/10 px-1.5 py-0.5 rounded font-semibold uppercase">
-                      {selectedWorkLog.employee?.role ? formatRole(selectedWorkLog.employee.role) : 'Staff'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedWorkLog(null)} 
-                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-              >
-                <GoogleIcon name="close" size={18} />
-              </button>
-            </div>
+      {/* Employee Work Update Details Drawer */}
+      <WorkLogDrawer 
+        isOpen={!!selectedWorkLog} 
+        onClose={() => setSelectedWorkLog(null)} 
+        log={selectedWorkLog} 
+      />
 
-            {/* Info Summary Row */}
-            <div className="grid grid-cols-3 gap-4 bg-slate-950/40 p-4 rounded-xl border border-slate-900 text-xs">
-              <div>
-                <p className="text-slate-500 font-semibold uppercase text-[9px]">Shift Date</p>
-                <p className="text-slate-200 font-semibold font-mono mt-0.5">{selectedWorkLog.date}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 font-semibold uppercase text-[9px]">Check-In / Out</p>
-                <p className="text-slate-200 mt-0.5">
-                  {selectedWorkLog.checkIn ? new Date(selectedWorkLog.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                  {' '}→{' '}
-                  {selectedWorkLog.checkOut ? new Date(selectedWorkLog.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-500 font-semibold uppercase text-[9px]">Duty Hours</p>
-                <p className="text-gold font-bold mt-0.5">{selectedWorkLog.totalWorkingHours || 0} hrs</p>
-              </div>
-            </div>
+      {/* Advanced Fullscreen Analytics Dashboard overlay */}
+      <AttendanceAnalytics 
+        isOpen={showAnalytics} 
+        onClose={() => setShowAnalytics(false)} 
+        user={user} 
+        hotels={hotels} 
+      />
 
-            {/* GPS, Selfie & Property Verification Info */}
-            <div className="space-y-3 p-4 bg-slate-950/40 rounded-xl border border-slate-900 text-xs">
-              <h4 className="text-[10px] font-bold text-gold uppercase tracking-wider">🔒 Check-In Verification Info</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-slate-500 font-semibold uppercase text-[9px]">Property Name</p>
-                  <p className="text-slate-200 font-semibold mt-0.5">{selectedWorkLog.hotel?.name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 font-semibold uppercase text-[9px]">Property Code</p>
-                  <p className="text-slate-200 font-semibold font-mono mt-0.5 uppercase">{selectedWorkLog.hotel?.code || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 font-semibold uppercase text-[9px]">Shift</p>
-                  <p className="text-slate-200 font-semibold mt-0.5">{selectedWorkLog.employee?.shift || 'General Shift'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 font-semibold uppercase text-[9px]">GPS Coordinates</p>
-                  {selectedWorkLog.checkInLatitude !== undefined ? (
-                    <p className="text-slate-200 font-mono mt-0.5">
-                      {selectedWorkLog.checkInLatitude.toFixed(4)}°, {selectedWorkLog.checkInLongitude?.toFixed(4)}°
-                    </p>
-                  ) : (
-                    <p className="text-slate-505 italic mt-0.5 text-slate-500">No GPS (Exempt)</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Check-In Selfie Preview */}
-              {selectedWorkLog.checkInPhoto && (
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-slate-500 font-semibold uppercase text-[9px]">Check-In Selfie</p>
-                  <div className="relative w-32 aspect-square rounded-lg overflow-hidden border border-slate-805 hover:border-gold/30 transition-colors">
-                    <img 
-                      src={selectedWorkLog.checkInPhoto} 
-                      alt="Check-in Selfie" 
-                      className="w-full h-full object-cover"
-                    />
-                    <div 
-                      className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                      onClick={() => setSelectedPreviewImage(selectedWorkLog.checkInPhoto)}
-                    >
-                      <span className="text-[8px] bg-slate-900/90 text-gold px-1.5 py-0.5 rounded border border-gold/20 font-bold uppercase">
-                        View
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Work Description */}
-            <div className="space-y-2">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">📋 Daily Task Update Summary</h4>
-              <div className="bg-slate-950/60 border border-slate-850 p-4 rounded-xl max-h-[180px] overflow-y-auto">
-                <p className="text-slate-200 leading-relaxed font-sans text-xs whitespace-pre-wrap">
-                  {selectedWorkLog.workDescription}
-                </p>
-              </div>
-            </div>
-
-            {/* Evidence Attachments */}
-            {(selectedWorkLog.workPictureUrl || selectedWorkLog.workVideoUrl) && (
-              <div className="space-y-2.5">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">📸 Submitted Duty Evidence</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedWorkLog.workPictureUrl && (
-                    <div className="flex flex-col bg-slate-950/40 border border-slate-900 rounded-xl p-3 items-center">
-                      <span className="text-[9px] text-slate-500 uppercase font-semibold mb-2 self-start">Duty Snapshot</span>
-                      <div className="relative w-full aspect-video rounded-lg overflow-hidden group border border-slate-800 hover:border-gold/30 transition-colors">
-                        <img 
-                          src={selectedWorkLog.workPictureUrl} 
-                          alt="Work evidence photo" 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div 
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                          onClick={() => {
-                            setSelectedPreviewImage(selectedWorkLog.workPictureUrl);
-                          }}
-                        >
-                          <span className="text-[10px] bg-slate-900/90 text-gold px-2.5 py-1 rounded-md border border-gold/20 font-bold uppercase tracking-wider">
-                            Enlarge Image
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedWorkLog.workVideoUrl && (
-                    <div className="flex flex-col bg-slate-950/40 border border-slate-900 rounded-xl p-3 items-center">
-                      <span className="text-[9px] text-slate-500 uppercase font-semibold mb-2 self-start">Video Summary</span>
-                      <div className="w-full aspect-video rounded-lg overflow-hidden bg-black border border-slate-800">
-                        <video 
-                          src={selectedWorkLog.workVideoUrl} 
-                          controls 
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Modal Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setSelectedWorkLog(null)}
-                className="bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white px-5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Close Review
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Interactive 30-Day Employee Report Modal */}
+      <EmployeeReportModal 
+        isOpen={!!reportEmployeeId} 
+        onClose={() => setReportEmployeeId(null)} 
+        employeeId={reportEmployeeId || ''} 
+      />
 
       {/* Root Admin Onboarding Approvals Modal */}
       {showApprovalModal && selectedPendingUser && (

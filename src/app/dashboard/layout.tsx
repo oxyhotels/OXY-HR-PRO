@@ -521,20 +521,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         {/* Header - Mobile & Action bar */}
         <header className="flex items-center justify-between h-16 bg-card-dark border-b border-slate-800/80 px-4 md:px-8 z-20">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="text-slate-400 hover:text-white md:hidden"
+              className="text-slate-400 hover:text-white cursor-pointer"
             >
-              <GoogleIcon name="menu" size={24} />
+              <GoogleIcon name="menu" size={22} />
             </button>
+            {/* Mobile Brand Logo */}
+            <div className="md:hidden flex items-center">
+              <img src="/oxy-logo.jpeg" alt="OXY Logo" className="h-6 w-auto object-contain rounded" />
+            </div>
             <div className="hidden md:flex flex-col">
               <span className="text-[10px] uppercase font-bold text-gold tracking-widest">Enterprise Platform</span>
               <h2 className="text-base font-bold text-white capitalize">{pathname.split('/').pop() || 'Overview'}</h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
             {/* Clock Widget */}
             <div className="hidden lg:flex flex-col items-end text-xs text-slate-400 font-medium">
               <span>Shift Time Zone: {timeZoneStr || 'UTC-5 (EST)'}</span>
@@ -544,7 +548,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Notification Bell Widget & Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    router.push('/dashboard/notifications');
+                  } else {
+                    setShowNotifications(!showNotifications);
+                  }
+                }}
                 className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-gold transition-colors relative flex items-center justify-center cursor-pointer"
                 title="Notifications"
               >
@@ -641,21 +651,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
 
+            {/* Profile Avatar Trigger */}
+            <button
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  router.push('/dashboard/profile');
+                } else {
+                  setProfileModalOpen(true);
+                }
+              }}
+              className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-bold overflow-hidden cursor-pointer flex-shrink-0"
+              title="My Profile"
+            >
+              {user?.photoUrl ? (
+                <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <GoogleIcon name="person" size={16} />
+              )}
+            </button>
+
             {/* User status Indicator */}
-            <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
+            <div className="hidden sm:flex items-center gap-2 border-l border-slate-800 pl-3">
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-semibold text-slate-300 uppercase hidden sm:inline">Online</span>
+              <span className="text-xs font-semibold text-slate-300 uppercase">Online</span>
             </div>
           </div>
         </header>
 
         {/* Content body with responsive scrolling */}
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-full flex flex-col justify-between">
+        <main className="flex-1 p-3 md:p-8 pb-20 md:pb-8 overflow-y-auto max-w-full flex flex-col justify-between">
           <div className="flex-1">
             {children}
           </div>
           <Footer forceRender className="mt-12" />
         </main>
+
+        {/* Mobile Bottom Navigation */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card-dark/95 backdrop-blur-md border-t border-slate-800/60 z-35 flex justify-around items-center px-2">
+          {[
+            { name: 'Home', href: '/dashboard', icon: 'home' },
+            { name: 'Attendance', href: '/dashboard/attendance', icon: 'event_available' },
+            { name: 'Tasks', href: '/dashboard/tasks', icon: 'fact_check' },
+            { name: 'LMS', href: '/dashboard/lms', icon: 'school' },
+            { name: 'Community', href: '/dashboard/community', icon: 'forum' }
+          ].map((tab) => {
+            const isActive = pathname === tab.href;
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+                  isActive ? 'text-gold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <GoogleIcon name={tab.icon} size={22} className={isActive ? 'scale-110' : ''} />
+                <span className="text-[9px] font-bold mt-1 tracking-wider uppercase">{tab.name}</span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {/* Profile Form Modal */}

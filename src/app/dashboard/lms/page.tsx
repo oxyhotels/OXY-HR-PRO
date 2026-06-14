@@ -1358,6 +1358,90 @@ export default function LmsPage() {
                 )}
               </div>
 
+              {/* Mobile-only Modules and Assessment checklist */}
+              <div className="lg:hidden space-y-6">
+                {/* Modules list panel */}
+                <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-4">
+                  <div>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Lesson Modules</h3>
+                    <p className="text-[9px] text-slate-550 mt-0.5">Complete all lessons to unlock final compliance quiz.</p>
+                  </div>
+
+                  <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                    {selectedCourse.modules.map((mod, idx) => {
+                      const isCompleted = watchHistories[selectedCourse._id]?.completedModules?.includes(idx);
+                      const isActive = activeModuleIndex === idx && !quizActive;
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => { setQuizActive(false); setActiveModuleIndex(idx); }}
+                          className={`p-3 rounded-lg border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                            isActive
+                              ? 'bg-gold/10 border-gold/40 text-white'
+                              : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:border-slate-750'
+                          }`}
+                        >
+                          <div className="flex gap-2 min-w-0">
+                            <div className="mt-0.5 flex-shrink-0">
+                              {isCompleted ? (
+                                <CheckCircle2 size={12} className="text-green-500" />
+                              ) : (
+                                <Play size={12} className={isActive ? 'text-gold' : 'text-slate-500'} />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className={`text-[9px] font-bold uppercase tracking-wider ${isActive ? 'text-gold' : 'text-slate-500'}`}>
+                                Module {idx + 1}
+                              </div>
+                              <div className="text-[10.5px] font-medium text-white truncate mt-0.5">{mod.title}</div>
+                            </div>
+                          </div>
+                          <span className="text-[8px] bg-slate-900 px-1.5 py-0.5 text-slate-500 rounded uppercase font-mono flex-shrink-0">
+                            {mod.duration || 0}m
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Assessment Panel Trigger */}
+                {selectedCourse.isCertificationEnabled !== false && (
+                  <div className="glass-panel border border-slate-800/80 rounded-xl p-4 space-y-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <Award size={24} className="text-gold" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">Course Certification</h3>
+                    </div>
+                    <p className="text-[9px] text-slate-400 leading-relaxed max-w-[280px] mx-auto">
+                      Completing all video lessons unlocks the mandatory score quiz for issuing official credentials.
+                    </p>
+
+                    {/* Unlock details indicator */}
+                    {(() => {
+                      const complCount = watchHistories[selectedCourse._id]?.completedModules?.length || 0;
+                      const totalCount = selectedCourse.modules.length;
+                      const allDone = complCount >= totalCount;
+
+                      return allDone ? (
+                        <button
+                          type="button"
+                          onClick={handleOpenQuiz}
+                          className="w-full bg-gold hover:bg-gold-light text-slate-dark font-extrabold py-2 rounded-lg text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                          Start Assessment Quiz
+                        </button>
+                      ) : (
+                        <div className="w-full bg-slate-950 border border-slate-850/80 p-2.5 rounded-lg text-slate-400 text-[10px] flex items-center justify-between font-mono">
+                          <span>Modules complete:</span>
+                          <span className="font-bold text-gold">{complCount} / {totalCount}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
               {/* Module contents detailing */}
               <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 space-y-4">
                 <div className="flex justify-between items-start">
@@ -1531,7 +1615,7 @@ export default function LmsPage() {
             </div>
 
             {/* Right Column: Lessons Checklist & Assessments */}
-            <div className="space-y-6">
+            <div className="hidden lg:block space-y-6">
               
               {/* Modules list panel */}
               <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 space-y-4">
