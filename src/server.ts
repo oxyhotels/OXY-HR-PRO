@@ -105,6 +105,9 @@ nextApp.prepare().then(async () => {
       onlineUsers.get(userId)!.socketIds.add(socket.id);
     }
 
+    // Join user-specific room for notifications
+    socket.join(`user_${userId}`);
+
     // Handle joining chat rooms corresponding to specific community groups
     socket.on('join_group', (groupId: string) => {
       socket.join(`group_${groupId}`);

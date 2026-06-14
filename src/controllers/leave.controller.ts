@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Leave } from '@/models/Leave';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
+import { createNotification } from '@/services/notification.service';
 
 export const requestLeave = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -25,6 +26,15 @@ export const requestLeave = async (req: Request, res: Response, next: NextFuncti
       action: 'LEAVE_REQUEST',
       module: 'LEAVE',
       details: `Leave requested from ${startDate} to ${endDate} for reason: ${reason}`,
+    });
+
+    // Trigger notification to ROOT_ADMIN
+    await createNotification({
+      title: 'Leave Application Request',
+      message: `${req.user.firstName} ${req.user.lastName} requested leave (${leaveType}) from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.`,
+      type: 'warning',
+      link: '/dashboard/leaves',
+      recipientRole: 'ROOT_ADMIN'
     });
 
     res.status(201).json({

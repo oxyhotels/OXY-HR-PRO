@@ -51,16 +51,72 @@ export default function AttendancePage() {
   const [selectedMonth, setSelectedMonth] = useState('2026-06');
   const [selectedDate, setSelectedDate] = useState('2026-06-08');
   const [viewMode, setViewMode] = useState<'personal' | 'hotel'>('personal');
-  const [viewAllHotelLogs, setViewAllHotelLogs] = useState(false);
+  const [viewAllHotelLogs, setViewAllHotelLogs] = useState(true);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
   const [selectedWorkLog, setSelectedWorkLog] = useState<AttendanceLog | null>(null);
 
+  // Shift assignment states
+  const [users, setUsers] = useState<any[]>([]);
+  const [assignShiftUser, setAssignShiftUser] = useState<any | null>(null);
+  const [assignShiftModalOpen, setAssignShiftModalOpen] = useState(false);
+  const [selectedShift, setSelectedShift] = useState('General Shift (09:00 AM - 05:00 PM)');
+  const [assigningShift, setAssigningShift] = useState(false);
+
+  const shiftOptions = [
+    'General Shift (09:00 AM - 05:00 PM)',
+    'Morning Shift (07:00 AM - 03:00 PM)',
+    'Afternoon Shift (03:00 PM - 11:00 PM)',
+    'Night Shift (11:00 PM - 07:00 AM)',
+  ];
+
   const isManager = user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'DEPT_MANAGER';
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/employees');
+      setUsers(res.data.employees || []);
+    } catch (err) {
+      console.error('Failed to fetch employees for shift assignment', err);
+    }
+  };
+
+  const assignableUsers = users.filter((u) => {
+    if (user?.role === 'ROOT_ADMIN') {
+      return u.role !== 'ROOT_ADMIN';
+    }
+    return u.role === 'EMPLOYEE';
+  });
+
+  const handleOpenAssignShift = (userObj: any) => {
+    setAssignShiftUser(userObj);
+    setSelectedShift(userObj.shift || 'General Shift (09:00 AM - 05:00 PM)');
+    setAssignShiftModalOpen(true);
+  };
+
+  const handleAssignShiftSubmit = async () => {
+    if (!assignShiftUser) return;
+    setAssigningShift(true);
+    try {
+      await api.put(`/employees/${assignShiftUser._id}`, {
+        shift: selectedShift,
+      });
+      setAssignShiftModalOpen(false);
+      setAssignShiftUser(null);
+      fetchUsers();
+      fetchLogs();
+      alert('Shift assigned successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign shift');
+    } finally {
+      setAssigningShift(false);
+    }
+  };
 
   useEffect(() => {
     // Set default view mode based on role
     if (isManager) {
       setViewMode('hotel');
+      fetchUsers();
     }
   }, [isManager]);
 
@@ -133,16 +189,29 @@ export default function AttendancePage() {
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-6 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider">Shift Date:</span>
-              <input
-                type="date"
-                disabled={viewAllHotelLogs}
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-white disabled:opacity-40"
-              />
-            </div>
+            {isManager && (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-semibold uppercase tracking-wider">Assign Shift:</span>
+                <select
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) {
+                      const u = assignableUsers.find(item => item._id === val);
+                      if (u) handleOpenAssignShift(u);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-white cursor-pointer focus:outline-none focus:border-gold"
+                >
+                  <option value="">Select Employee / Manager...</option>
+                  {assignableUsers.map(u => (
+                    <option key={u._id} value={u._id}>
+                      {u.firstName} {u.lastName} ({u.role.replace('_', ' ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -179,7 +248,7 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {logs.map((log) => (
+                {logs.filter(log => log.employee).map((log) => (
                   <tr key={log._id} className="hover:bg-slate-900/20 transition-colors">
                     <td className="p-4 font-semibold text-white">
                       <div className="flex items-center gap-1.5">
@@ -408,6 +477,85 @@ export default function AttendancePage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Shift Modal */}
+      {assignShiftModalOpen && assignShiftUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card-dark border border-gold/20 rounded-xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <GoogleIcon name="schedule" className="text-gold animate-pulse" size={18} />
+                Assign Shift
+              </h3>
+              <button 
+                onClick={() => {
+                  setAssignShiftModalOpen(false);
+                  setAssignShiftUser(null);
+                }} 
+                className="text-slate-400 hover:text-white"
+              >
+                <GoogleIcon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-3">
+              <div>
+                <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider block">Staff Name</span>
+                <span className="text-slate-200 font-bold text-sm block mt-0.5">
+                  {assignShiftUser.firstName} {assignShiftUser.lastName}
+                </span>
+                <span className="text-slate-500 font-mono text-[10px]">
+                  Role: {assignShiftUser.role.replace('_', ' ')} | Dept: {assignShiftUser.department || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider block">Current Shift</span>
+                <span className="text-gold font-semibold font-mono block mt-0.5">
+                  {assignShiftUser.shift || 'General Shift (09:00 AM - 05:00 PM)'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 border-t border-slate-800/60 pt-3">
+                <label className="block text-slate-400 font-semibold uppercase text-[9px] tracking-wider flex items-center gap-1.5">
+                  <GoogleIcon name="schedule" className="text-gold" size={12} />
+                  Select New Shift
+                </label>
+                
+                <div className="relative flex items-center">
+                  <select
+                    value={selectedShift}
+                    onChange={(e) => setSelectedShift(e.target.value)}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-white cursor-pointer focus:outline-none focus:border-gold max-h-40 overflow-y-auto"
+                  >
+                    {shiftOptions.map((s, idx) => (
+                      <option key={idx} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[9px] text-slate-500 italic mt-1 leading-relaxed">
+                  Hover/focus over the selection field and scroll down to select from all active shifts.
+                </p>
+              </div>
+
+              <button
+                onClick={handleAssignShiftSubmit}
+                disabled={assigningShift}
+                className="w-full bg-gold hover:bg-gold-light text-slate-dark font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer mt-4"
+              >
+                {assigningShift ? (
+                  <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
+                ) : (
+                  <GoogleIcon name="check" size={14} />
+                )}
+                Confirm Assignment
+              </button>
             </div>
           </div>
         </div>

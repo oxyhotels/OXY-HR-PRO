@@ -8,6 +8,7 @@ import { formatRole } from '../../lib/utils';
 import GoogleIcon from '../../components/GoogleIcon';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
+import { io } from 'socket.io-client';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,6 +16,96 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, setAuth, clearAuth, isAuthenticated } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Notifications states
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load notifications and start WebSocket connection
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get('/notifications');
+        if (res?.status === 'success' && res?.data?.notifications) {
+          setNotifications(res.data.notifications);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notifications:', err);
+      }
+    };
+
+    fetchNotifications();
+
+    const socketToken = useAuthStore.getState().accessToken;
+    if (!socketToken) return;
+
+    const socketConn = io({
+      auth: {
+        token: socketToken
+      }
+    });
+
+    socketConn.on('connect', () => {
+      console.log('[Dashboard Layout Socket connected for notifications]');
+    });
+
+    socketConn.on('new_notification', (notification: any) => {
+      console.log('[Socket Received new notification]', notification);
+      setNotifications(prev => [notification, ...prev]);
+    });
+
+    return () => {
+      socketConn.disconnect();
+    };
+  }, [user]);
+
+  // Click outside listener for dropdown close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await api.patch('/notifications');
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await api.patch(`/notifications/${id}`);
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return { icon: 'event_available', color: 'text-green-400 bg-green-500/10 border-green-500/20' };
+      case 'warning':
+        return { icon: 'date_range', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+      case 'info':
+        return { icon: 'person_add', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
+      case 'alert':
+      default:
+        return { icon: 'notifications_active', color: 'text-red-400 bg-red-500/10 border-red-500/20' };
+    }
+  };
 
   // Profile modal states
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -271,6 +362,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Leaves', href: '/dashboard/leaves', icon: 'description', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Payroll & Payslips', href: '/dashboard/payroll', icon: 'payments', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'EMPLOYEE'] },
     { name: 'Reports & Analytics', href: '/dashboard/reports', icon: 'trending_up', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'] },
+    { name: 'Workforce Analytics', href: '/dashboard/analytics', icon: 'query_stats', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'] },
     { name: 'LMS Courses', href: '/dashboard/lms', icon: 'school', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Operations Tickets', href: '/dashboard/tickets', icon: 'support', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Compliance Audits', href: '/dashboard/compliance', icon: 'shield', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'] },
@@ -449,11 +541,105 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="text-gold font-mono mt-0.5">{currentDate} {currentTime}</span>
             </div>
 
-            {/* Notification alert icon */}
-            <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-gold transition-colors relative">
-              <GoogleIcon name="notifications" size={20} />
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-gold rounded-full" />
-            </button>
+            {/* Notification Bell Widget & Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-gold transition-colors relative flex items-center justify-center cursor-pointer"
+                title="Notifications"
+              >
+                <GoogleIcon name="notifications" size={20} />
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-1 right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-gold"></span>
+                  </span>
+                )}
+              </button>
+
+              {/* Responsive Dropdown Glass Panel */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-card-dark/95 backdrop-blur-md border border-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250 flex flex-col max-h-[480px]">
+                  
+                  {/* Header */}
+                  <div className="p-4 border-b border-slate-800/60 flex items-center justify-between bg-slate-900/30 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Inbox Notifications</span>
+                      {notifications.filter(n => !n.read).length > 0 && (
+                        <span className="text-[10px] bg-gold/15 border border-gold/30 text-gold px-2 py-0.5 rounded-full font-bold">
+                          {notifications.filter(n => !n.read).length} New
+                        </span>
+                      )}
+                    </div>
+                    {notifications.some(n => !n.read) && (
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        className="text-[11px] text-gold hover:text-gold-light hover:underline font-bold transition-all cursor-pointer"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Notification items */}
+                  <div className="flex-1 overflow-y-auto divide-y divide-slate-800/40 max-h-[360px] scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+                        <GoogleIcon name="notifications_off" size={32} className="text-slate-650" />
+                        <p className="text-xs font-semibold">All clean! No new notifications.</p>
+                      </div>
+                    ) : (
+                      notifications.map((notif) => {
+                        const { icon, color } = getNotificationIcon(notif.type);
+                        return (
+                          <div
+                            key={notif._id}
+                            onClick={() => handleMarkAsRead(notif._id)}
+                            className={`p-3.5 flex items-start gap-3.5 hover:bg-slate-800/60 cursor-pointer transition-colors ${
+                              !notif.read ? 'bg-slate-900/30 border-l-2 border-gold' : ''
+                            }`}
+                          >
+                            {/* Icon Indicator */}
+                            <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 ${color}`}>
+                              <GoogleIcon name={icon} size={18} />
+                            </div>
+
+                            {/* Message Body */}
+                            <div className="flex-1 min-w-0 text-left">
+                              <div className="flex justify-between items-start gap-1">
+                                <h4 className={`text-xs font-bold truncate ${!notif.read ? 'text-white' : 'text-slate-300'}`}>
+                                  {notif.title}
+                                </h4>
+                                <span className="text-[9px] text-slate-500 font-mono flex-shrink-0">
+                                  {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                                {notif.message}
+                              </p>
+                              {notif.link && (
+                                <Link
+                                  href={notif.link}
+                                  onClick={() => setShowNotifications(false)}
+                                  className="inline-flex items-center gap-1 text-[10px] text-gold hover:text-gold-light font-bold mt-2 uppercase tracking-wider hover:underline"
+                                >
+                                  View Action &rarr;
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  
+                  {/* Footer */}
+                  <div className="p-3 border-t border-slate-800/60 text-center bg-slate-900/20 flex-shrink-0">
+                    <span className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">OXY-HR PRO Notification Feed</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User status Indicator */}
             <div className="flex items-center gap-2 border-l border-slate-800 pl-4">

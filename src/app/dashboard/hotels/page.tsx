@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
-import { Plus, Edit2, Trash2, ShieldAlert, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldAlert, Check, X, Loader2, MapPin } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 interface HotelData {
@@ -19,6 +19,7 @@ interface HotelData {
     zip: string;
     country: string;
   };
+  googleLocationLink?: string;
   status: 'Active' | 'Suspended';
   subscriptionPlan: 'Standard' | 'Premium' | 'Enterprise';
 }
@@ -73,6 +74,7 @@ export default function HotelsPage() {
       state: '',
       zip: '',
       country: 'USA',
+      googleLocationLink: '',
       subscriptionPlan: 'Standard',
       status: 'Active',
     });
@@ -91,6 +93,7 @@ export default function HotelsPage() {
       state: hotel.address.state,
       zip: hotel.address.zip,
       country: hotel.address.country,
+      googleLocationLink: hotel.googleLocationLink || '',
       subscriptionPlan: hotel.subscriptionPlan,
       status: hotel.status,
     });
@@ -122,6 +125,7 @@ export default function HotelsPage() {
         zip: values.zip,
         country: values.country,
       },
+      googleLocationLink: values.googleLocationLink,
       subscriptionPlan: values.subscriptionPlan,
       status: values.status,
     };
@@ -178,7 +182,22 @@ export default function HotelsPage() {
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {hotels.map((hotel) => (
                   <tr key={hotel._id} className="hover:bg-slate-900/20 transition-colors">
-                    <td className="p-4 font-semibold text-white">{hotel.name}</td>
+                    <td className="p-4 font-semibold text-white">
+                      <div className="flex items-center gap-2">
+                        {hotel.name}
+                        {hotel.googleLocationLink && (
+                          <a
+                            href={hotel.googleLocationLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gold hover:text-gold-light transition-colors"
+                            title="View on Google Maps"
+                          >
+                            <MapPin size={14} />
+                          </a>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-4 font-mono text-gold uppercase">{hotel.code}</td>
                     <td className="p-4">
                       <div>{hotel.email || '—'}</div>
@@ -334,6 +353,15 @@ export default function HotelsPage() {
                     required
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
                     {...register('country')}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Google Location Link</label>
+                  <input
+                    type="url"
+                    placeholder="https://maps.google.com/?q=..."
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
+                    {...register('googleLocationLink')}
                   />
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { Attendance } from '@/models/Attendance';
 import { ApiError } from '@/utils/ApiError';
 import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
+import { createNotification } from '@/services/notification.service';
 
 // Helper to get today's date string in local time YYYY-MM-DD
 const getLocalDateString = (): string => {
@@ -97,6 +98,25 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       deviceInfo: deviceInfo || undefined,
       browserInfo: browserInfo || undefined,
       ipAddress: ipAddress || undefined,
+    });
+
+    // Resolve property name for notification description
+    let propertyName = 'Property';
+    const finalHotelId = hotelId || req.user.hotel;
+    if (finalHotelId) {
+      const hotelDoc = await Hotel.findById(finalHotelId);
+      if (hotelDoc) {
+        propertyName = hotelDoc.name;
+      }
+    }
+
+    // Trigger notification to ROOT_ADMIN
+    await createNotification({
+      title: 'Staff Check-In',
+      message: `${req.user.firstName} ${req.user.lastName} checked in to ${propertyName} at ${checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+      type: 'success',
+      link: '/dashboard/attendance',
+      recipientRole: 'ROOT_ADMIN'
     });
 
     res.status(201).json({

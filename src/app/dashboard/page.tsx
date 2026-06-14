@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
+import { useRouter } from 'next/navigation';
 import { formatRole } from '../../lib/utils';
 import GoogleIcon from '../../components/GoogleIcon';
 import {
@@ -29,6 +30,7 @@ interface DeptBreakdown {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [depts, setDepts] = useState<DeptBreakdown[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
@@ -225,6 +227,20 @@ export default function DashboardPage() {
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const syncUserProfile = async () => {
+      try {
+        const res = await api.get('/auth/me');
+        if (res.data?.user) {
+          useAuthStore.getState().updateUser(res.data.user);
+        }
+      } catch (err) {
+        console.error('Failed to sync profile on dashboard mount:', err);
+      }
+    };
+    syncUserProfile();
   }, []);
 
   useEffect(() => {
@@ -642,6 +658,7 @@ export default function DashboardPage() {
 
   // Search logic on work logs
   const filteredLogs = liveAttendance.filter(log => {
+    if (!log.employee) return false;
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
     const empName = `${log.employee?.firstName} ${log.employee?.lastName}`.toLowerCase();
@@ -1049,13 +1066,12 @@ export default function DashboardPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (log.employee) {
-                                setSelectedStaffId(log.employee._id);
-                                setSelectedStaffName(`${log.employee.firstName} ${log.employee.lastName}`);
+                                router.push(`/dashboard/analytics?employeeId=${log.employee._id}`);
                               }
                             }}
                             className="bg-slate-800 text-slate-300 hover:text-gold border border-slate-700 px-2.5 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer"
                           >
-                            Graph
+                            Analytics
                           </button>
                         </td>
                       </tr>

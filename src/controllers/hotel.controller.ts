@@ -6,7 +6,7 @@ import { AuditLog } from '@/models/AuditLog';
 
 export const createHotel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, code, email, phone, address, subscriptionPlan } = req.body;
+    const { name, code, email, phone, address, googleLocationLink, subscriptionPlan } = req.body;
 
     const existingHotel = await Hotel.findOne({ code: code.toLowerCase() });
     if (existingHotel) {
@@ -19,6 +19,7 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
       email,
       phone,
       address,
+      googleLocationLink,
       subscriptionPlan,
     });
 

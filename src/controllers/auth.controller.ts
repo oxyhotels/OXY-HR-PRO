@@ -6,6 +6,7 @@ import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { config } from '@/config/config';
 import { AuditLog } from '@/models/AuditLog';
+import { createNotification } from '@/services/notification.service';
 
 // Helper to generate access and refresh tokens
 const generateTokens = (user: any) => {
@@ -448,6 +449,15 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     });
 
     await logAudit(user._id.toString(), hotel._id, 'REGISTER_PENDING', `New signup request submitted for role ${role} by ${email}`);
+
+    // Trigger notification to ROOT_ADMIN
+    await createNotification({
+      title: 'New Registration Request',
+      message: `New signup request from ${firstName} ${lastName} (${email}) for role ${role}.`,
+      type: 'info',
+      link: '/dashboard/employees',
+      recipientRole: 'ROOT_ADMIN'
+    });
 
     res.status(201).json({
       status: 'success',

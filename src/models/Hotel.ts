@@ -18,6 +18,7 @@ export interface IHotel extends Document {
   latitude: number;
   longitude: number;
   geofenceRadius: number; // in meters
+  googleLocationLink?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +42,7 @@ const HotelSchema = new Schema<IHotel>(
     latitude: { type: Number, default: 25.79065 }, // default Miami South Beach lat
     longitude: { type: Number, default: -80.130045 }, // default Miami South Beach lng
     geofenceRadius: { type: Number, default: 200 }, // geofencing boundary radius in meters
+    googleLocationLink: { type: String, trim: true },
   },
   { timestamps: true }
 );
