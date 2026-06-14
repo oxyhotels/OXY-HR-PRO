@@ -96,6 +96,9 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
         }
         throw new Error(retryErr);
       }
+      if (retryRes.status === 240 || retryRes.status === 204) {
+        return null;
+      }
       return retryRes.json();
     }
 
@@ -117,7 +120,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
 
     return response.json();
   } catch (error: any) {
-    console.error('API Error:', error.message);
+    console.warn('API Error Catch:', error.message);
     throw error;
   }
 };

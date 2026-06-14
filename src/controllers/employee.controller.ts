@@ -31,7 +31,8 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       aadhaarNumber,
       panNumber,
       emergencyContact,
-      documents
+      documents,
+      shift
     } = req.body;
 
     // Check if email taken
@@ -73,6 +74,7 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       emergencyContact,
       status,
       documents: documents || [],
+      shift,
     });
 
     if (req.user) {
@@ -205,7 +207,8 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
         'panNumber',
         'bankDetails',
         'emergencyContact',
-        'documents'
+        'documents',
+        'photoUrl'
       ];
       const sanitized: any = {};
       allowed.forEach(f => {

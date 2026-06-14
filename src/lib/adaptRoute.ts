@@ -169,9 +169,11 @@ export function adaptRoute(handler: Function, options: {
         headers: responseHeaders,
       };
 
-      const finalResponse = jsonPayload !== null
-        ? NextResponse.json(jsonPayload, responseInit)
-        : new NextResponse(sendPayload, responseInit);
+      const finalResponse = (statusCode === 204 || statusCode === 304)
+        ? new NextResponse(null, responseInit)
+        : (jsonPayload !== null
+          ? NextResponse.json(jsonPayload, responseInit)
+          : new NextResponse(sendPayload, responseInit));
 
       // Set cookies in response
       cookiesToSet.forEach(({ name, value, options }) => {
@@ -224,7 +226,9 @@ export function adaptRoute(handler: Function, options: {
       await errorHandler(error, req, errorRes, () => {});
 
       if (responseSent) {
-        return NextResponse.json(jsonPayload || sendPayload, { status: statusCode });
+        return (statusCode === 204 || statusCode === 304)
+          ? new NextResponse(null, { status: statusCode })
+          : NextResponse.json(jsonPayload || sendPayload, { status: statusCode });
       }
 
       const errStatus = error.statusCode || 500;

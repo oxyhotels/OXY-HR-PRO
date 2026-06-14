@@ -3,8 +3,8 @@ import { Schema, model, models, Document } from 'mongoose';
 export interface IHotel extends Document {
   name: string;
   code: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   address: {
     street: string;
     city: string;
@@ -26,8 +26,8 @@ const HotelSchema = new Schema<IHotel>(
   {
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    email: { type: String, required: true, lowercase: true, trim: true },
-    phone: { type: String, required: true, trim: true },
+    email: { type: String, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
     address: {
       street: { type: String, required: true },
       city: { type: String, required: true },

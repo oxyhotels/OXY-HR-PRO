@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Attendance } from '@/models/Attendance';
 import { ApiError } from '@/utils/ApiError';
 import { User } from '@/models/User';
+import { Hotel } from '@/models/Hotel';
 
 // Helper to get today's date string in local time YYYY-MM-DD
 const getLocalDateString = (): string => {
@@ -9,6 +10,27 @@ const getLocalDateString = (): string => {
   const offset = d.getTimezoneOffset();
   const localDate = new Date(d.getTime() - offset * 60 * 1000);
   return localDate.toISOString().split('T')[0];
+};
+
+// Exemption check: Root Admin, HR Department, IT Department are exempt
+const isExempt = (user: any): boolean => {
+  if (!user) return false;
+  if (user.role === 'ROOT_ADMIN') return true;
+
+  const dept = (user.department || '').toLowerCase();
+  const role = (user.role || '').toLowerCase();
+
+  // HR Department
+  if (dept.includes('hr') || dept.includes('human resources') || role === 'hr_manager') {
+    return true;
+  }
+
+  // IT Department
+  if (dept.includes('it') || dept.includes('information technology') || dept.includes('it services')) {
+    return true;
+  }
+
+  return false;
 };
 
 export const checkIn = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -27,6 +49,28 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       throw new ApiError(400, 'You have already checked in for today');
     }
 
+    // Geolocation and Selfie Verification Check
+    const exempt = isExempt(req.user);
+    const { latitude, longitude, accuracy, photo, deviceInfo, browserInfo, hotelId } = req.body;
+    const ipAddress = req.body.ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '';
+
+    if (!exempt) {
+      if (latitude === undefined || longitude === undefined || accuracy === undefined || !photo) {
+        throw new ApiError(400, 'GPS coordinates and live selfie are mandatory for attendance verification');
+      }
+      if (!hotelId) {
+        throw new ApiError(400, 'Please select a hotel property to clock in');
+      }
+    }
+
+    // Validate hotel if provided
+    if (hotelId) {
+      const hotelExists = await Hotel.findOne({ _id: hotelId, status: 'Active' });
+      if (!hotelExists) {
+        throw new ApiError(404, 'Selected hotel property does not exist or is suspended');
+      }
+    }
+
     const checkInTime = new Date();
     // Simple rule: Late if checked in after 9:15 AM
     let status: 'Present' | 'Late' = 'Present';
@@ -36,10 +80,23 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
 
     const attendance = await Attendance.create({
       employee: req.user._id,
-      hotel: req.user.hotel,
+      hotel: hotelId || req.user.hotel,
       date: todayStr,
       checkIn: checkInTime,
       status,
+      // GPS & Selfie Verification fields (saved if provided or required)
+      checkInLatitude: latitude !== undefined ? Number(latitude) : undefined,
+      checkInLongitude: longitude !== undefined ? Number(longitude) : undefined,
+      checkInAccuracy: accuracy !== undefined ? Number(accuracy) : undefined,
+      checkInPhoto: photo || undefined,
+      selfieUrl: photo || undefined, // legacy compat
+      checkInCoordinates: (latitude !== undefined && longitude !== undefined) ? {
+        lat: Number(latitude),
+        lng: Number(longitude)
+      } : undefined, // legacy compat
+      deviceInfo: deviceInfo || undefined,
+      browserInfo: browserInfo || undefined,
+      ipAddress: ipAddress || undefined,
     });
 
     res.status(201).json({
@@ -55,9 +112,30 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
   try {
     if (!req.user) throw new ApiError(401, 'Unauthorized');
 
-    const { workDescription, workPictureUrl, workVideoUrl } = req.body;
+    const { 
+      workDescription, 
+      workPictureUrl, 
+      workVideoUrl,
+      latitude,
+      longitude,
+      accuracy,
+      photo,
+      deviceInfo,
+      browserInfo
+    } = req.body;
+
+    const ipAddress = req.body.ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '';
+
     if (!workDescription) {
       throw new ApiError(400, 'Work update description is compulsory for checkout');
+    }
+
+    // Geolocation and Selfie Verification Check
+    const exempt = isExempt(req.user);
+    if (!exempt) {
+      if (latitude === undefined || longitude === undefined || accuracy === undefined || !photo) {
+        throw new ApiError(400, 'GPS coordinates and live selfie are mandatory for attendance verification');
+      }
     }
 
     const todayStr = getLocalDateString();
@@ -80,6 +158,21 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     attendance.workDescription = workDescription;
     if (workPictureUrl) attendance.workPictureUrl = workPictureUrl;
     if (workVideoUrl) attendance.workVideoUrl = workVideoUrl;
+
+    // Save Verification details
+    if (latitude !== undefined) attendance.checkOutLatitude = Number(latitude);
+    if (longitude !== undefined) attendance.checkOutLongitude = Number(longitude);
+    if (accuracy !== undefined) attendance.checkOutAccuracy = Number(accuracy);
+    if (photo) attendance.checkOutPhoto = photo;
+    if (latitude !== undefined && longitude !== undefined) {
+      attendance.checkOutCoordinates = {
+        lat: Number(latitude),
+        lng: Number(longitude)
+      };
+    }
+    if (deviceInfo) attendance.deviceInfo = deviceInfo;
+    if (browserInfo) attendance.browserInfo = browserInfo;
+    if (ipAddress) attendance.ipAddress = ipAddress;
 
     // Ensure all active breaks are ended
     attendance.breaks.forEach((b: any) => {
@@ -231,19 +324,30 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
       filter.hotel = req.query.hotelId;
     }
 
+    // Employee Check
+    if (req.query.employeeId) {
+      filter.employee = req.query.employeeId;
+    }
+
     // Date filtering: optional if query parameter "all" is true
     if (req.query.all === 'true') {
-      // Fetch all historical records
+      // Fetch historical records
     } else if (req.query.date) {
       filter.date = req.query.date;
     } else {
       filter.date = getLocalDateString();
     }
 
-    const logs = await Attendance.find(filter)
-      .populate('employee', 'firstName lastName email department designation aadhaarNumber panNumber')
+    const queryBuilder = Attendance.find(filter)
+      .populate('employee', 'firstName lastName email department designation aadhaarNumber panNumber shift photoUrl role')
       .populate('hotel', 'name code')
       .sort({ date: -1 });
+
+    if (req.query.all === 'true' && !req.query.employeeId) {
+      queryBuilder.limit(100);
+    }
+
+    const logs = await queryBuilder;
 
     // Fetch all Managers (HOTEL_ADMIN) to map them to hotels in-memory
     const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel');

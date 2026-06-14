@@ -2,24 +2,24 @@
 
 @layer base {
   :root {
-    --background: #090d16;
+    --background: #060911;
     --foreground: #f8fafc;
-    --card: #121927;
+    --card: #0b111e;
     --card-foreground: #f1f5f9;
-    --popover: #0f172a;
+    --popover: #060911;
     --popover-foreground: #f8fafc;
     --primary: #d4af37;
-    --primary-foreground: #090d16;
-    --secondary: #1e293b;
+    --primary-foreground: #060911;
+    --secondary: #121b2d;
     --secondary-foreground: #f8fafc;
-    --muted: #1e293b;
+    --muted: #121b2d;
     --muted-foreground: #94a3b8;
-    --accent: #2e3d52;
+    --accent: #1e2c4a;
     --accent-foreground: #f8fafc;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
-    --border: #1e294b;
-    --input: #1e294b;
+    --border: #14213d;
+    --input: #14213d;
     --ring: #d4af37;
     --radius: 0.75rem;
   }
@@ -29,17 +29,46 @@
   --color-gold: #d4af37;
   --color-gold-light: #f3d070;
   --color-gold-dark: #b89320;
-  --color-slate-dark: #090d16;
-  --color-card-dark: #121927;
-  --color-border-dark: #1e294b;
-  --font-sans: "Outfit", sans-serif;
+  --color-slate-dark: #060911;
+  --color-card-dark: #0b111e;
+  --color-border-dark: #14213d;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-heading: "Outfit", sans-serif;
+}
+
+html {
+  font-size: 16px;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.625;
   overflow-x: hidden;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(212, 175, 55, 0.04) 0px, transparent 50%),
+    radial-gradient(at 50% 0%, rgba(11, 17, 30, 0.7) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(212, 175, 55, 0.03) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(18, 27, 45, 0.5) 0px, transparent 50%);
+  background-attachment: fixed;
+  background-size: cover;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 768px) {
+  body {
+    font-size: 16.5px;
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
 }
 
 /* Custom Scrollbars */
@@ -48,11 +77,11 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #060911;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e294b;
-  border-radius: 4px;
+  background: #14213d;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #d4af37;
@@ -60,25 +89,149 @@ body {
 
 /* Glassmorphism helpers */
 .glass-panel {
-  background: rgba(18, 25, 39, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(212, 175, 55, 0.15);
+  background: rgba(11, 17, 30, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
 }
 
 .glass-card {
-  background: rgba(30, 41, 59, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(18, 27, 45, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(212, 175, 55, 0.25);
+  box-shadow: 0 10px 30px rgba(212, 175, 55, 0.08);
+  transform: translateY(-2px);
 }
 
 .gold-glow {
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.1);
 }
 
 .gold-border-glow:hover {
-  border-color: rgba(212, 175, 55, 0.6);
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.12);
 }
+
+.gold-text-glow {
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
+}
+
+/* Root Admin Dashboard Theme: Deep Blue space theme with crisp white & neon yellow-green glows */
+.theme-root-admin {
+  --background: #050c21; /* Ultra-deep midnight ocean blue */
+  --foreground: #ffffff;
+  --card: #0a1631; /* Premium deep blue card */
+  --card-foreground: #f8fafc;
+  --primary: #bef264; /* Vibrant yellow-green (lime) */
+  --primary-foreground: #050c21;
+  --secondary: #1d4ed8; /* Electric royal blue */
+  --secondary-foreground: #ffffff;
+  --muted: #0c1833;
+  --muted-foreground: #a5b4fc; /* Indigo muted text */
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+  --border: #142850; /* Rich ocean blue border */
+  --input: #142850;
+  --ring: #bef264;
+  --radius: 0.75rem;
+
+  /* Tailwind CSS v4 variables mapped to theme-root-admin context */
+  --color-gold: #bef264; /* Map gold elements to vibrant yellow-green */
+  --color-gold-light: #d9f99d;
+  --color-gold-dark: #a3e635;
+  --color-slate-dark: #050c21;
+  --color-card-dark: #0a1631;
+  --color-border-dark: #142850;
+}
+
+/* Custom gorgeous dynamic background specifically for the root admin page */
+.theme-root-admin.min-h-screen,
+.theme-root-admin .min-h-screen {
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.22) 0px, transparent 50%), /* Vibrant royal blue glow top-left */
+    radial-gradient(at 50% 0%, rgba(10, 22, 49, 0.95) 0px, transparent 65%), /* Midnight blue core */
+    radial-gradient(at 100% 0%, rgba(190, 242, 100, 0.12) 0px, transparent 50%), /* Yellow-Green glow top-right */
+    radial-gradient(at 50% 100%, rgba(29, 78, 216, 0.65) 0px, transparent 50%) !important; /* Royal/navy blue base */
+}
+
+/* Adapting existing utility glows to Root Admin's Yellow-Green primary theme */
+.theme-root-admin .glass-panel {
+  background: rgba(10, 22, 49, 0.82);
+  border: 1px solid rgba(190, 242, 100, 0.18);
+  box-shadow: 0 12px 45px -10px rgba(0, 0, 0, 0.7);
+}
+
+.theme-root-admin .glass-card {
+  background: rgba(20, 40, 80, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.theme-root-admin .glass-card:hover {
+  border-color: rgba(190, 242, 100, 0.35);
+  box-shadow: 0 10px 30px rgba(190, 242, 100, 0.12);
+}
+
+.theme-root-admin .gold-glow {
+  box-shadow: 0 0 22px rgba(190, 242, 100, 0.18);
+}
+
+.theme-root-admin .gold-border-glow:hover {
+  border-color: rgba(190, 242, 100, 0.65);
+  box-shadow: 0 0 22px rgba(190, 242, 100, 0.18);
+}
+
+.theme-root-admin .gold-text-glow {
+  text-shadow: 0 0 12px rgba(190, 242, 100, 0.45);
+}
+
+/* Make scrollbars custom to match root admin */
+.theme-root-admin::-webkit-scrollbar-thumb {
+  background: #142850;
+}
+
+.theme-root-admin::-webkit-scrollbar-thumb:hover {
+  background: #bef264;
+}
+
+/* Google Fonts Material Symbols Outlined Support */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga';
+}
+
+@keyframes spin-icon {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-icon {
+  animation: spin-icon 1.2s linear infinite;
+  display: inline-block;
+}
+
 

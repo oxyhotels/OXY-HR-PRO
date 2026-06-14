@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
-import { Calendar, User, Clock, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
+import GoogleIcon from '../../../components/GoogleIcon';
 
 interface AttendanceLog {
   _id: string;
@@ -13,12 +13,34 @@ interface AttendanceLog {
   totalWorkingHours: number;
   totalBreakMinutes: number;
   status: 'Present' | 'Absent' | 'Late' | 'Half-Day' | 'OnLeave';
+  selfieUrl?: string;
+  checkInPhoto?: string;
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkOutPhoto?: string;
+  checkOutLatitude?: number;
+  checkOutLongitude?: number;
+  deviceInfo?: string;
+  browserInfo?: string;
+  ipAddress?: string;
+  workDescription?: string;
+  workPictureUrl?: string;
+  workVideoUrl?: string;
+  hotel?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
   employee?: {
+    _id: string;
     firstName: string;
     lastName: string;
     email: string;
     department: string;
     designation: string;
+    shift?: string;
+    photoUrl?: string;
+    role?: string;
   };
 }
 
@@ -30,6 +52,8 @@ export default function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState('2026-06-08');
   const [viewMode, setViewMode] = useState<'personal' | 'hotel'>('personal');
   const [viewAllHotelLogs, setViewAllHotelLogs] = useState(false);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
+  const [selectedWorkLog, setSelectedWorkLog] = useState<AttendanceLog | null>(null);
 
   const isManager = user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'DEPT_MANAGER';
 
@@ -147,8 +171,8 @@ export default function AttendancePage() {
                 <tr className="bg-slate-950/40 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                   <th className="p-4">Shift Date</th>
                   {viewMode === 'hotel' && <th className="p-4">Employee</th>}
-                  <th className="p-4">Check-In</th>
-                  <th className="p-4">Check-Out</th>
+                  <th className="p-4">Check-In / Verification</th>
+                  <th className="p-4">Check-Out / Verification</th>
                   <th className="p-4">Breaks Duration</th>
                   <th className="p-4">Working Hours</th>
                   <th className="p-4">Status</th>
@@ -159,33 +183,134 @@ export default function AttendancePage() {
                   <tr key={log._id} className="hover:bg-slate-900/20 transition-colors">
                     <td className="p-4 font-semibold text-white">
                       <div className="flex items-center gap-1.5">
-                        <Calendar size={14} className="text-gold" />
+                        <GoogleIcon name="calendar_today" size={14} className="text-gold" />
                         {log.date}
                       </div>
                     </td>
                     {viewMode === 'hotel' && (
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200 font-bold uppercase">
-                            {log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}
+                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200 font-bold uppercase overflow-hidden flex-shrink-0">
+                            {log.employee?.photoUrl ? (
+                              <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              <span>{log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}</span>
+                            )}
                           </div>
                           <div>
                             <div className="font-semibold text-white">
                               {log.employee?.firstName} {log.employee?.lastName}
                             </div>
                             <div className="text-slate-500 text-[10px]">{log.employee?.designation} ({log.employee?.department})</div>
+                            {log.employee?.shift && (
+                              <div className="text-[9px] text-gold font-mono mt-0.5 uppercase font-semibold">⏱ {log.employee.shift.split(' (')[0]}</div>
+                            )}
                           </div>
                         </div>
                       </td>
                     )}
-                    <td className="p-4 font-mono text-[11px] whitespace-nowrap">
-                      {new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    <td className="p-4 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        {/* Check-In Selfie Thumbnail */}
+                        {viewMode === 'hotel' && (
+                          <div className="w-10 h-10 rounded bg-slate-800 border border-slate-700 flex-shrink-0 overflow-hidden relative group">
+                            {log.checkInPhoto ? (
+                              <>
+                                <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
+                                <div 
+                                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                  onClick={() => setSelectedPreviewImage(log.checkInPhoto || null)}
+                                >
+                                  <span className="text-[7px] text-gold font-bold uppercase">View</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-500 text-[9px] font-semibold bg-slate-900/40">
+                                Exempt
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          <div className="font-mono text-[10.5px]">
+                            {new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          {log.hotel && (
+                            <div className="text-[10px] text-slate-400">
+                              📍 {log.hotel.name} (<span className="text-gold uppercase font-mono">{log.hotel.code}</span>)
+                            </div>
+                          )}
+                          {log.checkInLatitude !== undefined && log.checkInLongitude !== undefined && (
+                            <div className="text-[9px] text-green-400 font-mono flex items-center gap-0.5">
+                              <a 
+                                href={`https://www.google.com/maps?q=${log.checkInLatitude},${log.checkInLongitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline flex items-center gap-0.5 text-green-400 hover:text-green-300"
+                                title="Open in Google Maps"
+                              >
+                                <GoogleIcon name="map" size={10} />
+                                {log.checkInLatitude.toFixed(4)}°, {log.checkInLongitude.toFixed(4)}°
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-4 font-mono text-[11px] whitespace-nowrap">
+                    <td className="p-4 text-xs">
                       {log.checkOut ? (
-                        new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        <div className="flex items-center gap-2.5">
+                          {/* Check-Out Selfie Thumbnail */}
+                          {viewMode === 'hotel' && (
+                            <div className="w-10 h-10 rounded bg-slate-800 border border-slate-700 flex-shrink-0 overflow-hidden relative group">
+                              {log.checkOutPhoto ? (
+                                <>
+                                  <img src={log.checkOutPhoto} alt="Checkout Selfie" className="w-full h-full object-cover" />
+                                  <div 
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                    onClick={() => setSelectedPreviewImage(log.checkOutPhoto || null)}
+                                  >
+                                    <span className="text-[7px] text-gold font-bold uppercase">View</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-500 text-[9px] font-semibold bg-slate-900/40">
+                                  Exempt
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            <div className="font-mono text-[10.5px]">
+                              {new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {log.checkOutLatitude !== undefined && log.checkOutLongitude !== undefined && (
+                              <div className="text-[9px] text-green-400 font-mono">
+                                <a 
+                                  href={`https://www.google.com/maps?q=${log.checkOutLatitude},${log.checkOutLongitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="hover:underline flex items-center gap-0.5 text-green-400 hover:text-green-300"
+                                  title="Open in Google Maps"
+                                >
+                                  <GoogleIcon name="map" size={10} />
+                                  {log.checkOutLatitude.toFixed(4)}°, {log.checkOutLongitude.toFixed(4)}°
+                                </a>
+                              </div>
+                            )}
+                            {log.workDescription && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedWorkLog(log)}
+                                className="text-[9px] text-gold hover:text-gold-light hover:underline font-bold mt-0.5 cursor-pointer block text-left"
+                              >
+                                View Update &rarr;
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-slate-500 italic">Working...</span>
+                        <span className="text-slate-500 italic font-medium">Currently Active</span>
                       )}
                     </td>
                     <td className="p-4 text-slate-300 font-mono">
@@ -219,6 +344,71 @@ export default function AttendancePage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* Zoom Image Preview Modal */}
+      {selectedPreviewImage && (
+        <div 
+          className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" 
+          onClick={() => setSelectedPreviewImage(null)}
+        >
+          <div className="relative max-w-3xl max-h-[85vh] w-auto h-auto flex flex-col items-center">
+            <button 
+              className="absolute top-[-40px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
+              onClick={() => setSelectedPreviewImage(null)}
+            >
+              <GoogleIcon name="close" size={14} />
+              Close Preview
+            </button>
+            <img src={selectedPreviewImage} alt="Verification Preview" className="max-w-full max-h-[80vh] rounded-xl shadow-2xl object-contain border border-gold/20" />
+          </div>
+        </div>
+      )}
+
+      {/* Detailed Work Log/Checkout Update Modal */}
+      {selectedWorkLog && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-card-dark border border-gold/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex justify-between items-start border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="font-bold text-white text-sm">Checkout Shift Details</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Date: {selectedWorkLog.date} | Staff: {selectedWorkLog.employee?.firstName} {selectedWorkLog.employee?.lastName}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedWorkLog(null)} 
+                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="close" size={18} />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider">Work Description Update:</span>
+                <p className="bg-slate-950/40 p-3 rounded-lg border border-slate-900 text-slate-200 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap font-sans">
+                  {selectedWorkLog.workDescription}
+                </p>
+              </div>
+
+              {/* Checkout Evidence Images */}
+              {selectedWorkLog.workPictureUrl && (
+                <div className="space-y-1.5">
+                  <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider">Uploaded Work Image:</span>
+                  <div className="w-full h-44 rounded-lg bg-slate-950/40 border border-slate-900 overflow-hidden relative group">
+                    <img src={selectedWorkLog.workPictureUrl} alt="Work picture evidence" className="w-full h-full object-cover" />
+                    <div 
+                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                      onClick={() => setSelectedPreviewImage(selectedWorkLog.workPictureUrl || null)}
+                    >
+                      <span className="text-xs text-gold font-bold uppercase tracking-wider">Enlarge View</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

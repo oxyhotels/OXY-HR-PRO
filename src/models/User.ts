@@ -23,6 +23,7 @@ export interface IUser extends Document {
   aadhaarVerified?: boolean;
   panNumber?: string;
   panVerified?: boolean;
+  shift?: string;
   emergencyContact?: {
     name: string;
     relation: string;
@@ -80,6 +81,7 @@ const UserSchema = new Schema<IUser>(
     reportingManager: { type: String, trim: true },
     employmentType: { type: String, trim: true },
     status: { type: String, enum: ['Pending', 'Active', 'OnLeave', 'Terminated'], default: 'Active' },
+    shift: { type: String, default: 'General Shift (09:00 AM - 05:00 PM)' },
     joinedDate: { type: Date, default: Date.now },
     photoUrl: { type: String },
     aadhaarNumber: { type: String, trim: true },

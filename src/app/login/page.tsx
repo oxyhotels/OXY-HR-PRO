@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
-import { Lock, Mail, Hotel, ArrowRight, Loader2, Phone, User, Landmark, Eye, EyeOff, Briefcase } from 'lucide-react';
+import GoogleIcon from '../../components/GoogleIcon';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -84,6 +84,7 @@ export default function LoginPage() {
   const [empAadhaarFile, setEmpAadhaarFile] = useState<string | null>(null);
   const [empPanFile, setEmpPanFile] = useState<string | null>(null);
   const [empBankFile, setEmpBankFile] = useState<string | null>(null);
+  const [empResumeFile, setEmpResumeFile] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -193,6 +194,9 @@ export default function LoginPage() {
     if (empBankFile) {
       documents.push({ name: 'Bank Document', fileUrl: empBankFile, uploadedAt: new Date().toISOString() });
     }
+    if (empResumeFile) {
+      documents.push({ name: 'Resume', fileUrl: empResumeFile, uploadedAt: new Date().toISOString() });
+    }
 
     const payload = {
       ...values,
@@ -207,6 +211,7 @@ export default function LoginPage() {
       setEmpAadhaarFile(null);
       setEmpPanFile(null);
       setEmpBankFile(null);
+      setEmpResumeFile(null);
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -278,7 +283,7 @@ export default function LoginPage() {
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                  <Mail size={16} />
+                  <GoogleIcon name="mail" size={16} />
                 </span>
                 <input
                   type="email"
@@ -300,7 +305,7 @@ export default function LoginPage() {
               </div>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                  <Lock size={16} />
+                  <GoogleIcon name="lock" size={16} />
                 </span>
                 <input
                   type={showLoginPassword ? 'text' : 'password'}
@@ -313,7 +318,7 @@ export default function LoginPage() {
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white cursor-pointer"
                 >
-                  {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showLoginPassword ? <GoogleIcon name="visibility_off" size={16} /> : <GoogleIcon name="visibility" size={16} />}
                 </button>
               </div>
               {loginErrors.password && (
@@ -328,13 +333,13 @@ export default function LoginPage() {
             >
               {loading ? (
                 <>
-                  <Loader2 size={14} className="animate-spin" />
+                  <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
                   Verifying...
                 </>
               ) : (
                 <>
                   Sign In
-                  <ArrowRight size={14} />
+                  <GoogleIcon name="arrow_forward" size={14} />
                 </>
               )}
             </button>
@@ -382,7 +387,7 @@ export default function LoginPage() {
                     <label className="block text-slate-400 font-semibold mb-1">Full Name *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                        <User size={14} />
+                        <GoogleIcon name="person" size={14} />
                       </span>
                       <input
                         type="text"
@@ -397,7 +402,7 @@ export default function LoginPage() {
                     <label className="block text-slate-400 font-semibold mb-1">Mobile Number *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                        <Phone size={14} />
+                        <GoogleIcon name="phone" size={14} />
                       </span>
                       <input
                         type="text"
@@ -414,7 +419,7 @@ export default function LoginPage() {
                   <label className="block text-slate-400 font-semibold mb-1">Email *</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                      <Mail size={14} />
+                      <GoogleIcon name="mail" size={14} />
                     </span>
                     <input
                       type="email"
@@ -431,7 +436,7 @@ export default function LoginPage() {
                     <label className="block text-slate-400 font-semibold mb-1">Password *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                        <Lock size={14} />
+                        <GoogleIcon name="lock" size={14} />
                       </span>
                       <input
                         type={showRegisterPassword ? 'text' : 'password'}
@@ -444,7 +449,7 @@ export default function LoginPage() {
                         onClick={() => setShowRegisterPassword(!showRegisterPassword)}
                         className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-500 hover:text-white cursor-pointer"
                       >
-                        {showRegisterPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {showRegisterPassword ? <GoogleIcon name="visibility_off" size={14} /> : <GoogleIcon name="visibility" size={14} />}
                       </button>
                     </div>
                     {signupErrors.password && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.password.message}</p>}
@@ -453,7 +458,7 @@ export default function LoginPage() {
                     <label className="block text-slate-400 font-semibold mb-1">Confirm Password *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                        <Lock size={14} />
+                        <GoogleIcon name="lock" size={14} />
                       </span>
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
@@ -466,7 +471,7 @@ export default function LoginPage() {
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-500 hover:text-white cursor-pointer"
                       >
-                        {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {showConfirmPassword ? <GoogleIcon name="visibility_off" size={14} /> : <GoogleIcon name="visibility" size={14} />}
                       </button>
                     </div>
                     {signupErrors.confirmPassword && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.confirmPassword.message}</p>}
@@ -479,7 +484,7 @@ export default function LoginPage() {
                       <label className="block text-slate-400 font-semibold mb-1">Property *</label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                          <Hotel size={14} />
+                          <GoogleIcon name="corporate_fare" size={14} />
                         </span>
                         <select
                           className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
@@ -502,7 +507,7 @@ export default function LoginPage() {
                         <label className="block text-slate-400 font-semibold mb-1">Department *</label>
                         <div className="relative">
                           <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                            <Briefcase size={14} />
+                            <GoogleIcon name="work" size={14} />
                           </span>
                           <select
                             className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
@@ -527,7 +532,7 @@ export default function LoginPage() {
                         <label className="block text-slate-400 font-semibold mb-1">Role *</label>
                         <div className="relative">
                           <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                            <User size={14} />
+                            <GoogleIcon name="person" size={14} />
                           </span>
                           <select
                             className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
@@ -553,13 +558,13 @@ export default function LoginPage() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 size={14} className="animate-spin" />
+                      <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
                       Creating Account...
                     </>
                   ) : (
                     <>
                       Complete Registration
-                      <ArrowRight size={14} />
+                      <GoogleIcon name="arrow_forward" size={14} />
                     </>
                   )}
                 </button>
@@ -653,7 +658,7 @@ export default function LoginPage() {
                     <label className="block text-slate-400 mb-1">Property Selection *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                        <Hotel size={14} />
+                        <GoogleIcon name="corporate_fare" size={14} />
                       </span>
                       <select
                         className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
@@ -893,6 +898,16 @@ export default function LoginPage() {
                     />
                     {empBankFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Document Loaded</div>}
                   </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 text-[10px]">Resume (PDF format only, optional)</label>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => handleFileChange(e, setEmpResumeFile)}
+                      className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
+                    />
+                    {empResumeFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Resume Loaded</div>}
+                  </div>
                 </div>
 
                 <button
@@ -902,13 +917,13 @@ export default function LoginPage() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 size={14} className="animate-spin" />
+                      <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
                       Creating Account...
                     </>
                   ) : (
                     <>
                       Complete Registration
-                      <ArrowRight size={14} />
+                      <GoogleIcon name="arrow_forward" size={14} />
                     </>
                   )}
                 </button>

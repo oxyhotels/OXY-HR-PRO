@@ -23,12 +23,12 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
     });
 
     if (req.user) {
-      await AuditLog.create({
+      AuditLog.create({
         user: req.user._id,
         action: 'CREATE_HOTEL',
         module: 'HOTEL',
         details: `Hotel ${name} (${code}) created`,
-      });
+      }).catch(err => console.error('Failed to create audit log:', err));
     }
 
     res.status(201).json({
@@ -80,12 +80,12 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
     }
 
     if (req.user) {
-      await AuditLog.create({
+      AuditLog.create({
         user: req.user._id,
         action: 'UPDATE_HOTEL',
         module: 'HOTEL',
         details: `Hotel ${hotel.name} updated`,
-      });
+      }).catch(err => console.error('Failed to create audit log:', err));
     }
 
     res.status(200).json({
@@ -108,12 +108,12 @@ export const deleteHotel = async (req: Request, res: Response, next: NextFunctio
     await User.updateMany({ hotel: hotel._id }, { status: 'Terminated' });
 
     if (req.user) {
-      await AuditLog.create({
+      AuditLog.create({
         user: req.user._id,
         action: 'DELETE_HOTEL',
         module: 'HOTEL',
         details: `Hotel ${hotel.name} deleted, associated staff deactivated`,
-      });
+      }).catch(err => console.error('Failed to create audit log:', err));
     }
 
     res.status(204).json({

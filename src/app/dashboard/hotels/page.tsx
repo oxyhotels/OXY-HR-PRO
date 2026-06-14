@@ -10,8 +10,8 @@ interface HotelData {
   _id: string;
   name: string;
   code: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   address: {
     street: string;
     city: string;
@@ -98,7 +98,7 @@ export default function HotelsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this hotel? All associated employees will be deactivated.')) return;
+    if (!confirm('Are you sure')) return;
     try {
       await api.delete(`/hotels/${id}`);
       fetchHotels();
@@ -181,8 +181,8 @@ export default function HotelsPage() {
                     <td className="p-4 font-semibold text-white">{hotel.name}</td>
                     <td className="p-4 font-mono text-gold uppercase">{hotel.code}</td>
                     <td className="p-4">
-                      <div>{hotel.email}</div>
-                      <div className="text-slate-500 mt-0.5">{hotel.phone}</div>
+                      <div>{hotel.email || '—'}</div>
+                      <div className="text-slate-500 mt-0.5">{hotel.phone || '—'}</div>
                     </td>
                     <td className="p-4">
                       <span className="bg-slate-800/80 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px] uppercase font-semibold">
@@ -273,7 +273,6 @@ export default function HotelsPage() {
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Email Address</label>
                   <input
                     type="email"
-                    required
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
                     {...register('email')}
                   />
@@ -282,7 +281,6 @@ export default function HotelsPage() {
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Phone Number</label>
                   <input
                     type="text"
-                    required
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
                     {...register('phone')}
                   />

@@ -18,6 +18,17 @@ export interface IAttendance extends Document {
   selfieUrl?: string;
   checkInCoordinates?: { lat: number; lng: number };
   checkOutCoordinates?: { lat: number; lng: number };
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkInAccuracy?: number;
+  checkInPhoto?: string;
+  checkOutLatitude?: number;
+  checkOutLongitude?: number;
+  checkOutAccuracy?: number;
+  checkOutPhoto?: string;
+  deviceInfo?: string;
+  browserInfo?: string;
+  ipAddress?: string;
   workDescription?: string;
   workPictureUrl?: string;
   workVideoUrl?: string;
@@ -59,6 +70,17 @@ const AttendanceSchema = new Schema<IAttendance>(
       lat: { type: Number },
       lng: { type: Number },
     },
+    checkInLatitude: { type: Number },
+    checkInLongitude: { type: Number },
+    checkInAccuracy: { type: Number },
+    checkInPhoto: { type: String },
+    checkOutLatitude: { type: Number },
+    checkOutLongitude: { type: Number },
+    checkOutAccuracy: { type: Number },
+    checkOutPhoto: { type: String },
+    deviceInfo: { type: String },
+    browserInfo: { type: String },
+    ipAddress: { type: String },
     workDescription: { type: String },
     workPictureUrl: { type: String },
     workVideoUrl: { type: String },

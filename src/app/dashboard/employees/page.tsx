@@ -4,13 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
 import { formatRole } from '../../../lib/utils';
-import { Plus, Edit2, UserX, FileText, Check, X, Loader2, Award, Briefcase, FilePlus, User } from 'lucide-react';
+import GoogleIcon from '../../../components/GoogleIcon';
 import { useForm } from 'react-hook-form';
 
 interface EmployeeProfile {
   _id: string;
   firstName: string;
   lastName: string;
+  photoUrl?: string;
   email: string;
   password?: string;
   role: string;
@@ -37,6 +38,7 @@ interface EmployeeProfile {
     ifsc?: string;
   };
   documents: { name: string; fileUrl: string; uploadedAt: string }[];
+  shift?: string;
 }
 
 export default function EmployeesPage() {
@@ -48,6 +50,7 @@ export default function EmployeesPage() {
   const [activeEmployee, setActiveEmployee] = useState<EmployeeProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
 
   // States for onboarding uploaded documents (Base64 data URLs)
   const [aadhaarFile, setAadhaarFile] = useState<string | null>(null);
@@ -82,6 +85,14 @@ export default function EmployeesPage() {
     fetchEmployees();
   }, []);
 
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleOpenCreate = () => {
     setActiveEmployee(null);
     setAadhaarFile(null);
@@ -105,6 +116,7 @@ export default function EmployeesPage() {
       emergencyContactName: '',
       emergencyContactRelation: '',
       emergencyContactPhone: '',
+      shift: 'General Shift (09:00 AM - 05:00 PM)',
     });
     setModalOpen(true);
   };
@@ -138,6 +150,7 @@ export default function EmployeesPage() {
       emergencyContactName: emp.emergencyContact?.name || '',
       emergencyContactRelation: emp.emergencyContact?.relation || '',
       emergencyContactPhone: emp.emergencyContact?.phone || '',
+      shift: emp.shift || 'General Shift (09:00 AM - 05:00 PM)',
     });
     setModalOpen(true);
   };
@@ -226,6 +239,7 @@ export default function EmployeesPage() {
         ifsc: values.ifsc,
       },
       documents: documentsPayload,
+      shift: user?.role === 'EMPLOYEE' ? (activeEmployee?.shift || 'General Shift (09:00 AM - 05:00 PM)') : values.shift,
     };
 
     try {
@@ -257,7 +271,7 @@ export default function EmployeesPage() {
             onClick={handleOpenCreate}
             className="bg-gold hover:bg-gold-light text-slate-dark font-bold px-4 py-2.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Plus size={16} />
+            <GoogleIcon name="add" size={16} />
             Onboard Employee
           </button>
         )}
@@ -287,8 +301,12 @@ export default function EmployeesPage() {
                   <tr key={emp._id} className="hover:bg-slate-900/20 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-gold font-bold uppercase">
-                          {emp.firstName[0]}{emp.lastName[0]}
+                        <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-gold font-bold uppercase overflow-hidden">
+                          {emp.photoUrl ? (
+                            <img src={emp.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <span>{emp.firstName[0]}{emp.lastName[0]}</span>
+                          )}
                         </div>
                         <div>
                           <div className="font-semibold text-white">{emp.firstName} {emp.lastName}</div>
@@ -304,7 +322,7 @@ export default function EmployeesPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-1.5">
-                        <Briefcase size={12} className="text-slate-400" />
+                        <GoogleIcon name="work" size={12} className="text-slate-400" />
                         <span>{emp.department || 'Operations'}</span>
                       </div>
                       <div className="text-slate-500 text-[10px] mt-0.5">{emp.designation || 'Staff Member'}</div>
@@ -313,6 +331,11 @@ export default function EmployeesPage() {
                       <span className="bg-slate-800 text-slate-200 border border-slate-700 px-2 py-0.5 rounded text-[9px] uppercase font-semibold">
                         {formatRole(emp.role)}
                       </span>
+                      {emp.shift && (
+                        <div className="text-[9px] font-mono text-gold mt-1.5 uppercase font-semibold">
+                          ⏱ {emp.shift.split(' (')[0]}
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
@@ -334,7 +357,7 @@ export default function EmployeesPage() {
                             className="p-1 hover:bg-slate-800 text-gold hover:text-gold-light rounded transition-colors cursor-pointer"
                             title="Add Document"
                           >
-                            <FilePlus size={14} />
+                            <GoogleIcon name="note_add" size={14} />
                           </button>
                         )}
                       </div>
@@ -346,7 +369,7 @@ export default function EmployeesPage() {
                           className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
                           title="Edit Profile"
                         >
-                          <Edit2 size={14} />
+                          <GoogleIcon name="edit" size={14} />
                         </button>
                         {canManage && (
                           <button
@@ -354,7 +377,7 @@ export default function EmployeesPage() {
                             className="p-1.5 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
                             title="Terminate Staff"
                           >
-                            <UserX size={14} />
+                            <GoogleIcon name="person_remove" size={14} />
                           </button>
                         )}
                       </td>
@@ -382,7 +405,7 @@ export default function EmployeesPage() {
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-white">{activeEmployee ? 'Modify Employee Profile' : 'Onboard New Employee'}</h3>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={18} />
+                <GoogleIcon name="close" size={18} />
               </button>
             </div>
 
@@ -467,7 +490,7 @@ export default function EmployeesPage() {
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">User Role</label>
                   <select
                     disabled={user?.role === 'EMPLOYEE'}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     {...register('role')}
                   >
                     <option value="EMPLOYEE">Employee</option>
@@ -483,6 +506,26 @@ export default function EmployeesPage() {
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
                     {...register('phone')}
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Shift Schedule</label>
+                <div className="flex gap-4 items-center">
+                  <select
+                    disabled={user?.role === 'EMPLOYEE'}
+                    className="flex-1 bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    {...register('shift')}
+                  >
+                    <option value="Morning Shift (07:00 AM - 03:00 PM)">Morning Shift (07:00 AM - 03:00 PM)</option>
+                    <option value="Afternoon Shift (03:00 PM - 11:00 PM)">Afternoon Shift (03:00 PM - 11:00 PM)</option>
+                    <option value="Night Shift (11:00 PM - 07:00 AM)">Night Shift (11:00 PM - 07:00 AM)</option>
+                    <option value="General Shift (09:00 AM - 05:00 PM)">General Shift (09:00 AM - 05:00 PM)</option>
+                  </select>
+                  <div className="bg-slate-950/40 border border-slate-800 px-3 py-2 rounded text-slate-300 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap shadow-inner">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+                    <span>🕒 {currentTime || '--:--:--'}</span>
+                  </div>
                 </div>
               </div>
 
@@ -612,7 +655,7 @@ export default function EmployeesPage() {
                 disabled={actionLoading}
                 className="w-full bg-gold hover:bg-gold-light text-slate-dark font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {actionLoading ? <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" /> : <GoogleIcon name="check" size={14} />}
                 Save Employee Record
               </button>
             </form>
@@ -627,7 +670,7 @@ export default function EmployeesPage() {
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-white text-sm">Upload Credentials / Doc</h3>
               <button onClick={() => setDocModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={18} />
+                <GoogleIcon name="close" size={18} />
               </button>
             </div>
 
@@ -658,7 +701,7 @@ export default function EmployeesPage() {
                 disabled={actionLoading}
                 className="w-full bg-gold hover:bg-gold-light text-slate-dark font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {actionLoading ? <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" /> : <GoogleIcon name="check" size={14} />}
                 Upload Document Metadata
               </button>
             </form>

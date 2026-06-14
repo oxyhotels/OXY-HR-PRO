@@ -31,11 +31,23 @@ export interface UserProfile {
     ifsc?: string;
   };
   documents?: { name: string; fileUrl: string; uploadedAt: string }[];
+  phone?: string;
+  employeeId?: string;
+  reportingManager?: string;
+  employmentType?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  emergencyContact?: {
+    name: string;
+    relation: string;
+    phone: string;
+  };
   // Intelligent Ops Gamification
   xp?: number;
   level?: number;
   badges?: string[];
   accountabilityIndex?: number;
+  shift?: string;
 }
 
 interface AuthState {

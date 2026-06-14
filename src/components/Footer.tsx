@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Code2 } from 'lucide-react';
+import GoogleIcon from './GoogleIcon';
 
 interface FooterProps {
   className?: string;
@@ -58,7 +58,7 @@ export default function Footer({ className = '', forceRender = false }: FooterPr
             whileHover={{ scale: 1.02 }}
             className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2.5 py-1 rounded-md transition-all duration-300 hover:border-gold/60 dark:hover:border-gold/60 hover:shadow-[0_0_12px_rgba(212,175,55,0.15)] cursor-default"
           >
-            <Code2 size={12} className="text-gold animate-pulse" />
+            <GoogleIcon name="code" size={14} className="text-gold animate-pulse" />
             <span className="font-mono font-extrabold tracking-wider text-white dark:text-white hover:text-gold dark:hover:text-gold transition-colors duration-300">
               MD ATAUR ANSARI
             </span>
