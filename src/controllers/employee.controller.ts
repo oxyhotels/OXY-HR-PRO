@@ -127,7 +127,7 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
       filter.status = req.query.status;
     }
 
-    let query = User.find(filter).populate('hotel', 'name code');
+    let query = User.find(filter).populate('hotel', 'name hotelCode');
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
     }
@@ -145,7 +145,7 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
 
 export const getEmployeeById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    let query = User.findById(req.params.id).populate('hotel', 'name code');
+    let query = User.findById(req.params.id).populate('hotel', 'name hotelCode');
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
     }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { DEPARTMENTS } from '@/constants/departments';
 import {
   BookOpen, Award, CheckCircle2, Play, ChevronRight, GraduationCap,
   ArrowRight, ShieldAlert, Search, Filter, Plus, Trash2, Edit,
@@ -173,7 +174,7 @@ export default function LmsPage() {
   const [courseForm, setCourseForm] = useState({
     title: '',
     description: '',
-    department: 'Operations',
+    department: 'Administration',
     category: 'Safety Training',
     thumbnailUrl: '',
     bannerUrl: '',
@@ -225,7 +226,7 @@ export default function LmsPage() {
 
   // Predefined lists
   const categoriesList = ['All', 'Safety Training', 'Guest Relations', 'Kitchen Hygiene', 'Housekeeping', 'F&B Operations', 'General Compliance'];
-  const departmentsList = ['Operations', 'Front Office', 'Kitchen', 'Housekeeping', 'F&B Service', 'Maintenance', 'Human Resources', 'Security', 'Finance'];
+  const departmentsList = DEPARTMENTS;
 
   const isEmployee = (role?: string) => {
     return role === 'EMPLOYEE';
@@ -534,7 +535,7 @@ export default function LmsPage() {
     setCourseForm({
       title: '',
       description: '',
-      department: 'Operations',
+      department: 'Administration',
       category: 'Safety Training',
       thumbnailUrl: '',
       bannerUrl: '',

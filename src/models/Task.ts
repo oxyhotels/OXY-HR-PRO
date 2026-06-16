@@ -1,4 +1,5 @@
 import { Schema, model, models, Document } from 'mongoose';
+import { DEPARTMENTS } from '@/constants/departments';
 
 export type TaskPriority = 'Low' | 'Medium' | 'High';
 export type TaskStatus = 'Todo' | 'In_Progress' | 'In_Review' | 'Completed';
@@ -58,7 +59,7 @@ const TaskSchema = new Schema<ITask>(
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel', required: true },
     assignedTo: { type: Schema.Types.ObjectId, ref: 'User', required: false },
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    department: { type: String, trim: true },
+    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
     priority: {
       type: String,
       enum: ['Low', 'Medium', 'High'],

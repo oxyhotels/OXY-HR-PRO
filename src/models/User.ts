@@ -1,6 +1,8 @@
 import { Schema, model, models, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+import { DEPARTMENTS } from '@/constants/departments';
+
 export type UserRole = 'ROOT_ADMIN' | 'HOTEL_ADMIN' | 'HR_MANAGER' | 'DEPT_MANAGER' | 'EMPLOYEE';
 
 export interface IUser extends Document {
@@ -74,7 +76,7 @@ const UserSchema = new Schema<IUser>(
       default: 'EMPLOYEE',
     },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
-    department: { type: String, trim: true },
+    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
     designation: { type: String, trim: true },
     phone: { type: String, trim: true },
     employeeId: { type: String, trim: true },

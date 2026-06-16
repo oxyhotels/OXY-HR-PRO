@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import GoogleIcon from './GoogleIcon';
+import FooterDeveloperCard from './FooterDeveloperCard';
 
 interface FooterProps {
   className?: string;
@@ -13,6 +14,8 @@ interface FooterProps {
 export default function Footer({ className = '', forceRender = false }: FooterProps) {
   const pathname = usePathname();
   const isDashboard = pathname.startsWith('/dashboard');
+  const [isDevCardOpen, setIsDevCardOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // If we are on a dashboard route and forceRender is false, we do not render here.
   // This allows us to instead render it within the dashboard's inner scroll container.
@@ -54,17 +57,30 @@ export default function Footer({ className = '', forceRender = false }: FooterPr
         {/* Right Side: Developer Credit */}
         <div className="flex flex-wrap items-center justify-center gap-1.5 text-white dark:text-white font-bold font-sans select-none">
           <span className="opacity-95">Designed & Developed by</span>
-          <motion.div
+          <motion.button
+            ref={triggerRef}
             whileHover={{ scale: 1.02 }}
-            className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2.5 py-1 rounded-md transition-all duration-300 hover:border-gold/60 dark:hover:border-gold/60 hover:shadow-[0_0_12px_rgba(212,175,55,0.15)] cursor-default"
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsDevCardOpen(true)}
+            className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 px-2.5 py-1 rounded-md transition-all duration-300 hover:border-gold/60 dark:hover:border-gold/60 hover:shadow-[0_0_12px_rgba(212,175,55,0.15)] focus:outline-none focus:ring-2 focus:ring-gold/50 cursor-pointer"
+            aria-haspopup="dialog"
+            aria-expanded={isDevCardOpen}
+            aria-label="View developer profile"
           >
             <GoogleIcon name="code" size={14} className="text-gold animate-pulse" />
             <span className="font-mono font-extrabold tracking-wider text-white dark:text-white hover:text-gold dark:hover:text-gold transition-colors duration-300">
               MD ATAUR ANSARI
             </span>
-          </motion.div>
+          </motion.button>
+
+          <FooterDeveloperCard
+            isOpen={isDevCardOpen}
+            onClose={() => setIsDevCardOpen(false)}
+            triggerRef={triggerRef}
+          />
         </div>
       </div>
     </motion.footer>
   );
 }
+

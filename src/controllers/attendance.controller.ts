@@ -4,6 +4,8 @@ import { ApiError } from '@/utils/ApiError';
 import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { createNotification } from '@/services/notification.service';
+import { reverseGeocode } from '@/utils/geocoding';
+import { processAttendanceStreak, processAttendanceCheckout } from '@/services/gamification.service';
 
 // Helper to get today's date string in local time YYYY-MM-DD
 const getLocalDateString = (): string => {
@@ -52,7 +54,7 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
 
     // Geolocation and Selfie Verification Check
     const exempt = isExempt(req.user);
-    const { latitude, longitude, accuracy, photo, deviceInfo, browserInfo, hotelId } = req.body;
+    const { latitude, longitude, accuracy, photo, deviceInfo, browserInfo, hotelId, deviceFingerprint, os, department } = req.body;
     const ipAddress = req.body.ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '';
 
     if (!exempt) {
@@ -62,6 +64,9 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       if (!hotelId) {
         throw new ApiError(400, 'Please select a hotel property to clock in');
       }
+      if (!department) {
+        throw new ApiError(400, 'Please select a department to clock in');
+      }
     }
 
     // Validate hotel if provided
@@ -69,6 +74,18 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       const hotelExists = await Hotel.findOne({ _id: hotelId, status: 'Active' });
       if (!hotelExists) {
         throw new ApiError(404, 'Selected hotel property does not exist or is suspended');
+      }
+    }
+
+    // Geocode coordinates
+    let addressData: any = null;
+    if (latitude !== undefined && longitude !== undefined) {
+      try {
+        addressData = await reverseGeocode(Number(latitude), Number(longitude));
+      } catch (err: any) {
+        if (!exempt) {
+          throw new ApiError(400, `Address Resolution Failed: ${err.message || err}`);
+        }
       }
     }
 
@@ -85,6 +102,7 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       date: todayStr,
       checkIn: checkInTime,
       status,
+      department: department || req.user.department || undefined,
       // GPS & Selfie Verification fields (saved if provided or required)
       checkInLatitude: latitude !== undefined ? Number(latitude) : undefined,
       checkInLongitude: longitude !== undefined ? Number(longitude) : undefined,
@@ -98,6 +116,24 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       deviceInfo: deviceInfo || undefined,
       browserInfo: browserInfo || undefined,
       ipAddress: ipAddress || undefined,
+      
+      // New geocoding, client-side metadata, and security audit fields
+      checkInAddress: addressData?.formattedAddress || undefined,
+      country: addressData?.country || undefined,
+      state: addressData?.state || undefined,
+      district: addressData?.district || undefined,
+      city: addressData?.city || undefined,
+      locality: addressData?.locality || undefined,
+      village: addressData?.village || undefined,
+      road: addressData?.road || undefined,
+      postalCode: addressData?.postalCode || undefined,
+      gpsAccuracy: accuracy !== undefined ? Number(accuracy) : undefined,
+      locationSource: (accuracy !== undefined && accuracy <= 1000) ? 'GPS' : 'Network',
+      deviceFingerprint: deviceFingerprint || undefined,
+      browserAgent: browserInfo || undefined,
+      os: os || undefined,
+      gpsEnabled: (latitude !== undefined && longitude !== undefined),
+      checkInSelfie: photo || undefined,
     });
 
     // Resolve property name for notification description
@@ -118,6 +154,18 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       link: '/dashboard/attendance',
       recipientRole: 'ROOT_ADMIN'
     });
+
+    // ── Gamification: award XP + streak for check-in ──
+    try {
+      const finalHotelForGamification = hotelId || req.user.hotel;
+      if (finalHotelForGamification) {
+        const isEarly = checkInTime.getHours() < 9 || (checkInTime.getHours() === 9 && checkInTime.getMinutes() === 0);
+        await processAttendanceStreak(req.user._id.toString(), finalHotelForGamification.toString(), isEarly);
+      }
+    } catch (gamErr) {
+      // Non-blocking — don't fail check-in if gamification errors
+      console.warn('[Gamification] Streak processing error:', gamErr);
+    }
 
     res.status(201).json({
       status: 'success',
@@ -141,7 +189,9 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
       accuracy,
       photo,
       deviceInfo,
-      browserInfo
+      browserInfo,
+      deviceFingerprint,
+      os
     } = req.body;
 
     const ipAddress = req.body.ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '';
@@ -173,6 +223,18 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
       throw new ApiError(400, 'You have already checked out for today');
     }
 
+    // Geocode coordinates on checkout
+    let addressData: any = null;
+    if (latitude !== undefined && longitude !== undefined) {
+      try {
+        addressData = await reverseGeocode(Number(latitude), Number(longitude));
+      } catch (err: any) {
+        if (!exempt) {
+          throw new ApiError(400, `Address Resolution Failed: ${err.message || err}`);
+        }
+      }
+    }
+
     const checkOutTime = new Date();
     attendance.checkOut = checkOutTime;
     attendance.workDescription = workDescription;
@@ -193,6 +255,23 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     if (deviceInfo) attendance.deviceInfo = deviceInfo;
     if (browserInfo) attendance.browserInfo = browserInfo;
     if (ipAddress) attendance.ipAddress = ipAddress;
+
+    // Save checkout geocoding and security metadata
+    attendance.checkOutAddress = addressData?.formattedAddress || undefined;
+    attendance.checkOutCountry = addressData?.country || undefined;
+    attendance.checkOutState = addressData?.state || undefined;
+    attendance.checkOutDistrict = addressData?.district || undefined;
+    attendance.checkOutCity = addressData?.city || undefined;
+    attendance.checkOutVillage = addressData?.village || undefined;
+    attendance.checkOutLocality = addressData?.locality || undefined;
+    attendance.checkOutSelfie = photo || undefined;
+    
+    attendance.gpsAccuracy = accuracy !== undefined ? Number(accuracy) : attendance.gpsAccuracy;
+    attendance.locationSource = (accuracy !== undefined && accuracy <= 1000) ? 'GPS' : 'Network';
+    attendance.deviceFingerprint = deviceFingerprint || attendance.deviceFingerprint;
+    attendance.browserAgent = browserInfo || attendance.browserAgent;
+    attendance.os = os || attendance.os;
+    attendance.gpsEnabled = (latitude !== undefined && longitude !== undefined);
 
     // Ensure all active breaks are ended
     attendance.breaks.forEach((b: any) => {
@@ -223,6 +302,15 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     }
 
     await attendance.save();
+
+    const finalHotelForGamification = req.user.hotel || attendance.hotel;
+    if (finalHotelForGamification) {
+      await processAttendanceCheckout(
+        req.user._id.toString(),
+        finalHotelForGamification.toString(),
+        attendance.status || 'Present'
+      );
+    }
 
     res.status(200).json({
       status: 'success',
@@ -360,7 +448,7 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
 
     const queryBuilder = Attendance.find(filter)
       .populate('employee', 'firstName lastName email department designation aadhaarNumber panNumber shift photoUrl role')
-      .populate('hotel', 'name code')
+      .populate('hotel', 'name hotelCode')
       .sort({ date: -1 });
 
     if (req.query.all === 'true' && !req.query.employeeId) {
@@ -395,6 +483,97 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
       status: 'success',
       results: logsJson.length,
       data: { logs: logsJson },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLiveAttendance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const filter: any = {};
+    
+    // Tenancy Check
+    if (req.user?.role !== 'ROOT_ADMIN') {
+      filter.hotel = req.user?.hotel;
+    } else if (req.query.hotelId) {
+      filter.hotel = req.query.hotelId;
+    }
+
+    if (req.query.employeeId) {
+      filter.employee = req.query.employeeId;
+    }
+
+    if (req.query.date) {
+      filter.date = req.query.date;
+    } else {
+      filter.date = getLocalDateString();
+    }
+
+    const logs = await Attendance.find(filter)
+      .populate('employee', 'firstName lastName email department designation role photoUrl')
+      .populate('hotel', 'name hotelCode')
+      .sort({ checkIn: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      results: logs.length,
+      data: { logs },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLocationHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const filter: any = {
+      $or: [
+        { checkInLatitude: { $exists: true } },
+        { checkOutLatitude: { $exists: true } }
+      ]
+    };
+
+    if (req.user?.role !== 'ROOT_ADMIN') {
+      filter.hotel = req.user?.hotel;
+    } else if (req.query.hotelId) {
+      filter.hotel = req.query.hotelId;
+    }
+
+    if (req.query.employeeId) {
+      filter.employee = req.query.employeeId;
+    }
+
+    if (req.query.date) {
+      filter.date = req.query.date;
+    }
+
+    const logs = await Attendance.find(filter)
+      .populate('employee', 'firstName lastName email department designation role photoUrl')
+      .populate('hotel', 'name hotelCode')
+      .sort({ date: -1, checkIn: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      results: logs.length,
+      data: { logs },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAddressVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { latitude, longitude } = req.query;
+    if (!latitude || !longitude) {
+      throw new ApiError(400, 'latitude and longitude are required parameters.');
+    }
+
+    const addressData = await reverseGeocode(Number(latitude), Number(longitude));
+    res.status(200).json({
+      status: 'success',
+      data: addressData,
     });
   } catch (error) {
     next(error);

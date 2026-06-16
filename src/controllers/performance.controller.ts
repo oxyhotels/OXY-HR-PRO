@@ -144,7 +144,7 @@ export const getLeaderboard = async (req: Request, res: Response, next: NextFunc
       .populate({
         path: 'employee',
         select: 'firstName lastName email department designation photoUrl hotel',
-        populate: { path: 'hotel', select: 'name code' }
+        populate: { path: 'hotel', select: 'name hotelCode' }
       })
       .sort({ opiScore: -1 })
       .limit(50); // Top 50

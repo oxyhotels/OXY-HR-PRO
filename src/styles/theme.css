@@ -1,0 +1,41 @@
+/* Design tokens and color variables for OXY-HR PRO Modern Enterprise Theme */
+:root {
+  /* Main Backgrounds */
+  --oxy-main-bg: #F8FAFC; /* Light slate background for the app */
+  --oxy-card-bg: #FFFFFF; /* Pure white cards matching Figma */
+  --oxy-card-border: #E2E8F0; /* Soft, light gray border */
+  --oxy-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); /* Very soft, modern shadow */
+  --oxy-card-radius: 16px; /* Smooth rounded corners */
+
+  /* Typography */
+  --oxy-text-primary: #0F172A; /* Dark slate for headings and main text */
+  --oxy-text-secondary: #475569; /* Medium gray for subtitles */
+  --oxy-text-muted: #94A3B8; /* Light gray for placeholders/muted text */
+  --oxy-card-text: #0F172A; /* Text on white cards should be dark */
+
+  /* Semantic colors */
+  --oxy-success: #10B981; /* Fresh green for attendance/success */
+  --oxy-warning: #F59E0B; /* OXY Gold for coins and warnings */
+  --oxy-error: #EF4444;   /* Red for absents/errors */
+  --oxy-info: #3B82F6;    /* Blue for links/info */
+
+  /* Brand Buttons & Accents */
+  --oxy-brand: #0A1F5C; /* Exact OXY Navy Blue */
+  --oxy-brand-contrast: #FFFFFF; /* Crisp white text on brand buttons */
+  --oxy-accent: #FBBF24; /* OXY Gold Accent */
+  
+  /* Structural Grays */
+  --oxy-slate-100: #F1F5F9;
+  --oxy-slate-200: #E2E8F0;
+  --oxy-zebra: #F8FAFC;
+}
+
+/* Ensure global typography is clean */
+body, .content-area {
+  background-color: var(--oxy-main-bg) !important;
+  color: var(--oxy-text-primary) !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Respect existing sidebar — do not override sidebar selectors */

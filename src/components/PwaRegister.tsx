@@ -9,9 +9,9 @@ export default function PwaRegister() {
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    // 1. Register service worker
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+    // 1. Register service worker as early as possible
+    const registerServiceWorker = () => {
+      if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {
             console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
@@ -19,11 +19,21 @@ export default function PwaRegister() {
           .catch((err) => {
             console.error('[PWA] ServiceWorker registration failed:', err);
           });
-      });
+      }
+    };
+
+    const onWindowLoad = () => registerServiceWorker();
+
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'complete') {
+        registerServiceWorker();
+      } else {
+        window.addEventListener('load', onWindowLoad);
+      }
     }
 
     // 2. Intercept beforeinstallprompt
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (e: Event & { prompt?: () => Promise<void>; userChoice?: Promise<{ outcome: string }> }) => {
       e.preventDefault();
       setInstallPrompt(e);
       setShowBanner(true);
@@ -32,12 +42,14 @@ export default function PwaRegister() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     // 3. Track successful installation
-    window.addEventListener('appinstalled', () => {
+    const onAppInstalled = () => {
       console.log('[PWA] App installed successfully');
       setInstallPrompt(null);
       setShowBanner(false);
       setIsInstalled(true);
-    });
+    };
+
+    window.addEventListener('appinstalled', onAppInstalled);
 
     // Check if running in standalone PWA mode
     if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone) {
@@ -45,7 +57,9 @@ export default function PwaRegister() {
     }
 
     return () => {
+      window.removeEventListener('load', onWindowLoad);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
     };
   }, []);
 
@@ -69,7 +83,7 @@ export default function PwaRegister() {
   return (
     <div className="fixed bottom-20 left-4 right-4 md:bottom-6 md:right-6 md:left-auto md:w-96 bg-card-dark/95 backdrop-blur-md border border-gold/30 rounded-2xl p-4 shadow-xl z-50 animate-in slide-in-from-bottom-6 duration-300">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center text-gold shrink-0">
           <GoogleIcon name="install_mobile" size={20} />
         </div>
         <div className="flex-1 min-w-0">

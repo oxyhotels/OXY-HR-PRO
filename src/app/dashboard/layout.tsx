@@ -356,6 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const menuItems = [
     { name: 'Overview', href: '/dashboard', icon: 'dashboard', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Hotels', href: '/dashboard/hotels', icon: 'corporate_fare', roles: ['ROOT_ADMIN'] },
+    { name: 'Org Hierarchy', href: '/dashboard/hierarchy', icon: 'account_tree', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Employees', href: '/dashboard/employees', icon: 'group', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Attendance', href: '/dashboard/attendance', icon: 'event_available', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
     { name: 'Tasks', href: '/dashboard/tasks', icon: 'fact_check', roles: ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'] },
@@ -383,30 +384,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   console.log('[DEBUG LAYOUT] user role:', user?.role, 'isRootAdmin:', isRootAdmin);
 
   return (
-    <div className={`min-h-screen bg-slate-dark text-slate-100 flex flex-col md:flex-row ${isRootAdmin ? 'theme-root-admin' : ''}`}>
+    <div className={`min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col md:flex-row ${isRootAdmin ? 'theme-root-admin' : ''}`}>
       
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-card-dark border-r border-slate-800/80 p-5 flex-shrink-0 z-30">
+      <aside className="hidden md:flex flex-col w-64 bg-gradient-to-b from-[#0a1f5c] to-[#06143c] text-white border-r border-[#112d8a]/30 p-5 flex-shrink-0 z-35 shadow-xl">
         {/* Logo */}
-        <div className="flex flex-col items-start gap-2 px-2 mb-8 border-b border-slate-800/40 pb-4">
-          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-8 w-auto object-contain" />
+        <div className="flex flex-col items-start gap-2 px-2 mb-8 border-b border-slate-700/40 pb-4">
+          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-8 w-auto object-contain rounded" />
           <div className="text-[9px] text-gold tracking-widest uppercase font-bold truncate max-w-[180px] mt-1">
             {getHotelLabel()}
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1.5">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1 scrollbar-none">
           {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] lg:text-[13.5px] whitespace-nowrap transition-all ${
+                className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-[13px] lg:text-[13.5px] font-medium tracking-wide transition-all ${
                   isActive
-                    ? 'bg-gold text-slate-dark font-bold shadow-md gold-glow'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                    ? 'bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] font-extrabold shadow-md shadow-gold/20'
+                    : 'text-slate-350 hover:text-white hover:bg-white/8'
                 }`}
               >
                 <GoogleIcon name={item.icon} size={20} />
@@ -417,10 +418,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Footer info & logout */}
-        <div className="pt-4 border-t border-slate-800/60 flex flex-col gap-3">
+        <div className="pt-4 border-t border-slate-700/60 flex flex-col gap-3">
           <div 
             onClick={() => setProfileModalOpen(true)}
-            className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-slate-900/60 cursor-pointer transition-colors"
+            className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
             title="View & Edit Profile"
           >
             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-bold overflow-hidden">
@@ -431,14 +432,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
             <div className="overflow-hidden flex-1">
-              <p className="text-xs font-semibold truncate text-slate-200">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[10px] text-slate-500 font-medium truncate uppercase">{formatRole(user?.role)}</p>
+              <p className="text-xs font-semibold truncate text-slate-100">{user?.firstName} {user?.lastName}</p>
+              <p className="text-[10px] text-slate-400 font-medium truncate uppercase">{formatRole(user?.role)}</p>
             </div>
           </div>
           
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-950/20 transition-all cursor-pointer"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer"
           >
             <GoogleIcon name="logout" size={20} />
             Sign Out
@@ -453,18 +454,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Mobile Drawer */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-64 bg-card-dark border-r border-slate-800 p-5 z-50 md:hidden transition-transform duration-300 ${
+        className={`fixed top-0 bottom-0 left-0 w-64 bg-gradient-to-b from-[#0a1f5c] to-[#06143c] text-white border-r border-[#112d8a]/30 p-5 z-50 md:hidden transition-transform duration-300 ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex justify-between items-center mb-8 border-b border-slate-800/40 pb-4">
-          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-7 w-auto object-contain" />
-          <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-white">
+        <div className="flex justify-between items-center mb-8 border-b border-slate-700/50 pb-4">
+          <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-8 w-auto object-contain rounded" />
+          <button onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white p-1">
             <GoogleIcon name="close" size={20} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1.5 mb-6">
+        <nav className="flex-1 space-y-1.5 mb-6 overflow-y-auto max-h-[60vh] pr-1 scrollbar-none">
           {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -472,10 +473,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] whitespace-nowrap transition-all ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] tracking-wide transition-all ${
                   isActive
-                    ? 'bg-gold text-slate-dark font-bold'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                    ? 'bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] font-bold shadow-md'
+                    : 'text-slate-350 hover:text-white hover:bg-white/8'
                 }`}
               >
                 <GoogleIcon name={item.icon} size={20} />
@@ -485,13 +486,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="pt-4 border-t border-slate-800/60">
+        <div className="pt-4 border-t border-slate-700/60">
           <div 
             onClick={() => {
               setMobileMenuOpen(false);
               setProfileModalOpen(true);
             }}
-            className="flex items-center gap-3 mb-4 p-1.5 rounded-lg hover:bg-slate-900/60 cursor-pointer transition-colors"
+            className="flex items-center gap-3 mb-4 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
             title="View & Edit Profile"
           >
             <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-semibold text-xs overflow-hidden flex-shrink-0">
@@ -502,13 +503,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
             <div className="overflow-hidden flex-1">
-              <p className="text-xs font-semibold truncate text-slate-200">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[9px] text-slate-500 font-semibold truncate uppercase">{formatRole(user?.role)}</p>
+              <p className="text-xs font-semibold truncate text-slate-100">{user?.firstName} {user?.lastName}</p>
+              <p className="text-[9px] text-slate-400 font-semibold truncate uppercase">{formatRole(user?.role)}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 transition-all cursor-pointer"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer"
           >
             <GoogleIcon name="logout" size={18} />
             Sign Out
@@ -517,32 +518,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Workspace Frame */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 dashboard-light-theme bg-[#F8FAFC]">
         
         {/* Header - Mobile & Action bar */}
-        <header className="flex items-center justify-between h-16 bg-card-dark border-b border-slate-800/80 px-4 md:px-8 z-20">
+        <header className="flex items-center justify-between h-16 bg-gradient-to-r from-[#0a1f5c] to-[#112d8a] text-white px-4 md:px-8 z-20 shadow-md">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="text-slate-400 hover:text-white cursor-pointer"
+              className="text-slate-350 hover:text-white cursor-pointer p-1 rounded hover:bg-white/10 transition-colors md:hidden"
             >
               <GoogleIcon name="menu" size={22} />
             </button>
             {/* Mobile Brand Logo */}
             <div className="md:hidden flex items-center">
-              <img src="/oxy-logo.jpeg" alt="OXY Logo" className="h-6 w-auto object-contain rounded" />
+              <img src="/oxy-logo.jpeg" alt="OXY Logo" className="h-7 w-auto object-contain rounded" />
             </div>
             <div className="hidden md:flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-gold tracking-widest">Enterprise Platform</span>
-              <h2 className="text-base font-bold text-white capitalize">{pathname.split('/').pop() || 'Overview'}</h2>
+              <span className="text-[9px] uppercase font-bold text-gold-light tracking-widest">Enterprise Platform</span>
+              <h2 className="text-sm font-bold text-white capitalize tracking-wide">{pathname.split('/').pop() || 'Overview'}</h2>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Clock Widget */}
-            <div className="hidden lg:flex flex-col items-end text-xs text-slate-400 font-medium">
+            <div className="hidden lg:flex flex-col items-end text-[10px] text-slate-300 font-medium">
               <span>Shift Time Zone: {timeZoneStr || 'UTC-5 (EST)'}</span>
-              <span className="text-gold font-mono mt-0.5">{currentDate} {currentTime}</span>
+              <span className="text-gold-light font-mono font-bold mt-0.5">{currentDate} &bull; {currentTime}</span>
             </div>
 
             {/* Notification Bell Widget & Dropdown */}
@@ -555,7 +556,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setShowNotifications(!showNotifications);
                   }
                 }}
-                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-gold transition-colors relative flex items-center justify-center cursor-pointer"
+                className="p-1.5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-gold-light transition-colors relative flex items-center justify-center cursor-pointer"
                 title="Notifications"
               >
                 <GoogleIcon name="notifications" size={20} />
@@ -569,7 +570,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               {/* Responsive Dropdown Glass Panel */}
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-card-dark/95 backdrop-blur-md border border-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250 flex flex-col max-h-[480px]">
+                <div className="absolute right-0 mt-3 w-80 md:w-96 bg-[#0a1631]/95 border border-slate-700/50 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250 flex flex-col max-h-[480px]">
                   
                   {/* Header */}
                   <div className="p-4 border-b border-slate-800/60 flex items-center justify-between bg-slate-900/30 flex-shrink-0">
@@ -595,7 +596,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="flex-1 overflow-y-auto divide-y divide-slate-800/40 max-h-[360px] scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
                     {notifications.length === 0 ? (
                       <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
-                        <GoogleIcon name="notifications_off" size={32} className="text-slate-650" />
+                        <GoogleIcon name="notifications_off" size={32} className="text-slate-500" />
                         <p className="text-xs font-semibold">All clean! No new notifications.</p>
                       </div>
                     ) : (
@@ -605,8 +606,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           <div
                             key={notif._id}
                             onClick={() => handleMarkAsRead(notif._id)}
-                            className={`p-3.5 flex items-start gap-3.5 hover:bg-slate-800/60 cursor-pointer transition-colors ${
-                              !notif.read ? 'bg-slate-900/30 border-l-2 border-gold' : ''
+                            className={`p-3.5 flex items-start gap-3.5 hover:bg-white/5 cursor-pointer transition-colors ${
+                              !notif.read ? 'bg-white/3 border-l-2 border-gold' : ''
                             }`}
                           >
                             {/* Icon Indicator */}
@@ -617,14 +618,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {/* Message Body */}
                             <div className="flex-1 min-w-0 text-left">
                               <div className="flex justify-between items-start gap-1">
-                                <h4 className={`text-xs font-bold truncate ${!notif.read ? 'text-white' : 'text-slate-300'}`}>
+                                <h4 className={`text-xs font-bold truncate ${!notif.read ? 'text-white' : 'text-slate-350'}`}>
                                   {notif.title}
                                 </h4>
                                 <span className="text-[9px] text-slate-500 font-mono flex-shrink-0">
                                   {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
                                 {notif.message}
                               </p>
                               {notif.link && (
@@ -645,7 +646,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   
                   {/* Footer */}
                   <div className="p-3 border-t border-slate-800/60 text-center bg-slate-900/20 flex-shrink-0">
-                    <span className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">OXY-HR PRO Notification Feed</span>
+                    <span className="text-[10px] text-slate-500 font-bold tracking-widest uppercase text-[9px]">OXY-HR PRO Notification Feed</span>
                   </div>
                 </div>
               )}
@@ -660,7 +661,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   setProfileModalOpen(true);
                 }
               }}
-              className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-bold overflow-hidden cursor-pointer flex-shrink-0"
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-gold/30 text-gold font-bold overflow-hidden cursor-pointer flex-shrink-0"
               title="My Profile"
             >
               {user?.photoUrl ? (
@@ -671,9 +672,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
 
             {/* User status Indicator */}
-            <div className="hidden sm:flex items-center gap-2 border-l border-slate-800 pl-3">
-              <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-semibold text-slate-300 uppercase">Online</span>
+            <div className="hidden sm:flex items-center gap-2 border-l border-white/10 pl-3">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">Online</span>
             </div>
           </div>
         </header>
@@ -687,7 +688,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card-dark/95 backdrop-blur-md border-t border-slate-800/60 z-35 flex justify-around items-center px-2">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#E2E8F0] z-35 flex justify-around items-center px-2 shadow-2xl">
           {[
             { name: 'Home', href: '/dashboard', icon: 'home' },
             { name: 'Attendance', href: '/dashboard/attendance', icon: 'event_available' },
@@ -701,11 +702,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={tab.href}
                 href={tab.href}
                 className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
-                  isActive ? 'text-gold' : 'text-slate-400 hover:text-slate-200'
+                  isActive ? 'text-[#0A1F5C]' : 'text-[#64748B] hover:text-[#0A1F5C]'
                 }`}
               >
-                <GoogleIcon name={tab.icon} size={22} className={isActive ? 'scale-110' : ''} />
-                <span className="text-[9px] font-bold mt-1 tracking-wider uppercase">{tab.name}</span>
+                <div className={`flex flex-col items-center justify-center px-3 py-1 rounded-xl transition-all ${isActive ? 'bg-[#EEF2FF]' : ''}`}>
+                  <GoogleIcon name={tab.icon} size={22} className={isActive ? 'scale-110 text-[#0A1F5C]' : 'text-[#64748B]'} />
+                  <span className="text-[9px] font-bold mt-0.5 tracking-wider uppercase">{tab.name}</span>
+                </div>
               </Link>
             );
           })}

@@ -1,4 +1,5 @@
 import { Schema, model, models, Document } from 'mongoose';
+import { DEPARTMENTS } from '@/constants/departments';
 
 export type GroupType = 
   | 'GlobalGroup' 
@@ -52,7 +53,7 @@ const CommunityGroupSchema = new Schema<ICommunityGroup>(
     },
     description: { type: String, trim: true },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
-    department: { type: String, trim: true },
+    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     members: [GroupMemberSchema],
     pinMessages: [{ type: Schema.Types.ObjectId, ref: 'CommunityMessage' }]

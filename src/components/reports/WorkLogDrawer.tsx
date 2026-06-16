@@ -20,7 +20,7 @@ export default function WorkLogDrawer({ isOpen, onClose, log }: WorkLogDrawerPro
   const dept = log.employee?.department || 'Operations';
   const designation = log.employee?.designation || 'Staff';
   const hotelName = log.hotel?.name || 'OXY Property';
-  const hotelCode = log.hotel?.code || 'N/A';
+  const hotelCode = log.hotel?.hotelCode || 'N/A';
 
   // Dynamic AI-simulated Performance Summary
   const getAiSummary = (desc: string): string => {

@@ -27,7 +27,7 @@ const seedDatabase = async () => {
     console.log('Seeding Grand Plaza Resort Hotel...');
     const hotel = await Hotel.create({
       name: 'Grand Plaza Resort',
-      code: 'gpr',
+      hotelCode: 'GPR',
       email: 'info@grandplazaresort.com',
       phone: '+1 555-0199',
       address: {

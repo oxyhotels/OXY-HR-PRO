@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '../../../lib/api';
+import { DEPARTMENTS } from '@/constants/departments';
 import { useAuthStore } from '../../../store/authStore';
 import {
   Search, Calendar, Filter, User, Award, Users, AlertTriangle, ShieldAlert, Check, X,
@@ -386,7 +387,7 @@ export default function AnalyticsPage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-8 space-y-8">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header and Sync */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
@@ -492,12 +493,9 @@ export default function AnalyticsPage() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 cursor-pointer focus:outline-none focus:border-blue-500"
               >
                 <option value="">All Departments</option>
-                <option value="Front Office">Front Office</option>
-                <option value="Housekeeping">Housekeeping</option>
-                <option value="Kitchen">Kitchen</option>
-                <option value="F&B">Food & Beverage</option>
-                <option value="Human Resources">Human Resources</option>
-                <option value="IT Services">IT Services</option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
               </select>
             </div>
           </div>

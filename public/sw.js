@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oxy-hr-cache-v1';
+const CACHE_NAME = 'oxy-hr-cache-v3';
 const OFFLINE_URL = '/offline';
 
 const ASSETS_TO_CACHE = [
@@ -11,13 +11,14 @@ const ASSETS_TO_CACHE = [
   '/maskable-icon.png'
 ];
 
+const isSameOrigin = (request) => new URL(request.url).origin === self.location.origin;
+const isStaticAsset = (url) => url.pathname.startsWith('/_next/') || /\.(js|css|png|jpe?g|svg|gif|webp|avif|ico|json|woff2|woff|ttf|eot|wasm)$/i.test(url.pathname);
+
 // Install Event
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(ASSETS_TO_CACHE);
-      })
+      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
       .then(() => self.skipWaiting())
   );
 });
@@ -59,57 +60,52 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          // Put the fresh page in cache
           return caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, networkResponse.clone());
             return networkResponse;
           });
         })
         .catch(() => {
-          // If offline, check if page is in cache, otherwise show /offline fallback
           return caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) return cachedResponse;
-            return caches.match(OFFLINE_URL);
+            return cachedResponse || caches.match(OFFLINE_URL);
           });
         })
     );
     return;
   }
 
-  // Handle static resources (JS, CSS, images, fonts)
+  // Handle static resources and same-origin assets
+  if (!isSameOrigin(event.request)) return;
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return from cache, but fetch fresh copy in background to update cache
+        // Refresh the cached resource in the background
         fetch(event.request)
           .then((networkResponse) => {
-            if (networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
+            if (networkResponse && networkResponse.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
             }
           })
-          .catch(() => { /* ignore offline network failures */ });
+          .catch(() => { /* offline or network error */ });
         return cachedResponse;
       }
 
-      // If not in cache, fetch from network and cache
       return fetch(event.request)
         .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          if (!networkResponse || networkResponse.status !== 200) {
             return networkResponse;
           }
+
           const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
           return networkResponse;
         })
         .catch(() => {
-          // Fallback image placeholder if image loading fails
           if (event.request.destination === 'image') {
             return caches.match('/favicon.ico');
           }
+          return caches.match(OFFLINE_URL);
         });
     })
   );

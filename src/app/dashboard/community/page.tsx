@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore, ZustandGroup, ZustandMessage, ZustandSocialPost, ZustandKnowledgeItem } from '@/store/communityStore';
 import { api } from '@/lib/api';
+import { DEPARTMENTS } from '@/constants/departments';
 import {
   MessageSquare,
   Send,
@@ -1414,13 +1415,16 @@ export default function CommunityHubPage() {
               {newGroupType === 'DepartmentGroup' && (
                 <div>
                   <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Department</label>
-                  <input
-                    type="text"
+                  <select
                     value={newGroupDept}
                     onChange={(e) => setNewGroupDept(e.target.value)}
-                    placeholder="e.g. Housekeeping"
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none"
-                  />
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none cursor-pointer"
+                  >
+                    <option value="">Select Department...</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -1692,13 +1696,16 @@ export default function CommunityHubPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Department</label>
-                  <input
-                    type="text"
+                  <select
                     value={sopDept}
                     onChange={(e) => setSopDept(e.target.value)}
-                    placeholder="e.g. Front Office"
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none"
-                  />
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none cursor-pointer"
+                  >
+                    <option value="">Select Department...</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Tags (Comma Sep)</label>

@@ -1,7 +1,24 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans, Outfit } from "next/font/google";
 import "./globals.css"; // Reload theme
 import Footer from "@/components/Footer";
 import PwaRegister from "../components/PwaRegister";
+import PerformancePanel from "@/components/PerformancePanel";
+import ContentAreaWrapper from "@/components/ContentAreaWrapper";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-outfit",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "OXY-HR PRO - Enterprise Multi-Hotel HRMS",
@@ -14,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark antialiased">
+    <html lang="en" className={`dark antialiased ${plusJakartaSans.variable} ${outfit.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="manifest" href="/manifest.json" />
@@ -25,16 +42,18 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
       </head>
       <body className="bg-slate-dark text-slate-100 min-h-screen flex flex-col font-sans">
         <PwaRegister />
+        <PerformancePanel />
         <div className="flex-1 flex flex-col">
-          {children}
+          <ContentAreaWrapper>
+            {children}
+          </ContentAreaWrapper>
         </div>
         <Footer />
       </body>
     </html>
   );
 }
-

@@ -1,39 +1,48 @@
 @import "tailwindcss";
+@import "../styles/theme.css";
+@import "../styles/ui-utils.css";
 
 @layer base {
   :root {
-    --background: #060911;
-    --foreground: #f8fafc;
-    --card: #0b111e;
-    --card-foreground: #f1f5f9;
-    --popover: #060911;
-    --popover-foreground: #f8fafc;
-    --primary: #d4af37;
-    --primary-foreground: #060911;
-    --secondary: #121b2d;
-    --secondary-foreground: #f8fafc;
-    --muted: #121b2d;
-    --muted-foreground: #94a3b8;
-    --accent: #1e2c4a;
-    --accent-foreground: #f8fafc;
+    --background: #ffffff; /* White background */
+    --foreground: #0f172a; /* Dark slate text */
+    --card: #ffffff; /* White card bg */
+    --card-foreground: #0f172a;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    --primary: #0a1f5c; /* Brand Primary (Deep Navy) */
+    --primary-foreground: #ffffff;
+    --secondary: #112d8a; /* Brand Secondary (Deep Blue) */
+    --secondary-foreground: #ffffff;
+    --muted: #f8fafc;
+    --muted-foreground: #64748b;
+    --accent: #d4af37; /* Gold */
+    --accent-foreground: #0f172a;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
-    --border: #14213d;
-    --input: #14213d;
-    --ring: #d4af37;
-    --radius: 0.75rem;
+    --border: #e2e8f0;
+    --input: #ffffff;
+    --ring: #0a1f5c;
+    --radius: 1rem; /* rounded-2xl is 16px */
   }
 }
 
 @theme {
   --color-gold: #d4af37;
-  --color-gold-light: #f3d070;
+  --color-gold-light: #f5d36a;
   --color-gold-dark: #b89320;
-  --color-slate-dark: #060911;
-  --color-card-dark: #0b111e;
-  --color-border-dark: #14213d;
-  --font-sans: "Plus Jakarta Sans", sans-serif;
-  --font-heading: "Outfit", sans-serif;
+  
+  --color-brand-primary: #0a1f5c;
+  --color-brand-secondary: #112d8a;
+  --color-brand-accent: #d4af37;
+  
+  /* Dark theme card and surface variables — used by most existing dashboard pages */
+  --color-slate-dark: #0a0f1e;       /* Very dark navy — bg-slate-dark base */
+  --color-card-dark: #0d1117;        /* Dark card surface — bg-card-dark */
+  --color-border-dark: #1e2d45;      /* Dark border — border-dark */
+  
+  --font-sans: 'Poppins', 'Inter', sans-serif;
+  --font-heading: 'Poppins', 'Inter', sans-serif;
 }
 
 html {
@@ -49,10 +58,8 @@ body {
   line-height: 1.625;
   overflow-x: hidden;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(212, 175, 55, 0.04) 0px, transparent 50%),
-    radial-gradient(at 50% 0%, rgba(11, 17, 30, 0.7) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(212, 175, 55, 0.03) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(18, 27, 45, 0.5) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(212, 175, 55, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(10, 31, 92, 0.02) 0px, transparent 50%);
   background-attachment: fixed;
   background-size: cover;
   letter-spacing: -0.01em;
@@ -77,128 +84,69 @@ h1, h2, h3, h4, h5, h6 {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #060911;
+  background: #f8fafc;
 }
 ::-webkit-scrollbar-thumb {
-  background: #14213d;
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #d4af37;
 }
 
-/* Glassmorphism helpers */
+/* Glassmorphism helpers matching clean luxury style */
 .glass-panel {
-  background: rgba(11, 17, 30, 0.75);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(212, 175, 55, 0.12);
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(10, 31, 92, 0.08);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.06);
 }
 
 .glass-card {
-  background: rgba(18, 27, 45, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+  background: #ffffff;
+  border: 1px solid rgba(10, 31, 92, 0.06);
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.03);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-  border-color: rgba(212, 175, 55, 0.25);
+  border-color: rgba(212, 175, 55, 0.35);
   box-shadow: 0 10px 30px rgba(212, 175, 55, 0.08);
   transform: translateY(-2px);
 }
 
 .gold-glow {
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.06);
 }
 
 .gold-border-glow:hover {
-  border-color: rgba(212, 175, 55, 0.5);
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.08);
 }
 
 .gold-text-glow {
-  text-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
 }
 
-/* Root Admin Dashboard Theme: Deep Blue space theme with crisp white & neon yellow-green glows */
+/* Root Admin Dashboard Theme matches executive look */
 .theme-root-admin {
-  --background: #050c21; /* Ultra-deep midnight ocean blue */
-  --foreground: #ffffff;
-  --card: #0a1631; /* Premium deep blue card */
-  --card-foreground: #f8fafc;
-  --primary: #bef264; /* Vibrant yellow-green (lime) */
-  --primary-foreground: #050c21;
-  --secondary: #1d4ed8; /* Electric royal blue */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --primary: #0a1f5c;
+  --primary-foreground: #ffffff;
+  --secondary: #112d8a;
   --secondary-foreground: #ffffff;
-  --muted: #0c1833;
-  --muted-foreground: #a5b4fc; /* Indigo muted text */
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
-  --border: #142850; /* Rich ocean blue border */
-  --input: #142850;
-  --ring: #bef264;
-  --radius: 0.75rem;
-
-  /* Tailwind CSS v4 variables mapped to theme-root-admin context */
-  --color-gold: #bef264; /* Map gold elements to vibrant yellow-green */
-  --color-gold-light: #d9f99d;
-  --color-gold-dark: #a3e635;
-  --color-slate-dark: #050c21;
-  --color-card-dark: #0a1631;
-  --color-border-dark: #142850;
-}
-
-/* Custom gorgeous dynamic background specifically for the root admin page */
-.theme-root-admin.min-h-screen,
-.theme-root-admin .min-h-screen {
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.22) 0px, transparent 50%), /* Vibrant royal blue glow top-left */
-    radial-gradient(at 50% 0%, rgba(10, 22, 49, 0.95) 0px, transparent 65%), /* Midnight blue core */
-    radial-gradient(at 100% 0%, rgba(190, 242, 100, 0.12) 0px, transparent 50%), /* Yellow-Green glow top-right */
-    radial-gradient(at 50% 100%, rgba(29, 78, 216, 0.65) 0px, transparent 50%) !important; /* Royal/navy blue base */
-}
-
-/* Adapting existing utility glows to Root Admin's Yellow-Green primary theme */
-.theme-root-admin .glass-panel {
-  background: rgba(10, 22, 49, 0.82);
-  border: 1px solid rgba(190, 242, 100, 0.18);
-  box-shadow: 0 12px 45px -10px rgba(0, 0, 0, 0.7);
-}
-
-.theme-root-admin .glass-card {
-  background: rgba(20, 40, 80, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.theme-root-admin .glass-card:hover {
-  border-color: rgba(190, 242, 100, 0.35);
-  box-shadow: 0 10px 30px rgba(190, 242, 100, 0.12);
-}
-
-.theme-root-admin .gold-glow {
-  box-shadow: 0 0 22px rgba(190, 242, 100, 0.18);
-}
-
-.theme-root-admin .gold-border-glow:hover {
-  border-color: rgba(190, 242, 100, 0.65);
-  box-shadow: 0 0 22px rgba(190, 242, 100, 0.18);
-}
-
-.theme-root-admin .gold-text-glow {
-  text-shadow: 0 0 12px rgba(190, 242, 100, 0.45);
-}
-
-/* Make scrollbars custom to match root admin */
-.theme-root-admin::-webkit-scrollbar-thumb {
-  background: #142850;
-}
-
-.theme-root-admin::-webkit-scrollbar-thumb:hover {
-  background: #bef264;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+  --accent: #d4af37;
+  --accent-foreground: #0f172a;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --ring: #0a1f5c;
+  --radius: 1rem;
 }
 
 /* Google Fonts Material Symbols Outlined Support */
@@ -234,4 +182,138 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-block;
 }
 
+/* Dashboard Light Theme Contrast & Accessibility Overrides */
+.dashboard-light-theme {
+  --color-slate-dark: #f8fafc;
+  --color-card-dark: #ffffff;
+  --color-border-dark: #e2e8f0;
 
+  /* Form inputs & controls optimization */
+  input, select, textarea {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    &::placeholder {
+      color: #64748b !important;
+    }
+    &:focus {
+      border-color: #0a1f5c !important;
+      --tw-ring-color: #0a1f5c !important;
+      outline: none;
+    }
+  }
+
+  /* High contrast text color overrides for labels & paragraphs directly on background */
+  h1, h2, h3, h4, h5, h6 {
+    color: #000000 !important;
+    font-weight: 800 !important;
+  }
+  h1 { font-size: 1.85rem !important; }
+  h2 { font-size: 1.55rem !important; }
+  h3 { font-size: 1.35rem !important; }
+
+  p, span, td, th, input, select, textarea, label {
+    font-size: 16px !important;
+  }
+
+  h1, h2, h3, h4, h5, h6, p, span, div, td, th, label {
+    &.text-white, &.text-slate-100, &.text-slate-200 {
+      &:not(button *):not([class*="bg-gold"] *):not([class*="bg-brand"] *):not([class*="bg-blue"] *):not([class*="bg-green"] *):not([class*="bg-red"] *):not([class*="bg-amber"] *):not([class*="bg-slate-800"] *):not([class*="bg-gradient"] *):not([class*="from-"] *):not([class*="badge"] *):not([class*="status"] *) {
+        color: #000000 !important;
+        font-weight: 700 !important;
+      }
+    }
+    &.text-slate-300, &.text-slate-350 {
+      &:not(button *):not([class*="bg-gold"] *):not([class*="bg-brand"] *):not([class*="bg-blue"] *):not([class*="bg-green"] *):not([class*="bg-red"] *):not([class*="bg-amber"] *):not([class*="bg-slate-800"] *):not([class*="bg-gradient"] *):not([class*="from-"] *):not([class*="badge"] *):not([class*="status"] *) {
+        color: #111625 !important;
+        font-weight: 600 !important;
+      }
+    }
+    &.text-slate-400, &.text-slate-500, &.text-slate-600 {
+      &:not(button *):not([class*="bg-gold"] *):not([class*="bg-brand"] *):not([class*="bg-blue"] *):not([class*="bg-green"] *):not([class*="bg-red"] *):not([class*="bg-amber"] *):not([class*="bg-slate-800"] *):not([class*="bg-gradient"] *):not([class*="from-"] *):not([class*="badge"] *):not([class*="status"] *) {
+        color: #334155 !important;
+        font-weight: 500 !important;
+      }
+    }
+  }
+
+  /* Tables: Contrast alignment */
+  table {
+    thead tr {
+      background-color: #f8fafc !important;
+      color: #000000 !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      th {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        font-size: 13.5px !important;
+      }
+    }
+    tbody tr {
+      border-bottom: 1px solid #e2e8f0 !important;
+      &:hover {
+        background-color: #f8fafc !important;
+      }
+      td {
+        color: #111625 !important;
+        font-size: 13.5px !important;
+        .text-white {
+          color: #000000 !important;
+          font-weight: 700 !important;
+        }
+        .text-slate-300 {
+          color: #111625 !important;
+          font-weight: 600 !important;
+        }
+        .text-slate-400 {
+          color: #334155 !important;
+          font-weight: 500 !important;
+        }
+      }
+    }
+  }
+
+  /* Card and Panel container styles mapping */
+  .bg-card-dark {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02) !important;
+  }
+  .bg-slate-dark {
+    background-color: #f8fafc !important;
+  }
+  .bg-slate-950, .bg-slate-950\/40, .bg-slate-950\/35, .bg-slate-900\/20, .bg-white\/3, .bg-white\/5, .bg-white\/8, .bg-white\/10 {
+    background-color: #f8fafc !important;
+  }
+
+  /* Border overrides */
+  .border-slate-800, .border-slate-850, .border-slate-700, .border-indigo-900\/30 {
+    border-color: #e2e8f0 !important;
+  }
+  .divide-slate-800\/60, .divide-slate-800\/40, .divide-slate-800, .divide-slate-100 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Button optimization */
+  button.bg-gold, button.bg-blue-600, .btn-primary {
+    background-color: #0a1f5c !important;
+    color: #ffffff !important;
+    &:hover {
+      background-color: #112d8a !important;
+    }
+  }
+  button.bg-slate-800, button.bg-slate-700, .btn-secondary {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    &:hover {
+      background-color: #f1f5f9 !important;
+    }
+  }
+  .hover\:bg-red-950\/40:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+  }
+  .hover\:bg-slate-800:hover {
+    background-color: #f1f5f9 !important;
+  }
+}

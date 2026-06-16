@@ -10,6 +10,7 @@ import {
   CloudOff, RefreshCw, CheckSquare, Clock, ShieldCheck, HelpCircle, Trophy
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { DEPARTMENTS } from '@/constants/departments';
 
 interface TaskProfile {
   _id: string;
@@ -1098,7 +1099,7 @@ export default function IntelligentTasksPage() {
               </p>
               
               <div className="space-y-3">
-                {['Front Office', 'Housekeeping', 'Kitchen'].map(dept => {
+                {DEPARTMENTS.map(dept => {
                   const activeStaff = employees.filter(emp => emp.department === dept && emp.status === 'Active');
                   const bestReplacement = activeStaff.sort((a, b) => {
                     const aTasks = tasks.filter(t => t.assignedTo?._id === a._id && t.status !== 'Completed').length;
@@ -1440,12 +1441,15 @@ export default function IntelligentTasksPage() {
 
                   <div>
                     <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Assign To Department (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Front Office, Housekeeping"
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white"
+                    <select
+                      className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white cursor-pointer text-xs"
                       {...register('department')}
-                    />
+                    >
+                      <option value="">None (Optional)</option>
+                      {DEPARTMENTS.map((dept) => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
                   </div>
                 </>
               )}

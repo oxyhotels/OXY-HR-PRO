@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 interface HotelData {
   _id: string;
   name: string;
-  code: string;
+  hotelCode: string;
   email?: string;
   phone?: string;
   address: {
@@ -33,7 +33,7 @@ export default function HotelsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, setValue } = useForm();
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
   const fetchHotels = async () => {
     try {
@@ -66,7 +66,7 @@ export default function HotelsPage() {
     setEditingHotel(null);
     reset({
       name: '',
-      code: '',
+      hotelCode: '',
       email: '',
       phone: '',
       street: '',
@@ -85,7 +85,7 @@ export default function HotelsPage() {
     setEditingHotel(hotel);
     reset({
       name: hotel.name,
-      code: hotel.code,
+      hotelCode: hotel.hotelCode,
       email: hotel.email,
       phone: hotel.phone,
       street: hotel.address.street,
@@ -115,7 +115,7 @@ export default function HotelsPage() {
     setErrorMsg(null);
     const payload = {
       name: values.name,
-      code: values.code,
+      hotelCode: values.hotelCode,
       email: values.email,
       phone: values.phone,
       address: {
@@ -198,7 +198,7 @@ export default function HotelsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="p-4 font-mono text-gold uppercase">{hotel.code}</td>
+                    <td className="p-4 font-mono text-gold uppercase">{hotel.hotelCode}</td>
                     <td className="p-4">
                       <div>{hotel.email || '—'}</div>
                       <div className="text-slate-500 mt-0.5">{hotel.phone || '—'}</div>
@@ -275,15 +275,25 @@ export default function HotelsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Hotel Code</label>
+                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Hotel Code *</label>
                   <input
                     type="text"
-                    required
-                    disabled={!!editingHotel}
-                    placeholder="e.g. gpr"
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50"
-                    {...register('code')}
+                    placeholder="e.g. OXY001"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white uppercase"
+                    {...register('hotelCode', {
+                      required: 'Hotel Code is required',
+                      minLength: { value: 3, message: 'Minimum 3 characters' },
+                      maxLength: { value: 20, message: 'Maximum 20 characters' },
+                      pattern: {
+                        value: /^[a-zA-Z0-9-]+$/,
+                        message: 'Only letters, numbers, and hyphens'
+                      },
+                      setValueAs: (v) => v.trim().toUpperCase()
+                    })}
                   />
+                  {errors.hotelCode && (
+                    <p className="text-red-400 text-[10px] mt-1">{(errors.hotelCode as any).message}</p>
+                  )}
                 </div>
               </div>
 

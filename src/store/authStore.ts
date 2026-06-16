@@ -10,7 +10,7 @@ export interface UserProfile {
     _id?: string;
     id?: string;
     name: string;
-    code: string;
+    hotelCode: string;
   } | string;
   department?: string;
   designation?: string;

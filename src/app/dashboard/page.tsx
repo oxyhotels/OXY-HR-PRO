@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { formatRole } from '../../lib/utils';
 import GoogleIcon from '../../components/GoogleIcon';
 import WorkLogDrawer from '../../components/reports/WorkLogDrawer';
@@ -41,6 +42,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [gamificationProfile, setGamificationProfile] = useState<any>(null);
+  const [gamificationLevelProgress, setGamificationLevelProgress] = useState<any>(null);
+  const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
+  const [leaderboardTotalEmployees, setLeaderboardTotalEmployees] = useState<number>(0);
 
   // ROOT_ADMIN specific states
   const [liveAttendance, setLiveAttendance] = useState<any[]>([]);
@@ -64,6 +70,13 @@ export default function DashboardPage() {
   const [gpsChecking, setGpsChecking] = useState(false);
   const [gpsIsIpBased, setGpsIsIpBased] = useState(false);
   const [tempCheckoutData, setTempCheckoutData] = useState<{ workDescription: string; workPictureUrl?: string; workVideoUrl?: string } | null>(null);
+
+  // Card-level GPS/camera status for the pre-check-in location panel
+  const [cardGpsCoords, setCardGpsCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const [cardGpsError, setCardGpsError] = useState<string | null>(null);
+  const [cardAddress, setCardAddress] = useState<string | null>(null);
+  const [cardAddressLoading, setCardAddressLoading] = useState(false);
+  const [cardCameraStatus, setCardCameraStatus] = useState<string>('Checking...');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraRetrying, setCameraRetrying] = useState(false);
@@ -115,6 +128,34 @@ export default function DashboardPage() {
   // Staff Graph Specific States
   const [selectedStaffLogs, setSelectedStaffLogs] = useState<any[]>([]);
   const [graphLoading, setGraphLoading] = useState(false);
+
+  const getPerformanceTierLabel = (level: number) => {
+    if (level <= 2) return 'Bronze Elite';
+    if (level <= 4) return 'Silver Champion';
+    if (level <= 6) return 'Gold Vanguard';
+    if (level <= 8) return 'Platinum Leader';
+    return 'Diamond Legend';
+  };
+
+  const fetchGamificationPerformance = useCallback(async () => {
+    if (!user) return;
+    try {
+      const profilePromise = api.get('/gamification/my-profile');
+      const leaderboardPromise = api.get('/gamification/leaderboard?scope=month&limit=100');
+      const [profileRes, leaderboardRes] = await Promise.all([profilePromise, leaderboardPromise]);
+
+      const profile = profileRes?.data?.profile || null;
+      setGamificationProfile(profile);
+      setGamificationLevelProgress(profileRes?.data?.levelProgress || null);
+
+      const leaderboard = leaderboardRes?.data?.leaderboard || [];
+      const currentRank = leaderboard.find((entry: any) => entry.employeeId === user.id)?.rank ?? null;
+      setLeaderboardRank(currentRank);
+      setLeaderboardTotalEmployees(leaderboard.length);
+    } catch (err) {
+      console.error('Failed to fetch gamification performance', err);
+    }
+  }, [user]);
 
   // Fetch dashboard numbers
   const fetchDashboardData = async () => {
@@ -263,6 +304,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchGamificationPerformance();
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await api.get('/notifications');
+        if (res?.data?.notifications) {
+          const unread = res.data.notifications.filter((n: any) => !n.read).length;
+          setUnreadCount(unread);
+        }
+      } catch (e) {
+        console.error('Failed to fetch unread notifications count:', e);
+      }
+    };
+    fetchUnreadCount();
     if (user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') {
       fetchPendingUsers();
     }
@@ -280,7 +334,7 @@ export default function DashboardPage() {
       };
       fetchHotelsList();
     }
-  }, [user]);
+  }, [user, fetchGamificationPerformance]);
 
   useEffect(() => {
     if (verificationModalOpen && verificationMode === 'check-in') {
@@ -684,6 +738,12 @@ export default function DashboardPage() {
   }
 
   const isBreakActive = todayAttendance?.breaks?.some((b: any) => !b.end);
+  const performanceTierLabel = getPerformanceTierLabel(gamificationProfile?.level || 1);
+  const performancePoints = gamificationProfile?.totalXp ?? 0;
+  const performanceRankLabel = leaderboardRank ? `#${leaderboardRank}` : '—';
+  const performanceStaffCount = stats?.totalEmployees || leaderboardTotalEmployees || 0;
+  const performanceProgressPercent = gamificationLevelProgress?.progressPercent ?? 0;
+  const performanceXpToNextLevel = gamificationProfile?.xpToNextLevel ?? 0;
 
   // Search logic on work logs
   const filteredLogs = liveAttendance.filter(log => {
@@ -703,561 +763,864 @@ export default function DashboardPage() {
 
   const chartData = selectedStaffLogs
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(log => ({
-      date: log.date,
-      hours: log.totalWorkingHours || 0,
-      breakMins: log.totalBreakMinutes || 0
-    }));
-
   return (
     <div className="max-w-7xl mx-auto">
       {/* Desktop Dashboard Overview Layout */}
       <div className="hidden md:block space-y-8">
-        {/* Welcome Banner */}
-        <div className="relative glass-panel rounded-2xl p-6 md:p-8 overflow-hidden border border-gold/10">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <span className="text-xs font-bold text-gold uppercase tracking-wider">Hospitality Administration Hub</span>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mt-1">
-              Welcome back, {user?.firstName} {user?.lastName}
-            </h1>
-            <p className="text-slate-400 text-sm mt-2 max-w-xl">
-              You are logged in as <span className="text-gold font-semibold uppercase">{formatRole(user?.role)}</span>. Scoped tenant environment is active.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-3">
-            <GoogleIcon name="calendar_today" className="text-gold" size={20} />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-200">Shift Date</p>
-              <p className="text-slate-400 font-mono">{currentDateStr}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Feedback Banner */}
-      {feedback && (
-        <div className={`p-4 rounded-xl border text-sm flex items-center gap-3 ${
-          feedback.type === 'success' 
-            ? 'bg-green-950/30 border-green-500/30 text-green-300' 
-            : 'bg-red-950/30 border-red-500/30 text-red-300'
-        }`}>
-          <GoogleIcon name="info" size={18} />
-          {feedback.message}
-        </div>
-      )}
-
-      {/* Work Status Tracker (Visible to all EXCEPT ROOT_ADMIN) - Positioned immediately under Welcome/Feedback Banners */}
-      {user?.role !== 'ROOT_ADMIN' && (
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between border-gold/10">
-          <div>
-            <h2 className="text-base font-bold text-white mb-2">Work Status Tracker</h2>
-            <p className="text-slate-400 text-xs mb-6">Log your Work In, Work Out, and Break times for daily shift records.</p>
-            
-            {/* Clock View */}
-            <div className="flex flex-col items-center justify-center bg-slate-950/50 border border-slate-900 rounded-xl p-6 mb-6">
-              <GoogleIcon name="schedule" size={32} className="text-gold mb-2 animate-pulse" />
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Today's Work Status</span>
-              <span className="text-lg font-bold text-white mt-1">
-                {todayAttendance ? (
-                  todayAttendance.checkOut ? 'Work Shift Ended' : isBreakActive ? 'On Break' : 'Currently Active (Working)'
+        
+        {/* Welcome Banner / Top Greeting */}
+        <div className="relative bg-gradient-to-r from-[#0a1f5c] to-[#112d8a] text-white rounded-2xl p-6 md:p-8 overflow-hidden border border-gold/20 shadow-md">
+          {/* Decorative geometric patterns */}
+          <div className="absolute right-0 top-0 w-64 h-64 bg-gold/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute left-1/3 bottom-0 w-32 h-32 bg-[#f5d36a]/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              {/* Profile Photo Avatar */}
+              <div className="w-16 h-16 rounded-full border-2 border-gold/40 flex-shrink-0 overflow-hidden shadow-md bg-white/10 flex items-center justify-center">
+                {user?.photoUrl ? (
+                  <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  'Not Checked In'
+                  <span className="text-xl font-bold text-gold uppercase">{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
                 )}
-              </span>
-
-              {/* Dynamic running clock and assigned shift */}
-              <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-4 bg-slate-900/60 border border-slate-800/80 px-4 py-2.5 rounded-xl w-full max-w-md">
-                <div className="text-center sm:text-left flex-1">
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold block">Current local time</span>
-                  <span className="text-sm font-extrabold text-white font-mono">{currentTime || '--:--:--'}</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-gold-dark bg-gold/15 border border-gold/30 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                    {formatRole(user?.role)}
+                  </span>
+                  <span className="text-slate-350 text-xs font-semibold font-mono">Scope: Active Chain Portal</span>
                 </div>
-                <div className="hidden sm:block w-[1px] h-6 bg-slate-800" />
-                <div className="text-center sm:text-left flex-1">
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold block">Assigned Shift Schedule</span>
-                  <span className="text-xs font-bold text-gold">{user?.shift || 'General Shift (09:00 AM - 05:00 PM)'}</span>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-1 text-white">
+                  Welcome back, {user?.firstName} {user?.lastName}!
+                </h1>
+                <p className="text-slate-300 text-xs mt-1.5 font-medium leading-relaxed max-w-xl">
+                  Manage operations, check-in for your shift, view tasks, and review hotel properties dynamically.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {/* Notification Trigger Button */}
+              <button
+                onClick={() => router.push('/dashboard/notifications')}
+                className="relative w-12 h-12 bg-white/8 hover:bg-white/15 border border-white/10 hover:border-gold/30 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm group"
+                title="View Notifications"
+              >
+                <GoogleIcon name="notifications" className="text-gold group-hover:scale-110 transition-transform" size={24} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 border-2 border-[#0a1f5c] text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Shift Date Card */}
+              <div className="flex items-center gap-3 bg-white/8 border border-white/15 rounded-xl px-4 py-2.5">
+                <GoogleIcon name="calendar_today" className="text-gold-light" size={20} />
+                <div className="text-xs">
+                  <p className="font-bold text-green-200">Shift Date</p>
+                  <p className="text-slate-300 font-mono font-medium">{currentDateStr}</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              {todayAttendance && (
-                <div className="mt-4 grid grid-cols-3 gap-8 text-center text-xs text-slate-400">
+        {/* Feedback Banner */}
+        {feedback && (
+          <div className={`p-4 rounded-xl border text-sm flex items-center gap-3 ${
+            feedback.type === 'success' 
+              ? 'bg-green-55 hover:bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-55 hover:bg-red-55 border-red-200 text-red-800'
+          }`}>
+            <GoogleIcon name="info" className={feedback.type === 'success' ? 'text-green-600' : 'text-red-600'} size={18} />
+            <span className="font-semibold">{feedback.message}</span>
+          </div>
+        )}
+
+        {/* Dashboard Top Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left Column: Performance & Shift Status */}
+          <div className="lg:col-span-1 space-y-6">
+            
+            {/* My Performance Card */}
+            {user && ['EMPLOYEE', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user.role) && gamificationProfile && (
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-gold/5 rounded-full pointer-events-none" />
+                
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider flex items-center gap-1.5">
+                    <GoogleIcon name="workspace_premium" className="text-gold" size={18} />
+                    My Performance
+                  </h3>
+                  <span className="text-[10px] font-bold text-gold bg-gold/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                    {performanceTierLabel}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <p className="font-semibold text-slate-500 uppercase text-[9px]">Work-In Time</p>
-                    <p className="text-slate-200 mt-1 font-mono">{new Date(todayAttendance.checkIn).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Total XP</span>
+                    <span className="text-3xl font-extrabold text-[#0a1f5c] tracking-tight">
+                      {performancePoints.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500 font-semibold block mt-0.5">XP Points</span>
                   </div>
-                  <div>
-                    <p className="font-semibold text-slate-500 uppercase text-[9px]">Break Mins</p>
-                    <p className="text-slate-200 mt-1 font-mono">{todayAttendance.totalBreakMinutes || 0} min</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-500 uppercase text-[9px]">Working Hours</p>
-                    <p className="text-slate-200 mt-1 font-mono">{todayAttendance.totalWorkingHours || 0} hrs</p>
+                  <div className="border-l border-slate-100 pl-4">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Leaderboard Rank</span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-2xl font-extrabold text-[#0a1f5c]">{performanceRankLabel}</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">
+                      Out of {performanceStaffCount || 'N/A'} staff
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Action Triggers */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
-              onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
-              disabled={actionLoading || !!todayAttendance}
-              className="bg-green-600 hover:bg-green-500 disabled:opacity-30 text-white text-xs font-bold py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <GoogleIcon name="play_arrow" size={14} />
-              Work In
-            </button>
-
-            <button
-              onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-              disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
-              className="bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white text-xs font-bold py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <GoogleIcon name="coffee" size={14} />
-              Start Break
-            </button>
-
-            <button
-              onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-              disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white text-xs font-bold py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <GoogleIcon name="play_arrow" size={14} />
-              End Break
-            </button>
-
-            <button
-              onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-              disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
-              className="bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white text-xs font-bold py-3 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <GoogleIcon name="logout" size={14} />
-              Work Out
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 hover:border-gold/30 transition-all gold-border-glow">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Headcount</p>
-              <h3 className="text-2xl font-bold mt-2 text-white">{stats?.totalEmployees || 0}</h3>
-            </div>
-            <div className="p-2.5 bg-slate-800 rounded-lg text-slate-300">
-              <GoogleIcon name="group" size={18} />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-4">Active operational staff</p>
-        </div>
-
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 hover:border-gold/30 transition-all gold-border-glow">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Attendance Rate</p>
-              <h3 className="text-2xl font-bold mt-2 text-white">{stats?.attendanceRate || 0}%</h3>
-            </div>
-            <div className="p-2.5 bg-slate-800 rounded-lg text-slate-300">
-              <GoogleIcon name="trending_up" size={18} />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-4">Calculated for today</p>
-        </div>
-
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 hover:border-gold/30 transition-all gold-border-glow">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Leaves Review</p>
-              <h3 className="text-2xl font-bold mt-2 text-white">{stats?.pendingLeaves || 0}</h3>
-            </div>
-            <div className="p-2.5 bg-slate-800 rounded-lg text-slate-300">
-              <GoogleIcon name="calendar_today" size={18} />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-4">Requests pending approval</p>
-        </div>
-
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 hover:border-gold/30 transition-all gold-border-glow">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Pending Tasks</p>
-              <h3 className="text-2xl font-bold mt-2 text-white">{stats?.pendingTasks || 0}</h3>
-            </div>
-            <div className="p-2.5 bg-slate-800 rounded-lg text-slate-300">
-              <GoogleIcon name="check_circle" size={18} />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-4">Tasks in progress / todo</p>
-        </div>
-      </div>
-
-      {/* Row 1: Pending Onboarding banner */}
-      {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') && pendingUsers.length > 0 && (
-        <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-3">
-            <span className="p-2 bg-amber-500/10 text-amber-500 rounded-lg animate-pulse font-sans">🔔</span>
-            <div>
-              <p className="font-bold text-slate-200">Pending Onboarding Approvals Queue</p>
-              <p className="text-slate-400 mt-0.5 font-sans">There are {pendingUsers.length} newly registered employee/manager accounts waiting for credential verification.</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowApprovalModal(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-dark font-bold px-4 py-2 rounded-lg cursor-pointer transition-colors whitespace-nowrap"
-          >
-            Review Requests ({pendingUsers.length})
-          </button>
-        </div>
-      )}
-
-      {/* Row 2: Staff Allocation (Visible to all EXCEPT ROOT_ADMIN) */}
-      {user?.role !== 'ROOT_ADMIN' && (
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between border-gold/10">
-          <div>
-            <h2 className="text-base font-bold text-white mb-2">Staff Allocation</h2>
-            <p className="text-slate-404 text-xs mb-6">Distribution of active employees across hotel departments.</p>
-
-            <div className="space-y-4">
-              {depts.map((d) => (
-                <div key={d._id} className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-300">{d._id || 'Operations'}</span>
-                    <span className="text-gold">{d.count} staff</span>
+                <div className="space-y-1.5 pt-2 border-t border-slate-50">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-500">Level Progress (Level {gamificationProfile?.level ?? 1})</span>
+                    <span className="text-[#0a1f5c]">{performanceProgressPercent}%</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gold rounded-full" 
-                      style={{ width: `${Math.min(100, (d.count / (stats?.totalEmployees || 1)) * 100)}%` }} 
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-gold to-[#f5d36a] rounded-full"
+                      style={{ width: `${Math.min(Math.max(performanceProgressPercent, 0), 100)}%` }}
                     />
                   </div>
+                  <span className="text-[9px] text-slate-400 block mt-1">
+                    {performanceXpToNextLevel.toLocaleString()} XP needed for next level
+                  </span>
                 </div>
-              ))}
+              </div>
+            )}
 
-              {depts.length === 0 && (
-                <div className="text-center py-6 text-slate-500 text-xs">
-                  No department distribution data available.
+            {/* Work Status Tracker (Visible to all EXCEPT ROOT_ADMIN) */}
+            {user?.role !== 'ROOT_ADMIN' && (
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <GoogleIcon name="schedule" className="text-gold" size={18} />
+                    Work Status Tracker
+                  </h2>
+                  <p className="text-slate-550 text-slate-500 text-xs">Log your check-in/out and breaks for daily attendance logs.</p>
                 </div>
-              )}
-            </div>
+                
+                {/* Clock & Status Panel */}
+                <div className="flex flex-col items-center justify-center bg-slate-50/50 border border-slate-100 rounded-xl p-5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Shift Status</span>
+                  <span className="text-base font-extrabold text-[#0a1f5c] mt-1">
+                    {todayAttendance ? (
+                      todayAttendance.checkOut ? 'Work Shift Ended' : isBreakActive ? 'On Break' : 'Currently Active (Working)'
+                    ) : (
+                      'Not Checked In'
+                    )}
+                  </span>
+
+                  {/* Running local clock & shift */}
+                  <div className="mt-3.5 flex flex-col gap-2.5 bg-white border border-slate-100 p-3 rounded-xl w-full text-left">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold block">Current Local Time</span>
+                      <span className="text-sm font-extrabold text-[#0a1f5c] font-mono">{currentTime || '--:--:--'}</span>
+                    </div>
+                    <div className="border-t border-slate-50 pt-2">
+                      <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold block">Assigned Duty Shift</span>
+                      <span className="text-xs font-bold text-gold">{user?.shift || 'General Shift (09:00 AM - 05:00 PM)'}</span>
+                    </div>
+                  </div>
+
+                  {/* Pre-Clock-In Location Status Tracker */}
+                  {!todayAttendance && !isExempt(user) && (
+                    <div className="mt-3.5 w-full bg-white border border-slate-100 p-3.5 rounded-xl text-xs space-y-2 text-slate-600">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <span className="font-bold text-[#0a1f5c] uppercase text-[9px] tracking-wider flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+                          Geo Verification Link
+                        </span>
+                        <span className="text-[8px] font-mono text-slate-400">Mandatory</span>
+                      </div>
+                      
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="text-slate-400 font-semibold">Location Coordinates:</span>
+                        <span className="font-mono text-right text-slate-700">
+                          {cardGpsCoords ? `${cardGpsCoords.latitude.toFixed(5)}°N, ${cardGpsCoords.longitude.toFixed(5)}°E` : cardGpsError ? 'N/A' : 'Accessing GPS...'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-semibold">GPS Accuracy:</span>
+                        <span className={`font-bold flex items-center gap-1 ${cardGpsError ? 'text-red-500' : cardGpsCoords ? 'text-green-600' : 'text-amber-500'}`}>
+                          {cardGpsError ? `🔴 ${cardGpsError}` : cardGpsCoords ? `🟢 Verified (±${Math.round(cardGpsCoords.accuracy)}m)` : '🟡 Resolving Coordinates...'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-semibold">Selfie Camera:</span>
+                        <span className={`font-bold ${cardCameraStatus === 'Permission Granted' || cardCameraStatus.includes('Ready') ? 'text-green-600' : 'text-red-500'}`}>
+                          {cardCameraStatus === 'Permission Granted' ? '🟢 Active' : cardCameraStatus === 'Blocked' ? '🔴 Blocked' : `🟡 ${cardCameraStatus}`}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1 border-t border-slate-100 pt-2 text-[10.5px]">
+                        <span className="text-slate-450 font-bold text-slate-400 uppercase text-[8.5px]">Resolved Address:</span>
+                        <span className="text-slate-700 leading-normal font-sans">
+                          {cardAddressLoading ? (
+                            <span className="text-slate-450 italic animate-pulse flex items-center gap-1 text-slate-400">
+                              <span className="w-2 h-2 border border-t-transparent border-[#0a1f5c] rounded-full animate-spin" />
+                              Resolving real-world address...
+                            </span>
+                          ) : cardAddress ? (
+                            cardAddress
+                          ) : cardGpsError ? (
+                            <span className="text-red-500/80 italic">Please enable GPS to fetch address</span>
+                          ) : (
+                            <span className="text-slate-450 italic text-slate-400">Waiting for GPS Coordinates...</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Post-Clock-In Location Status Tracker */}
+                  {todayAttendance && (
+                    <div className="mt-3.5 w-full bg-white border border-slate-100 p-3.5 rounded-xl text-xs space-y-2 text-slate-600">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <span className="font-bold text-green-600 uppercase text-[9px] tracking-wider flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                          Checked In Successfully
+                        </span>
+                        <span className="text-[8px] font-mono text-slate-400">Live Session Active</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-semibold">Duty Started:</span>
+                        <span className="font-mono text-slate-700 font-bold">
+                          {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      {todayAttendance.checkInAddress ? (
+                        <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-slate-400 font-semibold">Verify Address:</span>
+                            <span className="text-right text-slate-700 flex-1 pl-4 leading-normal font-sans">{todayAttendance.checkInAddress}</span>
+                          </div>
+                          {todayAttendance.village && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-semibold">Location Area:</span>
+                              <span className="text-slate-700 font-bold">{todayAttendance.village}</span>
+                            </div>
+                          )}
+                          {todayAttendance.district && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-semibold">District:</span>
+                              <span className="text-slate-700 font-bold">{todayAttendance.district}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="border-t border-slate-100 pt-2 text-[10px] text-slate-400 italic">
+                          Address verification skipped (exempt profile).
+                        </div>
+                      )}
+
+                      {!isExempt(user) && (
+                        <div className="flex gap-4 border-t border-slate-100 pt-2 text-[9px] justify-center">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200 font-bold uppercase">
+                            ✓ GPS Checked
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200 font-bold uppercase">
+                            ✓ Selfie OK
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Duty Action Triggers */}
+                <div className="grid grid-cols-2 gap-3.5">
+                  <button
+                    onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+                    disabled={actionLoading || !!todayAttendance}
+                    className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md cursor-pointer border-0"
+                  >
+                    <GoogleIcon name="play_arrow" size={16} />
+                    Work In
+                  </button>
+
+                  <button
+                    onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+                    disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
+                    className="bg-gradient-to-r from-red-650 to-red-550 to-red-600 hover:from-red-500 hover:to-red-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md cursor-pointer border-0"
+                  >
+                    <GoogleIcon name="logout" size={16} />
+                    Work Out
+                  </button>
+
+                  <button
+                    onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                    disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
+                    className="bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <GoogleIcon name="coffee" className="text-amber-500" size={16} />
+                    Start Break
+                  </button>
+
+                  <button
+                    onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                    disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
+                    className="bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <GoogleIcon name="play_arrow" className="text-blue-500" size={16} />
+                    End Break
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="pt-6 border-t border-slate-800/40">
-            <a href="/dashboard/employees" className="text-xs text-gold hover:text-gold-light transition-colors flex items-center gap-1">
-              View Staff Directory
-              <GoogleIcon name="arrow_forward" size={14} />
-            </a>
+          {/* Right Column: Quick Access & Stats Grid */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Quick Access Portal Grid */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
+              <h3 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-3.5 bg-gold rounded-full" />
+                Quick Access Portal
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Link
+                  href="/dashboard/attendance"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="fingerprint" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Attendance</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/tasks"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="fact_check" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Tasks</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/performance"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="leaderboard" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Leaderboard</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/lms"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="school" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Learning</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/policy"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="gavel" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Policy</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/performance"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="workspace_premium" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Rewards</span>
+                </Link>
+
+                <button
+                  onClick={() => router.push('/dashboard/profile')}
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer w-full"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="account_circle" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">Profile</span>
+                </button>
+
+                <Link
+                  href="/dashboard"
+                  className="group flex flex-col items-center justify-center p-4 bg-slate-50/50 hover:bg-gradient-to-br hover:from-[#0a1f5c] hover:to-[#112d8a] border border-slate-100 rounded-2xl text-center transition-all duration-300 hover:shadow-md hover:-translate-y-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#0a1f5c]/5 group-hover:bg-white/15 flex items-center justify-center text-[#0a1f5c] group-hover:text-gold transition-all mb-2.5">
+                    <GoogleIcon name="apps" size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-white transition-colors">More</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Stats Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:border-gold/30 hover:shadow-md transition-all shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Headcount</p>
+                    <h3 className="text-2xl font-extrabold mt-2 text-[#0a1f5c]">{stats?.totalEmployees || 0}</h3>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 border border-slate-100 text-[#0a1f5c] rounded-xl">
+                    <GoogleIcon name="group" size={18} />
+                  </div>
+                </div>
+                <p className="text-[9.5px] text-slate-450 mt-4 text-slate-500">Active operational staff</p>
+              </div>
+
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:border-gold/30 hover:shadow-md transition-all shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Attendance Rate</p>
+                    <h3 className="text-2xl font-extrabold mt-2 text-[#0a1f5c]">{stats?.attendanceRate || 0}%</h3>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 border border-slate-100 text-[#0a1f5c] rounded-xl">
+                    <GoogleIcon name="trending_up" size={18} />
+                  </div>
+                </div>
+                <p className="text-[9.5px] text-slate-450 mt-4 text-slate-500">Calculated for today</p>
+              </div>
+
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:border-gold/30 hover:shadow-md transition-all shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Leaves Review</p>
+                    <h3 className="text-2xl font-extrabold mt-2 text-[#0a1f5c]">{stats?.pendingLeaves || 0}</h3>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 border border-slate-100 text-[#0a1f5c] rounded-xl">
+                    <GoogleIcon name="calendar_today" size={18} />
+                  </div>
+                </div>
+                <p className="text-[9.5px] text-slate-455 mt-4 text-slate-500">Pending leaves</p>
+              </div>
+
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:border-gold/30 hover:shadow-md transition-all shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pending Tasks</p>
+                    <h3 className="text-2xl font-extrabold mt-2 text-[#0a1f5c]">{stats?.pendingTasks || 0}</h3>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 border border-slate-100 text-[#0a1f5c] rounded-xl">
+                    <GoogleIcon name="check_circle" size={18} />
+                  </div>
+                </div>
+                <p className="text-[9.5px] text-slate-450 mt-4 text-slate-500">Tasks in progress</p>
+              </div>
+            </div>
+
+            {/* Row 1: Pending Onboarding banner */}
+            {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') && pendingUsers.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4 text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl animate-pulse font-sans text-sm">🔔</span>
+                  <div>
+                    <p className="font-bold text-slate-800">Pending Onboarding Approvals Queue</p>
+                    <p className="text-slate-505 text-slate-500 mt-0.5 font-sans">There are {pendingUsers.length} newly registered employee/manager accounts waiting for credential verification.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowApprovalModal(true)}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition-colors whitespace-nowrap shadow-sm"
+                >
+                  Review Requests ({pendingUsers.length})
+                </button>
+              </div>
+            )}
+
+            {/* Row 2: Staff Allocation (Visible to all EXCEPT ROOT_ADMIN) */}
+            {user?.role !== 'ROOT_ADMIN' && (
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider flex items-center gap-1.5">
+                    <GoogleIcon name="corporate_fare" className="text-gold" size={18} />
+                    Staff Allocation
+                  </h2>
+                  <p className="text-slate-505 text-slate-500 text-xs">Distribution of active employees across hotel departments.</p>
+                </div>
+
+                <div className="space-y-4">
+                  {depts.map((d) => (
+                    <div key={d._id} className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span className="text-slate-600 font-bold">{d._id || 'Operations'}</span>
+                        <span className="text-gold font-bold">{d.count} staff</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-gold to-[#f5d36a] rounded-full" 
+                          style={{ width: `${Math.min(100, (d.count / (stats?.totalEmployees || 1)) * 100)}%` }} 
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {depts.length === 0 && (
+                    <div className="text-center py-6 text-slate-400 text-xs italic">
+                      No department distribution data available.
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-slate-50">
+                  <a href="/dashboard/employees" className="text-xs text-gold hover:text-gold-light transition-colors flex items-center gap-1 font-bold">
+                    View Staff Directory
+                    <GoogleIcon name="arrow_forward" size={14} />
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Row 3: Employee Work Updates Logs & Search Directory (Visible to ROOT_ADMIN, HOTEL_ADMIN, and HR_MANAGER) */}
-      {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER') && (
-        <div className="bg-card-dark border border-slate-800/80 rounded-xl p-6 border-gold/10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-base font-bold text-white">Employee Work Updates Logs</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Historical shift logs, daily tasks summaries, and evidence documents.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Analytics & Export Actions Toolbar */}
-              <div className="flex items-center gap-2 mr-2 border-r border-slate-800 pr-4">
+        {/* Row 3: Employee Work Updates Logs & Search Directory (Visible to ROOT_ADMIN, HOTEL_ADMIN, and HR_MANAGER) */}
+        {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER') && (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider flex items-center gap-1.5">
+                  <GoogleIcon name="description" className="text-gold" size={18} />
+                  Employee Work Updates Logs
+                </h2>
+                <p className="text-slate-500 text-xs mt-0.5">Historical shift logs, daily tasks summaries, and evidence documents.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Analytics & Export Actions Toolbar */}
+                <div className="flex items-center gap-2 mr-2 border-r border-slate-200 pr-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAnalytics(true)}
+                    className="px-3 py-1.5 bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] border border-[#0a1f5c]/10 text-[#0a1f5c] hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    title="Fullscreen Analytics Dashboard"
+                  >
+                    <GoogleIcon name="analytics" size={14} />
+                    Analytics
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCSVExport}
+                    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    title="Export CSV"
+                  >
+                    <GoogleIcon name="description" size={14} />
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExcelExport}
+                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 hover:text-emerald-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    title="Export Excel"
+                  >
+                    <GoogleIcon name="table_view" size={14} />
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePDFExport}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-700 hover:text-red-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    title="Export PDF"
+                  >
+                    <GoogleIcon name="picture_as_pdf" size={14} />
+                    PDF
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <GoogleIcon name="search" className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search Name, Aadhaar, PAN..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-[#111827] w-64 focus:outline-none focus:border-gold placeholder-slate-400"
+                  />
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setShowAnalytics(true)}
-                  className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-900/50 hover:border-indigo-700 text-indigo-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                  title="Fullscreen Analytics Dashboard"
+                  onClick={fetchLiveAttendance}
+                  disabled={attendanceLoading}
+                  className="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-gold px-3 py-1.5 rounded border border-slate-200 disabled:opacity-40 cursor-pointer"
                 >
-                  <GoogleIcon name="analytics" size={14} />
-                  📊 Analytics
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCSVExport}
-                  className="px-3 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                  title="Export CSV"
-                >
-                  <GoogleIcon name="description" size={14} />
-                  CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExcelExport}
-                  className="px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-900/50 hover:border-emerald-700 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                  title="Export Excel"
-                >
-                  <GoogleIcon name="table_view" size={14} />
-                  Excel
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePDFExport}
-                  className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-900/50 hover:border-red-700 text-red-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                  title="Export PDF"
-                >
-                  <GoogleIcon name="picture_as_pdf" size={14} />
-                  PDF
+                  {attendanceLoading ? 'Refreshing...' : 'Refresh Logs'}
                 </button>
               </div>
-
-              <div className="relative">
-                <GoogleIcon name="search" className="absolute left-3 top-2.5 text-slate-500" size={16} />
-                <input
-                  type="text"
-                  placeholder="Search Name, Aadhaar, PAN..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-slate-950/60 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs text-white w-64 focus:outline-none focus:border-gold"
-                />
-              </div>
-              <button
-                onClick={fetchLiveAttendance}
-                disabled={attendanceLoading}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-gold px-3 py-1.5 rounded border border-slate-700 disabled:opacity-40 cursor-pointer"
-              >
-                {attendanceLoading ? 'Refreshing...' : 'Refresh Logs'}
-              </button>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Updates Table Column */}
-            <div className="xl:col-span-2 space-y-4">
-              <div className="overflow-x-auto border border-slate-800/80 rounded-lg">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-950/40 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                      <th className="p-3">Staff Details</th>
-                      <th className="p-3">Shift Date</th>
-                      <th className="p-3">Hours Details</th>
-                      <th className="p-3">Work description & Evidence</th>
-                      <th className="p-3 text-right">Analytics</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                    {filteredLogs.map((log) => (
-                      <tr 
-                        key={log._id} 
-                        className={`hover:bg-slate-900/20 transition-colors cursor-pointer ${selectedStaffId === log.employee?._id ? 'bg-gold/5 border-l-2 border-l-gold' : ''}`}
-                        onClick={() => {
-                          if (log.employee) {
-                            setSelectedStaffId(log.employee._id);
-                            setSelectedStaffName(`${log.employee.firstName} ${log.employee.lastName}`);
-                          }
-                        }}
-                      >
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
-                            {/* Check-In Selfie Thumbnail */}
-                            <div className="w-12 h-12 rounded-lg bg-slate-800 border border-slate-700 flex-shrink-0 overflow-hidden relative group">
-                              {log.checkInPhoto ? (
-                                <>
-                                  <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
-                                  <div 
-                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              {/* Updates Table Column */}
+              <div className="xl:col-span-2 space-y-4">
+                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-[#0a1f5c] uppercase tracking-wider font-semibold">
+                        <th className="p-3">Staff Details</th>
+                        <th className="p-3">Shift Date</th>
+                        <th className="p-3">Hours Details</th>
+                        <th className="p-3">Work description & Evidence</th>
+                        <th className="p-3 text-right">Analytics</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150 text-slate-700 bg-white">
+                      {filteredLogs.map((log) => (
+                        <tr 
+                          key={log._id} 
+                          className={`hover:bg-slate-50/50 transition-colors cursor-pointer ${selectedStaffId === log.employee?._id ? 'bg-gold/5 border-l-4 border-l-gold' : ''}`}
+                          onClick={() => {
+                            if (log.employee) {
+                              setSelectedStaffId(log.employee._id);
+                              setSelectedStaffName(`${log.employee.firstName} ${log.employee.lastName}`);
+                            }
+                          }}
+                        >
+                          <td className="p-3">
+                            <div className="flex items-center gap-3">
+                              {/* Check-In Selfie Thumbnail */}
+                              <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden relative group">
+                                {log.checkInPhoto ? (
+                                  <>
+                                    <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
+                                    <div 
+                                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedPreviewImage(log.checkInPhoto);
+                                      }}
+                                    >
+                                      <span className="text-[9px] text-gold font-bold uppercase">View</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-100 font-bold uppercase text-xs">
+                                    {log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-800">{log.employee?.firstName} {log.employee?.lastName}</div>
+                                <div className="text-slate-400 font-mono text-[10px]">{log.employee?.email}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5 uppercase font-semibold text-gold font-mono">Role: {formatRole(log.employee?.role)} | Shift: {log.employee?.shift || 'General Shift'}</div>
+                                <div className="text-slate-500 text-[10px] mt-0.5">Property: <span className="text-slate-700 font-semibold">{log.hotel?.name || 'N/A'} ({log.hotel?.hotelCode?.toUpperCase() || 'N/A'})</span></div>
+                                <div className="text-[9px] text-slate-400 mt-1">Aadhaar: {log.employee?.aadhaarNumber || 'N/A'} | PAN: {log.employee?.panNumber || 'N/A'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3 font-mono text-slate-500">
+                            {log.date}
+                          </td>
+                          <td className="p-3 space-y-1">
+                            <div className="text-slate-600"><span className="text-slate-450 uppercase text-[9px] font-bold text-slate-400 font-mono">Check-In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                            <div className="text-slate-600"><span className="text-slate-450 uppercase text-[9px] font-bold text-slate-400 font-mono">Check-Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                            <div className="text-[10.5px] font-bold text-slate-800">Hours: {log.totalWorkingHours} hrs</div>
+                            {log.checkInLatitude !== undefined && (
+                              <div className="text-[9.5px] text-green-600 font-mono mt-0.5">
+                                📍 {log.checkInLatitude.toFixed(4)}°, {log.checkInLongitude?.toFixed(4)}°
+                              </div>
+                            )}
+                            {log.checkInAddress && (
+                              <div className="text-[9.5px] text-slate-500 font-sans mt-1 leading-normal max-w-[220px] whitespace-pre-wrap" title={log.checkInAddress}>
+                                🏠 {log.checkInAddress}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 max-w-xs">
+                            {log.workDescription ? (
+                              <div className="space-y-1.5">
+                                <p className="text-slate-700 leading-relaxed font-sans text-xs bg-slate-50 p-2.5 rounded border border-slate-100">
+                                  {log.workDescription.length > 30 
+                                    ? `${log.workDescription.slice(0, 30)}...` 
+                                    : log.workDescription
+                                  }
+                                </p>
+                                {log.workDescription.length > 30 && (
+                                  <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setSelectedPreviewImage(log.checkInPhoto);
+                                      setSelectedWorkLog(log);
                                     }}
+                                    className="text-[10px] text-gold hover:text-gold-light hover:underline font-bold transition-all cursor-pointer inline-flex items-center gap-0.5 font-mono"
                                   >
-                                    <span className="text-[7px] text-gold font-bold uppercase">View</span>
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-900/40 font-bold uppercase text-xs">
-                                  {log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-white">{log.employee?.firstName} {log.employee?.lastName}</div>
-                              <div className="text-slate-500 font-mono text-[10px]">{log.employee?.email}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 uppercase font-semibold text-gold">Role: {formatRole(log.employee?.role)} | Shift: {log.employee?.shift || 'General Shift'}</div>
-                              <div className="text-slate-500 text-[10px] mt-0.5">Property: <span className="text-slate-300 font-semibold">{log.hotel?.name || 'N/A'} ({log.hotel?.code?.toUpperCase() || 'N/A'})</span></div>
-                              <div className="text-[9px] text-slate-500 mt-1">Aadhaar: {log.employee?.aadhaarNumber || 'N/A'} | PAN: {log.employee?.panNumber || 'N/A'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3 font-mono">
-                          {log.date}
-                        </td>
-                        <td className="p-3 space-y-1">
-                          <div><span className="text-slate-500 uppercase text-[9px]">Check-In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</div>
-                          <div><span className="text-slate-500 uppercase text-[9px]">Check-Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</div>
-                          <div className="text-[10px] font-semibold text-slate-200">Hours: {log.totalWorkingHours} hrs</div>
-                          {log.checkInLatitude !== undefined && (
-                            <div className="text-[9px] text-green-400 font-mono mt-0.5">
-                              📍 {log.checkInLatitude.toFixed(4)}°, {log.checkInLongitude?.toFixed(4)}°
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3 max-w-xs">
-                          {log.workDescription ? (
-                            <div className="space-y-1.5">
-                              <p className="text-slate-200 leading-relaxed font-sans text-xs bg-slate-950/30 p-2.5 rounded border border-slate-850/60">
-                                {log.workDescription.length > 30 
-                                  ? `${log.workDescription.slice(0, 30)}...` 
-                                  : log.workDescription
+                                    See More &rarr;
+                                  </button>
+                                )}
+                                {log.workDescription.length <= 30 && (log.workPictureUrl || log.workVideoUrl) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedWorkLog(log);
+                                    }}
+                                    className="text-[10px] text-gold hover:text-gold-light hover:underline font-bold transition-all cursor-pointer inline-flex items-center gap-0.5 font-mono"
+                                  >
+                                    View Evidence &rarr;
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">No checkout work update submitted yet</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (log.employee) {
+                                  setReportEmployeeId(log.employee._id);
                                 }
-                              </p>
-                              {log.workDescription.length > 30 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedWorkLog(log);
-                                  }}
-                                  className="text-[10px] text-gold hover:text-gold-light hover:underline font-bold transition-all cursor-pointer inline-flex items-center gap-0.5"
-                                >
-                                  See More &rarr;
-                                </button>
-                              )}
-                              {log.workDescription.length <= 30 && (log.workPictureUrl || log.workVideoUrl) && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedWorkLog(log);
-                                  }}
-                                  className="text-[10px] text-gold hover:text-gold-light hover:underline font-bold transition-all cursor-pointer inline-flex items-center gap-0.5"
-                                >
-                                  View Evidence &rarr;
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-500 italic">No checkout work update submitted yet</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (log.employee) {
-                                setReportEmployeeId(log.employee._id);
-                              }
-                            }}
-                            className="bg-slate-800 text-slate-300 hover:text-gold border border-slate-700 px-2.5 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer"
-                          >
-                            View Report
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredLogs.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="text-center p-8 text-slate-500 italic">
-                          No work updates match your search filter.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                              }}
+                              className="bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-gold border border-slate-200 hover:border-gold/30 px-2.5 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer font-mono"
+                            >
+                              View Report
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="text-center p-8 text-slate-400 italic">
+                            No work updates match your search filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Analytics Graph Column */}
+              <div className="xl:col-span-1">
+                {selectedStaffId ? (
+                  <div className="bg-slate-550/50 bg-slate-50/50 border border-slate-100 rounded-2xl p-5 space-y-4 h-full flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <h3 className="font-bold text-[#0a1f5c] text-xs">Work Hours Trend</h3>
+                        <button 
+                          onClick={() => {
+                            setSelectedStaffId(null);
+                            setSelectedStaffName('');
+                          }} 
+                          className="text-slate-400 hover:text-[#0a1f5c]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <p className="text-gold font-extrabold text-[11px] mb-6 uppercase tracking-wider">{selectedStaffName}</p>
+
+                      {graphLoading ? (
+                        <div className="flex items-center justify-center h-56 mt-2">
+                          <GoogleIcon name="progress_activity" size={24} className="text-gold animate-spin-icon" />
+                        </div>
+                      ) : chartData.length > 0 ? (
+                        <div className="w-full h-56 mt-2">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.4}/>
+                                  <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                              <XAxis dataKey="date" stroke="#64748b" fontSize={9} tickLine={false} />
+                              <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
+                              <Tooltip 
+                                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', fontSize: '10px', color: '#111827' }}
+                                labelStyle={{ color: '#D4AF37', fontWeight: 'bold' }}
+                              />
+                              <Area type="monotone" dataKey="hours" name="Work Hours" stroke="#D4AF37" strokeWidth={2} fillOpacity={1} fill="url(#colorHours)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="text-center py-16 text-slate-400 italic text-[11px]">
+                          No historical check-out hours logged for this staff member.
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-[10px] text-slate-400 pt-3 border-t border-slate-100">
+                      Shows daily checked-in duty hours for the selected employee.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50/30 border border-slate-200 border-dashed rounded-2xl p-8 text-center h-full flex flex-col items-center justify-center text-slate-400 italic text-xs">
+                    <GoogleIcon name="trending_up" size={24} className="text-slate-350 mb-2 animate-pulse" />
+                    Select a staff member from the logs table to view their work updates productivity analytics graph.
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Analytics Graph Column */}
-            <div className="xl:col-span-1">
-              {selectedStaffId ? (
-                <div className="bg-slate-950/40 border border-slate-800 rounded-lg p-5 space-y-4 h-full flex flex-col justify-between border-gold/10">
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <h3 className="font-bold text-white text-xs">Work Hours Trend</h3>
-                      <button 
-                        onClick={() => {
-                          setSelectedStaffId(null);
-                          setSelectedStaffName('');
-                        }} 
-                        className="text-slate-400 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <p className="text-gold font-semibold text-[11px] mb-6 uppercase tracking-wider">{selectedStaffName}</p>
-
-                    {graphLoading ? (
-                      <div className="flex items-center justify-center h-56 mt-2">
-                        <GoogleIcon name="progress_activity" size={24} className="text-gold animate-spin-icon" />
-                      </div>
-                    ) : chartData.length > 0 ? (
-                      <div className="w-full h-56 mt-2">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.4}/>
-                                <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                            <XAxis dataKey="date" stroke="#64748B" fontSize={9} tickLine={false} />
-                            <YAxis stroke="#64748B" fontSize={9} tickLine={false} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#0B0F19', borderColor: '#334155', borderRadius: '6px', fontSize: '10px', color: '#fff' }}
-                              labelStyle={{ color: '#D4AF37', fontWeight: 'bold' }}
-                            />
-                            <Area type="monotone" dataKey="hours" name="Work Hours" stroke="#D4AF37" strokeWidth={2} fillOpacity={1} fill="url(#colorHours)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="text-center py-16 text-slate-500 italic text-[11px]">
-                        No historical check-out hours logged for this staff member.
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-[10px] text-slate-500 pt-3 border-t border-slate-800/40">
-                    Shows daily checked-in duty hours for the selected employee.
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-slate-950/20 border border-slate-800 border-dashed rounded-lg p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 italic text-xs">
-                  <GoogleIcon name="trending_up" size={24} className="text-slate-600 mb-2" />
-                  Select a staff member from the logs table to view their work updates productivity analytics graph.
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       {/* Mobile-First Dashboard Overview Layout */}
       <div className="md:hidden space-y-6 pb-12">
         {/* Mobile Greeting Header Card */}
-        <div className="bg-card-dark border border-slate-800/80 p-5 rounded-2xl shadow-lg flex items-center justify-between border-gold/10">
-          <div>
-            <span className="text-[10px] font-bold text-gold uppercase tracking-wider block">OXY Staff App</span>
-            <h2 className="text-base font-extrabold text-white mt-1">Hello, {user?.firstName}!</h2>
-            <p className="text-[10px] text-slate-400 mt-0.5">Let's make today productive.</p>
+        <div className="bg-gradient-to-r from-[#0a1f5c] to-[#112d8a] text-white p-5 rounded-2xl shadow-lg border border-gold/15 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full border-2 border-gold/30 bg-white/10 flex items-center justify-center overflow-hidden">
+              {user?.photoUrl ? (
+                <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-bold text-gold uppercase">{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+              )}
+            </div>
+            <div>
+              <span className="text-[9px] font-bold text-gold-light uppercase tracking-wider block font-mono">{formatRole(user?.role)}</span>
+              <h2 className="text-base font-extrabold text-white">Hello, {user?.firstName}!</h2>
+              <p className="text-[9.5px] text-slate-300">Let's make today productive.</p>
+            </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-slate-800 border border-gold/30 text-gold font-bold overflow-hidden flex items-center justify-center flex-shrink-0">
-            {user?.photoUrl ? (
-              <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xs uppercase">{user?.firstName[0]}{user?.lastName[0]}</span>
+          
+          <button
+            onClick={() => router.push('/dashboard/notifications')}
+            className="relative w-10 h-10 bg-white/10 border border-white/10 rounded-xl flex items-center justify-center transition-all cursor-pointer"
+            title="View Notifications"
+          >
+            <GoogleIcon name="notifications" className="text-gold" size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 border border-[#0a1f5c] text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {unreadCount}
+              </span>
             )}
-          </div>
+          </button>
         </div>
 
         {/* Date & Time Widget */}
-        <div className="grid grid-cols-2 gap-3 bg-slate-950/45 border border-slate-900/60 p-4 rounded-xl">
+        <div className="grid grid-cols-2 gap-3 bg-white border border-slate-100 p-4 rounded-xl shadow-sm text-xs">
           <div className="flex items-center gap-2">
             <GoogleIcon name="calendar_today" className="text-gold" size={16} />
             <div className="text-[10.5px]">
-              <span className="text-slate-500 block">Date</span>
-              <span className="font-bold text-slate-200">{currentDateStr}</span>
+              <span className="text-slate-400 block font-semibold uppercase text-[8px]">Date</span>
+              <span className="font-bold text-slate-700">{currentDateStr}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
             <GoogleIcon name="schedule" className="text-gold" size={16} />
             <div className="text-[10.5px]">
-              <span className="text-slate-500 block">Clock</span>
-              <span className="font-bold text-slate-200 font-mono">{currentTime || '--:--:--'}</span>
+              <span className="text-slate-400 block font-semibold uppercase text-[8px]">Clock</span>
+              <span className="font-bold text-slate-700 font-mono">{currentTime || '--:--:--'}</span>
             </div>
           </div>
         </div>
@@ -1266,20 +1629,144 @@ export default function DashboardPage() {
         {feedback && (
           <div className={`p-3 rounded-xl border text-[11px] flex items-center gap-2 ${
             feedback.type === 'success' 
-              ? 'bg-green-950/30 border-green-500/30 text-green-300' 
-              : 'bg-red-950/30 border-red-500/30 text-red-300'
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
           }`}>
-            <GoogleIcon name="info" size={14} />
-            <span>{feedback.message}</span>
+            <GoogleIcon name="info" className={feedback.type === 'success' ? 'text-green-600' : 'text-red-600'} size={14} />
+            <span className="font-semibold">{feedback.message}</span>
           </div>
         )}
 
-        {/* Work Status Tracker Panel */}
+        {/* My Performance Card */}
+        {user && ['EMPLOYEE', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user.role) && gamificationProfile && (
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-gold/5 rounded-full pointer-events-none" />
+            
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xs font-bold text-[#0a1f5c] uppercase tracking-wider flex items-center gap-1 font-mono">
+                <GoogleIcon name="workspace_premium" className="text-gold" size={16} />
+                My Performance
+              </h3>
+              <span className="text-[9px] font-bold text-gold bg-gold/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                {performanceTierLabel}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Total XP</span>
+                <span className="text-2xl font-extrabold text-[#0a1f5c] tracking-tight">
+                  {performancePoints.toLocaleString()}
+                </span>
+              </div>
+              <div className="border-l border-slate-100 pl-3">
+                <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block">Rank</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-extrabold text-[#0a1f5c]">{performanceRankLabel}</span>
+                </div>
+                <span className="text-[8px] text-slate-400 block mt-0.5 font-medium">
+                  Out of {performanceStaffCount || 'N/A'} staff
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1 pt-2 border-t border-slate-50">
+              <div className="flex justify-between text-[11px] font-bold">
+                <span className="text-slate-500">Level Progress (Level {gamificationProfile?.level ?? 1})</span>
+                <span className="text-[#0a1f5c]">{performanceProgressPercent}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-gold to-[#f5d36a] rounded-full"
+                  style={{ width: `${Math.min(Math.max(performanceProgressPercent, 0), 100)}%` }}
+                />
+              </div>
+              <span className="text-[8px] text-slate-400 block mt-1 font-medium">
+                {performanceXpToNextLevel.toLocaleString()} XP needed for next level
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Access Portal Grid */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold text-[#0a1f5c] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <span className="w-1 h-3 bg-gold rounded-full" />
+            Quick Access Portal
+          </h3>
+          <div className="grid grid-cols-4 gap-2.5">
+            <Link
+              href="/dashboard/attendance"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="fingerprint" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Attendance</span>
+            </Link>
+
+            <Link
+              href="/dashboard/tasks"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="fact_check" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Tasks</span>
+            </Link>
+
+            <Link
+              href="/dashboard/performance"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="leaderboard" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Leaderboard</span>
+            </Link>
+
+            <Link
+              href="/dashboard/lms"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="school" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Learning</span>
+            </Link>
+
+            <Link
+              href="/dashboard/policy"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="gavel" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Policy</span>
+            </Link>
+
+            <Link
+              href="/dashboard/performance"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="workspace_premium" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Rewards</span>
+            </Link>
+
+            <button
+              onClick={() => router.push('/dashboard/profile')}
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100 cursor-pointer w-full"
+            >
+              <GoogleIcon name="account_circle" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">Profile</span>
+            </button>
+
+            <Link
+              href="/dashboard"
+              className="flex flex-col items-center justify-center p-2.5 bg-slate-50/50 border border-slate-100 rounded-xl text-center active:bg-slate-100"
+            >
+              <GoogleIcon name="apps" className="text-[#0a1f5c] mb-1.5" size={20} />
+              <span className="text-[9.5px] font-bold text-slate-700">More</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Work Status Tracker Panel (Visible to non-ROOT_ADMIN) */}
         {user?.role !== 'ROOT_ADMIN' && (
-          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg space-y-4 border-gold/10">
-            <div className="flex justify-between items-center border-b border-slate-800/60 pb-3">
-              <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Shift Status</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-gold/10 text-gold font-mono">
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <span className="text-[10px] font-bold text-[#0a1f5c] uppercase tracking-wider">Shift Status</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-gold/10 text-gold font-mono font-bold">
                 {todayAttendance ? (
                   todayAttendance.checkOut ? 'Shift Ended' : isBreakActive ? 'On Break' : 'Active Duty'
                 ) : (
@@ -1288,34 +1775,34 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2 text-xs text-slate-600">
               <div className="flex justify-between">
-                <span className="text-slate-505 text-slate-500">Assigned Shift:</span>
-                <span className="font-semibold text-slate-355 text-slate-300">{user?.shift || 'General Shift'}</span>
+                <span className="text-slate-400 font-semibold">Assigned Shift:</span>
+                <span className="font-bold text-slate-700">{user?.shift || 'General Shift'}</span>
               </div>
               {todayAttendance && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Clock-In Time:</span>
-                    <span className="font-semibold text-slate-250 font-mono">
+                    <span className="text-slate-400 font-semibold">Clock-In Time:</span>
+                    <span className="font-bold text-slate-700 font-mono">
                       {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-505 text-slate-500">Total Working Duration:</span>
-                    <span className="font-semibold text-slate-250 font-mono">{todayAttendance.totalWorkingHours || 0} hrs</span>
+                    <span className="text-slate-400 font-semibold">Total Duration:</span>
+                    <span className="font-bold text-slate-700 font-mono">{todayAttendance.totalWorkingHours || 0} hrs</span>
                   </div>
                 </>
               )}
             </div>
 
-            {/* Quick action buttons */}
+            {/* Quick Action Buttons */}
             <div className="grid grid-cols-2 gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
                 disabled={actionLoading || !!todayAttendance}
-                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+                className="bg-green-600 active:bg-green-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer border-0 shadow-sm"
               >
                 <GoogleIcon name="play_arrow" size={14} /> Check In
               </button>
@@ -1323,7 +1810,7 @@ export default function DashboardPage() {
                 type="button"
                 onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
                 disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
-                className="bg-red-650 hover:bg-red-550 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+                className="bg-red-650 hover:bg-red-550 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer border-0 shadow-sm"
               >
                 <GoogleIcon name="stop" size={14} /> Check Out
               </button>
@@ -1331,54 +1818,30 @@ export default function DashboardPage() {
                 type="button"
                 onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
                 disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
-                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+                className="bg-slate-50 border border-slate-200 active:bg-slate-100 disabled:opacity-40 text-slate-700 text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
               >
-                <GoogleIcon name="coffee" size={14} /> Break Start
+                <GoogleIcon name="coffee" className="text-amber-500" size={14} /> Break Start
               </button>
               <button
                 type="button"
                 onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
                 disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer border-0"
+                className="bg-slate-50 border border-slate-200 active:bg-slate-100 disabled:opacity-40 text-slate-700 text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
               >
-                <GoogleIcon name="play_arrow" size={14} /> Break End
+                <GoogleIcon name="play_arrow" className="text-blue-500" size={14} /> Break End
               </button>
             </div>
           </div>
         )}
 
-        {/* Stats Summary Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-card-dark border border-slate-800/80 p-4 rounded-xl shadow-md border-gold/5 flex flex-col justify-between">
-            <div className="flex justify-between items-start">
-              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">My Tasks</span>
-              <GoogleIcon name="fact_check" size={16} className="text-gold" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-xl font-extrabold text-slate-200">{stats?.pendingTasks || 0}</h3>
-              <p className="text-[9.5px] text-slate-500 mt-0.5">Pending assigned</p>
-            </div>
-          </div>
-          <div className="bg-card-dark border border-slate-800/80 p-4 rounded-xl shadow-md border-gold/5 flex flex-col justify-between">
-            <div className="flex justify-between items-start">
-              <span className="text-[9px] text-slate-505 text-slate-500 font-bold uppercase tracking-wider">Leave Balances</span>
-              <GoogleIcon name="description" size={16} className="text-gold" />
-            </div>
-            <div className="mt-3">
-              <h3 className="text-xl font-extrabold text-slate-200">{stats?.pendingLeaves || 0}</h3>
-              <p className="text-[9.5px] text-slate-500 mt-0.5">Pending approvals</p>
-            </div>
-          </div>
-        </div>
-
         {/* Pending onboarding approvals for Admins */}
         {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') && pendingUsers.length > 0 && (
-          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg border-gold/10 space-y-3">
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-bold text-gold uppercase tracking-wider">Staff Onboarding</span>
-              <span className="text-[9.5px] text-red-400 font-bold font-mono">{pendingUsers.length} Action Needed</span>
+              <span className="text-[9.5px] text-red-500 font-bold font-mono">{pendingUsers.length} Action Needed</span>
             </div>
-            <p className="text-[11px] text-slate-400">There are pending staff registration requests waiting for review.</p>
+            <p className="text-[11px] text-slate-500">There are pending staff registration requests waiting for review.</p>
             <button
               type="button"
               onClick={() => setShowApprovalModal(true)}
@@ -1391,12 +1854,12 @@ export default function DashboardPage() {
 
         {/* Team updates feed for managers */}
         {user?.role !== 'EMPLOYEE' && (
-          <div className="bg-card-dark border border-slate-800/80 rounded-2xl p-5 shadow-lg border-gold/10 space-y-4">
-            <h3 className="text-[10px] font-bold text-gold uppercase tracking-wider">Team Activity Stream</h3>
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
+            <h3 className="text-[10px] font-bold text-[#0a1f5c] uppercase tracking-wider font-mono">Team Activity Stream</h3>
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
               {filteredLogs.slice(0, 10).map((log) => (
-                <div key={log._id} className="flex gap-3 p-2.5 bg-slate-950/20 border border-slate-900 rounded-xl text-[11px]">
-                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-gold font-bold uppercase flex-shrink-0">
+                <div key={log._id} className="flex gap-3 p-3 bg-slate-50/50 border border-slate-100 rounded-xl text-[11px] items-center">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[#0a1f5c] font-bold uppercase flex-shrink-0">
                     {log.employee?.photoUrl ? (
                       <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" />
                     ) : (
@@ -1404,13 +1867,13 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-200 truncate">{log.employee?.firstName} {log.employee?.lastName}</p>
-                    <p className="text-slate-505 text-slate-500 text-[10px] mt-0.5">{log.status} &bull; {log.totalWorkingHours || 8} hrs</p>
+                    <p className="font-bold text-slate-800 truncate font-sans">{log.employee?.firstName} {log.employee?.lastName}</p>
+                    <p className="text-slate-550 text-slate-500 text-[9.5px] mt-0.5 font-sans">{log.status} &bull; {log.totalWorkingHours || 8} hrs</p>
                   </div>
                 </div>
               ))}
               {filteredLogs.length === 0 && (
-                <p className="text-slate-500 text-center py-4 italic text-[10.5px]">No logs matching query.</p>
+                <p className="text-slate-450 text-center py-4 italic text-[10.5px]">No logs matching query.</p>
               )}
             </div>
           </div>
@@ -1419,8 +1882,8 @@ export default function DashboardPage() {
 
       {/* Work Out Evidence Input Modal */}
       {workOutModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card-dark border border-gold/30 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0d1117] border border-gold/30 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-sm">Work Shift Check-Out</h3>
               <button onClick={() => setWorkOutModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
@@ -1479,7 +1942,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setWorkOutModalOpen(false)}
-                  className="bg-slate-800 text-slate-350 hover:bg-slate-700 px-4 py-2 rounded font-bold cursor-pointer"
+                  className="bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded font-bold cursor-pointer"
                 >
                   Cancel
                 </button>

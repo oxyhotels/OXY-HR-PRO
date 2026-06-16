@@ -168,7 +168,7 @@ export const getHotelPerformance = async (req: Request, res: Response, next: Nex
 
       performanceData.push({
         hotelName: hotel.name,
-        code: hotel.code,
+        code: hotel.hotelCode,
         staffCount,
         unpaidLeaves,
         monthlyPayrollExpense: payrollSum[0]?.total || 0,
@@ -253,7 +253,7 @@ export const getAttendanceReportLogs = async (req: Request, res: Response, next:
 
     const logs = await Attendance.find(attendanceQuery)
       .populate('employee', 'firstName lastName email employeeId department designation role shift photoUrl phone joinedDate status personalDetails')
-      .populate('hotel', 'name code')
+      .populate('hotel', 'name hotelCode')
       .sort({ date: -1, checkIn: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -334,7 +334,7 @@ export const getAttendanceExportData = async (req: Request, res: Response, next:
 
     const logs = await Attendance.find(attendanceQuery)
       .populate('employee', 'firstName lastName email employeeId department designation role shift photoUrl phone joinedDate status personalDetails')
-      .populate('hotel', 'name code')
+      .populate('hotel', 'name hotelCode')
       .sort({ date: -1, checkIn: -1 });
 
     res.status(200).json({
@@ -415,7 +415,7 @@ export const getWorkLogsExportData = async (req: Request, res: Response, next: N
 
     const logs = await Attendance.find(worklogsQuery)
       .populate('employee', 'firstName lastName email employeeId department designation role shift photoUrl phone joinedDate status personalDetails')
-      .populate('hotel', 'name code')
+      .populate('hotel', 'name hotelCode')
       .sort({ date: -1, checkIn: -1 });
 
     res.status(200).json({
@@ -449,7 +449,7 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
     }
 
     const targetUser = await User.findById(targetEmployeeId)
-      .populate('hotel', 'name code');
+      .populate('hotel', 'name hotelCode');
     if (!targetUser) throw new ApiError(404, 'Employee not found');
 
     // 30 days range check
@@ -460,7 +460,7 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
     const logs = await Attendance.find({
       employee: targetEmployeeId,
       date: { $gte: dateLimitStr }
-    }).populate('hotel', 'name code').sort({ date: -1 });
+    }).populate('hotel', 'name hotelCode').sort({ date: -1 });
 
     // Compute stats
     const presentDays = logs.filter(l => ['Present', 'Late'].includes(l.status)).length;

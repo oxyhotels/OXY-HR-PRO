@@ -369,12 +369,12 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     // Verify property/hotel
     let hotel;
     if (property === 'other') {
-      hotel = await Hotel.findOne({ code: 'other' });
+      hotel = await Hotel.findOne({ hotelCode: 'OTHER' });
       if (!hotel) {
         // Create the "Other" hotel dynamically
         hotel = await Hotel.create({
           name: 'Other',
-          code: 'other',
+          hotelCode: 'OTHER',
           email: 'other@oxyhr.com',
           phone: '000-000-0000',
           address: {

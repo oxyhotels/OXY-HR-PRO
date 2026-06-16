@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 
 const getPublicHotels = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const hotels = await Hotel.find({ status: 'Active' }).sort({ createdAt: 1 }).select('name code _id');
+    const hotels = await Hotel.find({ status: 'Active' }).sort({ createdAt: 1 }).select('name hotelCode _id');
     res.status(200).json({
       status: 'success',
       data: { hotels },

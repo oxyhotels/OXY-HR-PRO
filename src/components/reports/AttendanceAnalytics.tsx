@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import GoogleIcon from '../GoogleIcon';
+import { DEPARTMENTS } from '@/constants/departments';
 import {
   ResponsiveContainer,
   PieChart,
@@ -12,7 +13,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   BarChart,
   Bar,
   CartesianGrid
@@ -55,13 +55,7 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchAnalytics();
-    }
-  }, [isOpen, selectedHotelId, selectedDept]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -84,7 +78,13 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedHotelId, selectedDept]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAnalytics();
+    }
+  }, [isOpen, fetchAnalytics]);
 
   // 1. Client-Side Line Trend aggregation (Daily -> Weekly / Monthly)
   const lineChartData = useMemo(() => {
@@ -181,8 +181,6 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
     
     // Present & Late total
     const presentCount = data.statusPercentages?.find((s: any) => s.name === 'Present')?.count || 0;
-    const lateCount = data.statusPercentages?.find((s: any) => s.name === 'Late')?.count || 0;
-    const presentTotal = presentCount + lateCount;
     
     // On time rate
     const onTimeRate = totalLogs > 0 ? Math.round((presentCount / totalLogs) * 100) : 0;
@@ -256,16 +254,9 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
               className="bg-transparent border-none text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer pr-4"
             >
               <option value="">All Departments</option>
-              <option value="Front Office">Front Office</option>
-              <option value="Housekeeping">Housekeeping</option>
-              <option value="Food & Beverage">Food & Beverage</option>
-              <option value="Kitchen">Kitchen</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="Security">Security</option>
-              <option value="HR & Admin">HR & Admin</option>
-              <option value="Accounts">Accounts</option>
-              <option value="Sales & Marketing">Sales & Marketing</option>
-              <option value="Operations">Operations</option>
+              {DEPARTMENTS.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
             </select>
           </div>
 

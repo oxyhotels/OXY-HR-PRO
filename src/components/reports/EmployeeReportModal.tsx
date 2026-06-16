@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import GoogleIcon from '../GoogleIcon';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/reportExport';
 
@@ -16,16 +16,7 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
   const [error, setError] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (isOpen && employeeId) {
-      fetchReport();
-    } else {
-      setData(null);
-      setError(null);
-    }
-  }, [isOpen, employeeId]);
-
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -44,7 +35,16 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
     } finally {
       setLoading(false);
     }
-  };
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (isOpen && employeeId) {
+      fetchReport();
+    } else {
+      setData(null);
+      setError(null);
+    }
+  }, [isOpen, employeeId, fetchReport]);
 
   if (!isOpen) return null;
 
@@ -274,7 +274,6 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
                         </thead>
                         <tbody className="divide-y divide-slate-850 font-sans">
                           {logs.map((log: any) => {
-                            const dateObj = new Date(log.checkIn || log.date);
                             const checkInTime = log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
                             const checkOutTime = log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
                             const workingHours = log.totalWorkingHours !== undefined ? log.totalWorkingHours.toFixed(2) : '-';

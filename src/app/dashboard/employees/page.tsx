@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { formatRole } from '../../../lib/utils';
 import GoogleIcon from '../../../components/GoogleIcon';
 import { useForm } from 'react-hook-form';
+import { DEPARTMENTS } from '../../../constants/departments';
 
 interface EmployeeProfile {
   _id: string;
@@ -465,13 +466,16 @@ export default function EmployeesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Department</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Front Office, F&B"
+                  <select
                     disabled={user?.role === 'EMPLOYEE'}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     {...register('department')}
-                  />
+                  >
+                    <option value="">Select Department...</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Designation</label>

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { recordApiMetric } from '../lib/performanceMetrics';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -7,13 +8,14 @@ interface RequestOptions extends RequestInit {
 }
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: ((token: string | null) => void)[] = [];
+const inflightRequests = new Map<string, Promise<any>>();
 
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
+const subscribeTokenRefresh = (cb: (token: string | null) => void) => {
   refreshSubscribers.push(cb);
 };
 
-const onRefreshed = (token: string) => {
+const onRefreshed = (token: string | null) => {
   refreshSubscribers.forEach((cb) => cb(token));
   refreshSubscribers = [];
 };
@@ -34,11 +36,18 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
     credentials: options.credentials || 'include',
   };
 
-  try {
-    let response = await fetch(`${BASE_URL}${endpoint}`, config);
+  const cacheKey = `${endpoint}:${JSON.stringify(options)}`;
+  if (inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey);
+  }
 
-    // If unauthorized, try refreshing the token
-    if (response.status === 401 && endpoint !== '/auth/login' && endpoint !== '/auth/refresh') {
+  const requestPromise = (async () => {
+    const startTime = performance.now();
+    try {
+      let response = await fetch(`${BASE_URL}${endpoint}`, config);
+
+      // If unauthorized, try refreshing the token
+      if (response.status === 401 && endpoint !== '/auth/login' && endpoint !== '/auth/refresh') {
       if (!isRefreshing) {
         isRefreshing = true;
         try {
@@ -99,7 +108,9 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
       if (retryRes.status === 240 || retryRes.status === 204) {
         return null;
       }
-      return retryRes.json();
+      const updatedJson = await retryRes.json();
+      recordApiMetric(endpoint, Math.round(performance.now() - startTime), retryRes.status, false);
+      return updatedJson;
     }
 
     if (!response.ok) {
@@ -115,14 +126,24 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
     }
 
     if (response.status === 240 || response.status === 204) {
+      recordApiMetric(endpoint, Math.round(performance.now() - startTime), response.status, false);
       return null;
     }
 
-    return response.json();
+    const json = await response.json();
+    recordApiMetric(endpoint, Math.round(performance.now() - startTime), response.status, false);
+    return json;
   } catch (error: any) {
-    console.warn('API Error Catch:', error.message);
+    recordApiMetric(endpoint, Math.round(performance.now() - startTime), error?.status || 500, false);
+    console.warn('API Error Catch:', error?.message || error);
     throw error;
+  } finally {
+    inflightRequests.delete(cacheKey);
   }
+})();
+
+  inflightRequests.set(cacheKey, requestPromise);
+  return requestPromise;
 };
 
 export const api = {

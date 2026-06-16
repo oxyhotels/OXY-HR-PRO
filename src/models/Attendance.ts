@@ -29,6 +29,31 @@ export interface IAttendance extends Document {
   deviceInfo?: string;
   browserInfo?: string;
   ipAddress?: string;
+  checkInAddress?: string;
+  checkOutAddress?: string;
+  department?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  locality?: string;
+  village?: string;
+  road?: string;
+  postalCode?: string;
+  gpsAccuracy?: number;
+  locationSource?: string;
+  deviceFingerprint?: string;
+  browserAgent?: string;
+  os?: string;
+  gpsEnabled?: boolean;
+  checkInSelfie?: string;
+  checkOutCountry?: string;
+  checkOutState?: string;
+  checkOutDistrict?: string;
+  checkOutCity?: string;
+  checkOutLocality?: string;
+  checkOutVillage?: string;
+  checkOutSelfie?: string;
   workDescription?: string;
   workPictureUrl?: string;
   workVideoUrl?: string;
@@ -81,6 +106,31 @@ const AttendanceSchema = new Schema<IAttendance>(
     deviceInfo: { type: String },
     browserInfo: { type: String },
     ipAddress: { type: String },
+    checkInAddress: { type: String },
+    checkOutAddress: { type: String },
+    department: { type: String },
+    country: { type: String },
+    state: { type: String },
+    district: { type: String },
+    city: { type: String },
+    locality: { type: String },
+    village: { type: String },
+    road: { type: String },
+    postalCode: { type: String },
+    gpsAccuracy: { type: Number },
+    locationSource: { type: String },
+    deviceFingerprint: { type: String },
+    browserAgent: { type: String },
+    os: { type: String },
+    gpsEnabled: { type: Boolean },
+    checkInSelfie: { type: String },
+    checkOutCountry: { type: String },
+    checkOutState: { type: String },
+    checkOutDistrict: { type: String },
+    checkOutCity: { type: String },
+    checkOutLocality: { type: String },
+    checkOutVillage: { type: String },
+    checkOutSelfie: { type: String },
     workDescription: { type: String },
     workPictureUrl: { type: String },
     workVideoUrl: { type: String },

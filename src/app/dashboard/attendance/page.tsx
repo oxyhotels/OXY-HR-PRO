@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
 import GoogleIcon from '../../../components/GoogleIcon';
+import { DEPARTMENTS } from '@/constants/departments';
 import WorkLogDrawer from '../../../components/reports/WorkLogDrawer';
 import EmployeeReportModal from '../../../components/reports/EmployeeReportModal';
 import AttendanceAnalytics from '../../../components/reports/AttendanceAnalytics';
@@ -27,13 +28,37 @@ interface AttendanceLog {
   deviceInfo?: string;
   browserInfo?: string;
   ipAddress?: string;
+  checkInAddress?: string;
+  checkOutAddress?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  locality?: string;
+  village?: string;
+  road?: string;
+  postalCode?: string;
+  gpsAccuracy?: number;
+  locationSource?: string;
+  deviceFingerprint?: string;
+  browserAgent?: string;
+  os?: string;
+  gpsEnabled?: boolean;
+  checkInSelfie?: string;
+  checkOutCountry?: string;
+  checkOutState?: string;
+  checkOutDistrict?: string;
+  checkOutCity?: string;
+  checkOutLocality?: string;
+  checkOutVillage?: string;
+  checkOutSelfie?: string;
   workDescription?: string;
   workPictureUrl?: string;
   workVideoUrl?: string;
   hotel?: {
     _id: string;
     name: string;
-    code: string;
+    hotelCode: string;
   };
   employee?: {
     _id: string;
@@ -46,18 +71,27 @@ interface AttendanceLog {
     photoUrl?: string;
     role?: string;
   };
+  manager?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+  } | null;
 }
 
 export default function AttendancePage() {
   const { user } = useAuthStore();
+  const userRole = user?.role;
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('2026-06');
   const [selectedDate, setSelectedDate] = useState('2026-06-08');
-  const [viewMode, setViewMode] = useState<'personal' | 'hotel'>('personal');
+  const [viewMode, setViewMode] = useState<'personal' | 'hotel' | 'gps'>('personal');
   const [viewAllHotelLogs, setViewAllHotelLogs] = useState(true);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
   const [selectedWorkLog, setSelectedWorkLog] = useState<AttendanceLog | null>(null);
+  const [selfieCompareLog, setSelfieCompareLog] = useState<AttendanceLog | null>(null);
+  const [mapViewLog, setMapViewLog] = useState<AttendanceLog | null>(null);
 
   // Analytics & 30-Day Report trigger states
   const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
@@ -89,7 +123,7 @@ export default function AttendancePage() {
     'Night Shift (11:00 PM - 07:00 AM)',
   ];
 
-  const isManager = user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'DEPT_MANAGER';
+  const isManager = userRole === 'ROOT_ADMIN' || userRole === 'HOTEL_ADMIN' || userRole === 'HR_MANAGER' || userRole === 'DEPT_MANAGER';
 
   const fetchUsers = async () => {
     try {
@@ -133,12 +167,14 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
-    // Set default view mode based on role
-    if (isManager) {
+    // Root admin should start in hotel view; other managers and employees see personal attendance by default.
+    if (userRole === 'ROOT_ADMIN') {
       setViewMode('hotel');
+    }
+    if (isManager) {
       fetchUsers();
     }
-  }, [isManager]);
+  }, [isManager, userRole]);
 
   useEffect(() => {
     if (user?.role === 'ROOT_ADMIN') {
@@ -154,11 +190,20 @@ export default function AttendancePage() {
     }
   }, [user]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       if (viewMode === 'personal') {
         const res = await api.get(`/attendance/me?month=${selectedMonth}`);
+        setLogs(res.data.logs || []);
+      } else if (viewMode === 'gps') {
+        const params = new URLSearchParams();
+        if (employeeFilterId) params.append('employeeId', employeeFilterId);
+        if (hotelFilterId && userRole === 'ROOT_ADMIN') params.append('hotelId', hotelFilterId);
+        if (!viewAllHotelLogs && selectedDate) {
+          params.append('date', selectedDate);
+        }
+        const res = await api.get(`/attendance/live?${params.toString()}`);
         setLogs(res.data.logs || []);
       } else {
         const params = new URLSearchParams();
@@ -166,7 +211,7 @@ export default function AttendancePage() {
         if (employeeFilterId) params.append('employeeId', employeeFilterId);
         if (departmentFilter) params.append('department', departmentFilter);
         if (roleFilter) params.append('role', roleFilter);
-        if (hotelFilterId && user?.role === 'ROOT_ADMIN') params.append('hotelId', hotelFilterId);
+        if (hotelFilterId && userRole === 'ROOT_ADMIN') params.append('hotelId', hotelFilterId);
         if (startDateFilter) params.append('startDate', startDateFilter);
         if (endDateFilter) params.append('endDate', endDateFilter);
         if (searchQuery) params.append('search', searchQuery);
@@ -187,22 +232,24 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    viewMode,
+    selectedMonth,
+    selectedDate,
+    viewAllHotelLogs,
+    employeeFilterId,
+    departmentFilter,
+    roleFilter,
+    hotelFilterId,
+    startDateFilter,
+    endDateFilter,
+    searchQuery,
+    userRole
+  ]);
 
   useEffect(() => {
     fetchLogs();
-  }, [
-    viewMode, 
-    selectedMonth, 
-    selectedDate, 
-    viewAllHotelLogs, 
-    employeeFilterId, 
-    departmentFilter, 
-    roleFilter, 
-    hotelFilterId, 
-    startDateFilter, 
-    endDateFilter
-  ]);
+  }, [fetchLogs]);
 
   const handleCSVExport = () => {
     exportToCSV(logs, 'attendance_center_report.csv');
@@ -283,20 +330,20 @@ export default function AttendancePage() {
         {/* View mode toggle & Reporting toolbar */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {viewMode === 'hotel' && isManager && (
-            <div className="flex flex-wrap items-center gap-2 border-r border-slate-800 pr-4 mr-2">
+            <div className="flex flex-wrap items-center gap-2 border-r border-slate-200 pr-4 mr-2">
               <button
                 type="button"
                 onClick={() => setShowAnalytics(true)}
-                className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-900/50 hover:border-indigo-700 text-indigo-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] border border-[#0a1f5c]/10 text-[#0a1f5c] hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Fullscreen Analytics Dashboard"
               >
                 <GoogleIcon name="analytics" size={14} />
-                📊 Analytics
+                Analytics
               </button>
               <button
                 type="button"
                 onClick={handleCSVExport}
-                className="px-3 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Export CSV"
               >
                 <GoogleIcon name="description" size={14} />
@@ -305,7 +352,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handleExcelExport}
-                className="px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-900/50 hover:border-emerald-700 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-emerald-55 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 hover:text-emerald-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Export Excel"
               >
                 <GoogleIcon name="table_view" size={14} />
@@ -314,7 +361,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handlePDFExport}
-                className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-900/50 hover:border-red-700 text-red-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-705 hover:text-red-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Export PDF"
               >
                 <GoogleIcon name="picture_as_pdf" size={14} />
@@ -324,19 +371,29 @@ export default function AttendancePage() {
           )}
 
           {isManager && (
-            <div className="flex bg-slate-950/60 p-1 rounded-lg border border-slate-800 text-xs">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs shadow-inner">
+              {user?.role === 'ROOT_ADMIN' && (
+                <button
+                  onClick={() => setViewMode('gps')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    viewMode === 'gps' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
+                  }`}
+                >
+                  📍 GPS Verification Center
+                </button>
+              )}
               <button
                 onClick={() => setViewMode('hotel')}
-                className={`px-3 py-1.5 rounded font-bold cursor-pointer ${
-                  viewMode === 'hotel' ? 'bg-gold text-slate-dark' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  viewMode === 'hotel' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
                 }`}
               >
                 Hotel View
               </button>
               <button
                 onClick={() => setViewMode('personal')}
-                className={`px-3 py-1.5 rounded font-bold cursor-pointer ${
-                  viewMode === 'personal' ? 'bg-gold text-slate-dark' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  viewMode === 'personal' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
                 }`}
               >
                 My Shifts
@@ -345,17 +402,17 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
-
+      
       {/* Advanced Expandable Filter Panel */}
-      <div className="bg-card-dark border border-slate-800/80 rounded-xl p-4 space-y-4">
+      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all space-y-4">
         {viewMode === 'personal' ? (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-semibold uppercase tracking-wider">Salary Month:</span>
+            <span className="text-slate-600 font-bold uppercase tracking-wider">Salary Month:</span>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-white"
+              className="bg-white border border-slate-200 rounded-xl p-2 text-slate-850 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             />
           </div>
         ) : (
@@ -366,15 +423,15 @@ export default function AttendancePage() {
                 <button
                   type="button"
                   onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                  className="px-3.5 py-2 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <GoogleIcon name={isFilterExpanded ? 'expand_less' : 'filter_list'} size={15} />
                   {isFilterExpanded ? 'Collapse Advanced Filters' : 'Expand Advanced Filters'}
                 </button>
                 
                 {isManager && (
-                  <div className="flex items-center gap-2 border-l border-slate-800 pl-3">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider">Assign Shift:</span>
+                  <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                    <span className="text-slate-500 font-bold uppercase tracking-wider">Assign Shift:</span>
                     <select
                       onChange={(e) => {
                         const val = e.target.value;
@@ -384,7 +441,7 @@ export default function AttendancePage() {
                           e.target.value = '';
                         }
                       }}
-                      className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-white cursor-pointer focus:outline-none focus:border-gold"
+                      className="bg-white border border-slate-200 rounded-xl p-2 text-slate-850 cursor-pointer focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold text-xs"
                     >
                       <option value="">Select Employee...</option>
                       {assignableUsers.map(u => (
@@ -405,21 +462,21 @@ export default function AttendancePage() {
                     id="viewAllHotelLogs"
                     checked={viewAllHotelLogs}
                     onChange={(e) => setViewAllHotelLogs(e.target.checked)}
-                    className="accent-gold cursor-pointer h-4 w-4"
+                    className="accent-[#0a1f5c] cursor-pointer h-4 w-4"
                   />
-                  <label htmlFor="viewAllHotelLogs" className="text-slate-300 font-semibold cursor-pointer uppercase tracking-wider">
+                  <label htmlFor="viewAllHotelLogs" className="text-slate-700 font-bold cursor-pointer uppercase tracking-wider text-[10.5px]">
                     Show All History (All Dates)
                   </label>
                 </div>
                 
                 {!viewAllHotelLogs && (
-                  <div className="flex items-center gap-1.5 bg-slate-950/45 border border-slate-800 rounded-lg p-1.5">
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1.5">
                     <span className="text-[10px] text-slate-500 font-mono uppercase font-bold px-1">Shift Date:</span>
                     <input
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="bg-transparent border-none text-xs text-white focus:outline-none cursor-pointer font-semibold font-mono"
+                      className="bg-transparent border-none text-xs text-slate-800 focus:outline-none cursor-pointer font-semibold font-mono"
                     />
                   </div>
                 )}
@@ -428,29 +485,29 @@ export default function AttendancePage() {
 
             {/* Expandable Filter Grid */}
             {isFilterExpanded && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-800/80 text-xs animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100 text-xs animate-in fade-in duration-200">
                 {/* Search query input */}
                 <div className="space-y-1">
-                  <label className="block text-slate-550 text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Text Search</label>
+                  <label className="block text-slate-550 text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Text Search</label>
                   <div className="relative">
-                    <GoogleIcon name="search" className="absolute left-2.5 top-2 text-slate-500" size={14} />
+                    <GoogleIcon name="search" className="absolute left-2.5 top-2 text-slate-400" size={14} />
                     <input
                       type="text"
                       placeholder="Search Name, Email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-white focus:outline-none focus:border-gold placeholder-slate-600 text-xs"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold placeholder-slate-400 text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Employee select */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Employee</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Employee</label>
                   <select
                     value={employeeFilterId}
                     onChange={(e) => setEmployeeFilterId(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1.5 text-slate-200 focus:outline-none focus:border-gold cursor-pointer text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                   >
                     <option value="">All Employees</option>
                     {assignableUsers.map(u => (
@@ -461,33 +518,26 @@ export default function AttendancePage() {
 
                 {/* Department select */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Department</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Department</label>
                   <select
                     value={departmentFilter}
                     onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1.5 text-slate-200 focus:outline-none focus:border-gold cursor-pointer text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                   >
                     <option value="">All Departments</option>
-                    <option value="Front Office">Front Office</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Food & Beverage">Food & Beverage</option>
-                    <option value="Kitchen">Kitchen</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Security">Security</option>
-                    <option value="HR & Admin">HR & Admin</option>
-                    <option value="Accounts">Accounts</option>
-                    <option value="Sales & Marketing">Sales & Marketing</option>
-                    <option value="Operations">Operations</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
                   </select>
                 </div>
 
                 {/* Role select */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Role</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Role</label>
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1.5 text-slate-200 focus:outline-none focus:border-gold cursor-pointer text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                   >
                     <option value="">All Roles</option>
                     <option value="HOTEL_ADMIN">Hotel Admin</option>
@@ -500,11 +550,11 @@ export default function AttendancePage() {
                 {/* Hotel select (ROOT_ADMIN only) */}
                 {user?.role === 'ROOT_ADMIN' && (
                   <div className="space-y-1">
-                    <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Hotel Property</label>
+                    <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Hotel Property</label>
                     <select
                       value={hotelFilterId}
                       onChange={(e) => setHotelFilterId(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1.5 text-slate-200 focus:outline-none focus:border-gold cursor-pointer text-xs"
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                     >
                       <option value="">All Hotels</option>
                       {hotels.map(h => (
@@ -516,11 +566,11 @@ export default function AttendancePage() {
 
                 {/* Quick Filters */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Quick Range</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Quick Range</label>
                   <select
                     value={quickFilterType}
                     onChange={(e) => handleQuickFilter(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1.5 text-slate-200 focus:outline-none focus:border-gold cursor-pointer text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                   >
                     <option value="">Custom / Select Range...</option>
                     <option value="today">Today</option>
@@ -534,7 +584,7 @@ export default function AttendancePage() {
 
                 {/* Start Date */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">Start Date</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">Start Date</label>
                   <input
                     type="date"
                     value={startDateFilter}
@@ -542,13 +592,13 @@ export default function AttendancePage() {
                       setStartDateFilter(e.target.value);
                       setQuickFilterType('');
                     }}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1 text-slate-200 focus:outline-none focus:border-gold cursor-pointer font-mono text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer font-mono text-xs"
                   />
                 </div>
 
                 {/* End Date */}
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold uppercase tracking-wider text-[9.5px]">End Date</label>
+                  <label className="block text-slate-500 font-bold uppercase tracking-wider text-[9.5px]">End Date</label>
                   <input
                     type="date"
                     value={endDateFilter}
@@ -556,23 +606,23 @@ export default function AttendancePage() {
                       setEndDateFilter(e.target.value);
                       setQuickFilterType('');
                     }}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-1 text-slate-200 focus:outline-none focus:border-gold cursor-pointer font-mono text-xs"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer font-mono text-xs"
                   />
                 </div>
 
                 {/* Search & Reset Buttons */}
-                <div className="sm:col-span-2 md:col-span-4 flex justify-end gap-3 pt-2 border-t border-slate-800/40">
+                <div className="sm:col-span-2 md:col-span-4 flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={handleResetFilters}
-                    className="px-4 py-2 border border-slate-800 hover:border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200 rounded-xl font-semibold transition-colors cursor-pointer"
+                    className="px-4 py-2 border border-slate-200 hover:border-slate-300 bg-white text-slate-650 hover:text-slate-800 rounded-xl font-semibold transition-colors cursor-pointer"
                   >
                     Clear Filters
                   </button>
                   <button
                     type="button"
                     onClick={fetchLogs}
-                    className="px-4.5 py-2 bg-gold hover:bg-gold-light text-slate-dark rounded-xl font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                    className="px-5 py-2 bg-[#0a1f5c] hover:bg-[#0a1f5c]/90 text-white rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                   >
                     <GoogleIcon name="search" size={14} />
                     Search Logs
@@ -591,315 +641,459 @@ export default function AttendancePage() {
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="hidden md:block bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950/40 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                  <th className="p-4">Shift Date</th>
-                  {viewMode === 'hotel' && <th className="p-4">Employee</th>}
-                  <th className="p-4">Check-In / Verification</th>
-                  <th className="p-4">Check-Out / Verification</th>
-                  <th className="p-4">Breaks Duration</th>
-                  <th className="p-4">Working Hours</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {logs.filter(log => log.employee).map((log) => (
-                  <tr key={log._id} className="hover:bg-slate-900/20 transition-colors">
-                    <td className="p-4 font-semibold text-white">
-                      <div className="flex items-center gap-1.5">
-                        <GoogleIcon name="calendar_today" size={14} className="text-gold" />
-                        {log.date}
-                      </div>
-                    </td>
-                    {viewMode === 'hotel' && (
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200 font-bold uppercase overflow-hidden flex-shrink-0">
-                            {log.employee?.photoUrl ? (
-                              <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
-                            ) : (
-                              <span>{log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}</span>
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white">
-                              {log.employee?.firstName} {log.employee?.lastName}
-                            </div>
-                            <div className="text-slate-500 text-[10px]">{log.employee?.designation} ({log.employee?.department})</div>
-                            {log.employee?.shift && (
-                              <div className="text-[9px] text-gold font-mono mt-0.5 uppercase font-semibold">⏱ {log.employee.shift.split(' (')[0]}</div>
-                            )}
-                          </div>
+          {viewMode === 'gps' ? (
+            <div className="hidden md:block bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-wider font-semibold">
+                      <th className="p-4">Employee Name</th>
+                      <th className="p-4">Hotel</th>
+                      <th className="p-4">Department</th>
+                      <th className="p-4">Role</th>
+                      <th className="p-4">Work In Time</th>
+                      <th className="p-4">Work Out Time</th>
+                      <th className="p-4">Latitude</th>
+                      <th className="p-4">Longitude</th>
+                      <th className="p-4">City</th>
+                      <th className="p-4">District</th>
+                      <th className="p-4">Village</th>
+                      <th className="p-4">Current Address</th>
+                      <th className="p-4">Attendance Status</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-600">
+                    {logs.filter(log => log.employee).map((log) => (
+                      <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="p-4 font-semibold text-slate-800">
+                          {log.employee?.firstName} {log.employee?.lastName}
+                        </td>
+                        <td className="p-4">{log.hotel?.name || 'N/A'}</td>
+                        <td className="p-4">{log.employee?.department || 'N/A'}</td>
+                        <td className="p-4">
+                          <span className="capitalize text-[10px] bg-slate-50 px-2 py-0.5 rounded text-slate-650 border border-slate-200">
+                            {log.employee?.role?.replace('_', ' ')?.toLowerCase() || 'employee'}
+                          </span>
+                        </td>
+                        <td className="p-4 font-mono text-slate-700">
+                          {new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-4 font-mono text-slate-700">
+                          {log.checkOut ? (
+                            new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          ) : (
+                            <span className="text-slate-400 italic">Active</span>
+                          )}
+                        </td>
+                        <td className="p-4 font-mono text-green-600">
+                          {log.checkInLatitude !== undefined ? log.checkInLatitude.toFixed(5) : 'N/A'}
+                        </td>
+                        <td className="p-4 font-mono text-green-600">
+                          {log.checkInLongitude !== undefined ? log.checkInLongitude.toFixed(5) : 'N/A'}
+                        </td>
+                        <td className="p-4">{log.city || log.checkOutCity || 'N/A'}</td>
+                        <td className="p-4">{log.district || log.checkOutDistrict || 'N/A'}</td>
+                        <td className="p-4">{log.village || log.checkOutVillage || 'N/A'}</td>
+                        <td className="p-4 max-w-xs truncate text-slate-500" title={log.checkInAddress || 'N/A'}>
+                          {log.checkInAddress || 'N/A'}
+                        </td>
+                        <td className="p-4">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            log.status === 'Present' 
+                              ? 'bg-green-50 text-green-600 border border-green-100' 
+                              : log.status === 'Late'
+                              ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                              : log.status === 'Half-Day'
+                              ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                              : 'bg-red-50 text-red-600 border border-red-100'
+                          }`}>
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setSelfieCompareLog(log)}
+                            className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                          >
+                            View Selfie
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMapViewLog(log)}
+                            className="bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] text-[#0a1f5c] hover:text-white border border-[#0a1f5c]/10 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                          >
+                            View Map
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {logs.length === 0 && (
+                      <tr>
+                        <td colSpan={14} className="text-center p-8 text-slate-400">
+                          No geo-verification records found for today.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="hidden md:block bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+              <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-wider font-semibold">
+                    <th className="p-4">Shift Date</th>
+                    {viewMode === 'hotel' && <th className="p-4">Employee</th>}
+                    <th className="p-4">Check-In / Verification</th>
+                    <th className="p-4">Check-Out / Verification</th>
+                    <th className="p-4">Breaks Duration</th>
+                    <th className="p-4">Working Hours</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-600">
+                  {logs.filter(log => log.employee).map((log) => (
+                    <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="p-4 font-semibold text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <GoogleIcon name="calendar_today" size={14} className="text-gold" />
+                          {log.date}
                         </div>
                       </td>
-                    )}
-                    <td className="p-4 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        {/* Check-In Selfie Thumbnail */}
-                        {viewMode === 'hotel' && (
-                          <div className="w-10 h-10 rounded bg-slate-800 border border-slate-700 flex-shrink-0 overflow-hidden relative group">
-                            {log.checkInPhoto ? (
-                              <>
-                                <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
-                                <div 
-                                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                                  onClick={() => setSelectedPreviewImage(log.checkInPhoto || null)}
-                                >
-                                  <span className="text-[7px] text-gold font-bold uppercase">View</span>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-500 text-[9px] font-semibold bg-slate-900/40">
-                                Exempt
+                      {viewMode === 'hotel' && (
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden flex-shrink-0">
+                              {log.employee?.photoUrl ? (
+                                <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                              ) : (
+                                <span>{log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}</span>
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-800">
+                                {log.employee?.firstName} {log.employee?.lastName}
                               </div>
-                            )}
-                          </div>
-                        )}
-                        <div className="space-y-0.5">
-                          <div className="font-mono text-[10.5px]">
-                            {new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          {log.hotel && (
-                            <div className="text-[10px] text-slate-400">
-                              📍 {log.hotel.name} (<span className="text-gold uppercase font-mono">{log.hotel.code}</span>)
+                              <div className="text-slate-500 text-[10px]">{log.employee?.designation} ({log.employee?.department})</div>
+                              {log.employee?.shift && (
+                                <div className="text-[9px] text-[#0a1f5c] font-mono mt-0.5 uppercase font-semibold">⏱ {log.employee.shift.split(' (')[0]}</div>
+                              )}
                             </div>
-                          )}
-                          {log.checkInLatitude !== undefined && log.checkInLongitude !== undefined && (
-                            <div className="text-[9px] text-green-400 font-mono flex items-center gap-0.5">
-                              <a 
-                                href={`https://www.google.com/maps?q=${log.checkInLatitude},${log.checkInLongitude}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hover:underline flex items-center gap-0.5 text-green-400 hover:text-green-300"
-                                title="Open in Google Maps"
-                              >
-                                <GoogleIcon name="map" size={10} />
-                                {log.checkInLatitude.toFixed(4)}°, {log.checkInLongitude.toFixed(4)}°
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-xs">
-                      {log.checkOut ? (
+                          </div>
+                        </td>
+                      )}
+                      <td className="p-4 text-xs">
                         <div className="flex items-center gap-2.5">
-                          {/* Check-Out Selfie Thumbnail */}
+                          {/* Check-In Selfie Thumbnail */}
                           {viewMode === 'hotel' && (
-                            <div className="w-10 h-10 rounded bg-slate-800 border border-slate-700 flex-shrink-0 overflow-hidden relative group">
-                              {log.checkOutPhoto ? (
+                            <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden relative group">
+                              {log.checkInPhoto ? (
                                 <>
-                                  <img src={log.checkOutPhoto} alt="Checkout Selfie" className="w-full h-full object-cover" />
+                                  <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
                                   <div 
                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                                    onClick={() => setSelectedPreviewImage(log.checkOutPhoto || null)}
+                                    onClick={() => setSelectedPreviewImage(log.checkInPhoto || null)}
                                   >
-                                    <span className="text-[7px] text-gold font-bold uppercase">View</span>
+                                    <span className="text-[7px] text-white font-bold uppercase">View</span>
                                   </div>
                                 </>
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-500 text-[9px] font-semibold bg-slate-900/40">
+                                <div className="w-full h-full flex items-center justify-center text-slate-400 text-[9px] font-semibold bg-slate-50">
                                   Exempt
                                 </div>
                               )}
                             </div>
                           )}
                           <div className="space-y-0.5">
-                            <div className="font-mono text-[10.5px]">
-                              {new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            <div className="font-mono text-[10.5px] text-slate-700">
+                              {new Date(log.checkIn).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            {log.checkOutLatitude !== undefined && log.checkOutLongitude !== undefined && (
-                              <div className="text-[9px] text-green-400 font-mono">
+                            {log.hotel && (
+                              <div className="text-[10px] text-slate-500">
+                                📍 {log.hotel.name} (<span className="text-gold uppercase font-mono font-bold">{log.hotel.hotelCode}</span>)
+                              </div>
+                            )}
+                            {log.checkInLatitude !== undefined && log.checkInLongitude !== undefined && (
+                              <div className="text-[9px] text-green-600 font-mono flex items-center gap-0.5">
                                 <a 
-                                  href={`https://www.google.com/maps?q=${log.checkOutLatitude},${log.checkOutLongitude}`}
+                                  href={`https://www.google.com/maps?q=${log.checkInLatitude},${log.checkInLongitude}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="hover:underline flex items-center gap-0.5 text-green-400 hover:text-green-300"
+                                  className="hover:underline flex items-center gap-0.5 text-green-600 hover:text-green-700"
                                   title="Open in Google Maps"
                                 >
                                   <GoogleIcon name="map" size={10} />
-                                  {log.checkOutLatitude.toFixed(4)}°, {log.checkOutLongitude.toFixed(4)}°
+                                  {log.checkInLatitude.toFixed(4)}°, {log.checkInLongitude.toFixed(4)}°
                                 </a>
                               </div>
                             )}
-                            {log.workDescription && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedWorkLog(log)}
-                                className="text-[9px] text-gold hover:text-gold-light hover:underline font-bold mt-0.5 cursor-pointer block text-left"
-                              >
-                                View Update &rarr;
-                              </button>
-                            )}
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-slate-500 italic font-medium">Currently Active</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-slate-300 font-mono">
-                      {log.totalBreakMinutes} min
-                    </td>
-                    <td className="p-4 text-slate-200 font-bold font-mono">
-                      {log.totalWorkingHours} hrs
-                    </td>
-                    <td className="p-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                        log.status === 'Present' 
-                          ? 'bg-green-500/10 text-green-400' 
-                          : log.status === 'Late'
-                          ? 'bg-amber-500/10 text-amber-400'
-                          : log.status === 'Half-Day'
-                          ? 'bg-orange-500/10 text-orange-400'
-                          : 'bg-red-500/10 text-red-400'
-                      }`}>
-                        {log.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (log.employee) {
-                            setReportEmployeeId(log.employee._id);
-                          }
-                        }}
-                        className="bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-gold border border-slate-700/80 px-2.5 py-1.5 rounded text-[10px] uppercase font-bold cursor-pointer transition-colors"
-                      >
-                        View Report
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4 text-xs">
+                        {log.checkOut ? (
+                          <div className="flex items-center gap-2.5">
+                            {/* Check-Out Selfie Thumbnail */}
+                            {viewMode === 'hotel' && (
+                              <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden relative group">
+                                {log.checkOutPhoto ? (
+                                  <>
+                                    <img src={log.checkOutPhoto} alt="Checkout Selfie" className="w-full h-full object-cover" />
+                                    <div 
+                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                      onClick={() => setSelectedPreviewImage(log.checkOutPhoto || null)}
+                                    >
+                                      <span className="text-[7px] text-white font-bold uppercase">View</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-400 text-[9px] font-semibold bg-slate-50">
+                                    Exempt
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className="space-y-0.5">
+                              <div className="font-mono text-[10.5px] text-slate-700">
+                                {new Date(log.checkOut).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                              {log.checkOutLatitude !== undefined && log.checkOutLongitude !== undefined && (
+                                <div className="text-[9px] text-green-600 font-mono">
+                                  <a 
+                                    href={`https://www.google.com/maps?q=${log.checkOutLatitude},${log.checkOutLongitude}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="hover:underline flex items-center gap-0.5 text-green-600 hover:text-green-700"
+                                    title="Open in Google Maps"
+                                  >
+                                    <GoogleIcon name="map" size={10} />
+                                    {log.checkOutLatitude.toFixed(4)}°, {log.checkOutLongitude.toFixed(4)}°
+                                  </a>
+                                </div>
+                              )}
+                              {log.workDescription && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedWorkLog(log)}
+                                  className="text-[9px] text-[#0a1f5c] hover:text-[#112d8a] hover:underline font-bold mt-0.5 cursor-pointer block text-left"
+                                >
+                                  View Update &rarr;
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic font-medium">Currently Active</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-600 font-mono">
+                        {log.totalBreakMinutes} min
+                      </td>
+                      <td className="p-4 text-slate-800 font-bold font-mono">
+                        {log.totalWorkingHours} hrs
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                          log.status === 'Present' 
+                            ? 'bg-green-50 text-green-600 border border-green-100' 
+                            : log.status === 'Late'
+                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                            : log.status === 'Half-Day'
+                            ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                            : 'bg-red-50 text-red-600 border border-red-100'
+                        }`}>
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (log.employee) {
+                              setReportEmployeeId(log.employee._id);
+                            }
+                          }}
+                          className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                        >
+                          View Report
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
 
-                {logs.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="text-center p-8 text-slate-500">
-                      No shift records found for this selection.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  {logs.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="text-center p-8 text-slate-400">
+                        No shift records found for this selection.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
           </div>
-        </div>
-
-        {/* Mobile View - Card Layout */}
+          </div>
+        )}
+        {/* Mobile View - Cards */}
         <div className="md:hidden space-y-4 animate-in fade-in duration-200">
-          {logs.filter(log => log.employee).map((log) => (
-            <div 
-              key={log._id}
-              onClick={() => {
-                if (log.workDescription) setSelectedWorkLog(log);
-              }}
-              className="bg-card-dark border border-slate-800/80 rounded-2xl p-4 shadow-lg space-y-3 border-gold/5"
-            >
-              {/* Header: Date and Status */}
-              <div className="flex justify-between items-center border-b border-slate-800/60 pb-2.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-white font-mono">
-                  <GoogleIcon name="calendar_today" size={14} className="text-gold" />
-                  {log.date}
+          {viewMode === 'gps' ? (
+            logs.filter(log => log.employee).map((log) => (
+              <div 
+                key={log._id}
+                className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3"
+              >
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-xs">{log.employee?.firstName} {log.employee?.lastName}</h4>
+                    <p className="text-[10px] text-slate-500">{log.employee?.department} &bull; {log.hotel?.name}</p>
+                  </div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase ${
+                    log.status === 'Present' 
+                      ? 'bg-green-50 text-green-600 border border-green-100' 
+                      : log.status === 'Late'
+                      ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                      : 'bg-red-50 text-red-600 border border-red-100'
+                  }`}>
+                    {log.status}
+                  </span>
                 </div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                  log.status === 'Present' 
-                    ? 'bg-green-500/10 text-green-400' 
-                    : log.status === 'Late'
-                    ? 'bg-amber-500/10 text-amber-400'
-                    : log.status === 'Half-Day'
-                    ? 'bg-orange-500/10 text-orange-400'
-                    : 'bg-red-500/10 text-red-400'
-                }`}>
-                  {log.status}
-                </span>
+                <div className="text-[10px] space-y-1 text-slate-600">
+                  <p><span className="text-slate-500 font-semibold">Check-In:</span> {new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({log.checkInLatitude?.toFixed(4)}, {log.checkInLongitude?.toFixed(4)})</p>
+                  <p><span className="text-slate-500 font-semibold">Check-Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}</p>
+                  {log.checkInAddress && <p className="line-clamp-2 text-slate-500"><span className="text-slate-500 font-semibold">Address:</span> {log.checkInAddress}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setSelfieCompareLog(log)}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition-colors shadow-sm"
+                  >
+                    Selfie Compare
+                  </button>
+                  <button
+                    onClick={() => setMapViewLog(log)}
+                    className="w-full bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] text-[#0a1f5c] hover:text-white text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition-colors shadow-sm"
+                  >
+                    View Map
+                  </button>
+                </div>
               </div>
+            ))
+          ) : (
+            logs.filter(log => log.employee).map((log) => (
+              <div 
+                key={log._id}
+                onClick={() => {
+                  if (log.workDescription) setSelectedWorkLog(log);
+                }}
+                className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 border-gold/5"
+              >
+                {/* Header: Date and Status */}
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 font-mono">
+                    <GoogleIcon name="calendar_today" size={14} className="text-[#0a1f5c]" />
+                    {log.date}
+                  </div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                    log.status === 'Present' 
+                      ? 'bg-green-50 text-green-600 border border-green-100' 
+                      : log.status === 'Late'
+                      ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                      : log.status === 'Half-Day'
+                      ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                      : 'bg-red-50 text-red-600 border border-red-100'
+                  }`}>
+                    {log.status}
+                  </span>
+                </div>
 
-              {/* Employee Detail (Hotel View only) */}
-              {viewMode === 'hotel' && log.employee && (
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-850 flex items-center justify-center border border-slate-700 text-slate-200 font-bold uppercase overflow-hidden flex-shrink-0">
-                    {log.employee.photoUrl ? (
-                      <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{log.employee.firstName[0]}{log.employee.lastName[0]}</span>
+                {/* Employee Detail (Hotel View only) */}
+                {viewMode === 'hotel' && log.employee && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden flex-shrink-0">
+                      {log.employee.photoUrl ? (
+                        <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <span>{log.employee.firstName[0]}{log.employee.lastName[0]}</span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-[11.5px] font-bold text-slate-800">{log.employee.firstName} {log.employee.lastName}</h4>
+                      <p className="text-[9.5px] text-slate-500 mt-0.5">{log.employee.designation} &bull; {log.employee.department}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Timing Grid */}
+                <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase font-bold">Clock-In</span>
+                    <span className="font-bold text-slate-700 block mt-0.5 font-mono">
+                      {new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {log.checkInLatitude !== undefined && (
+                      <a 
+                        href={`https://www.google.com/maps?q=${log.checkInLatitude},${log.checkInLongitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[9px] text-green-600 hover:text-green-700 flex items-center gap-0.5 mt-1"
+                      >
+                        <GoogleIcon name="map" size={10} /> Maps
+                      </a>
                     )}
                   </div>
                   <div>
-                    <h4 className="text-[11.5px] font-bold text-slate-200">{log.employee.firstName} {log.employee.lastName}</h4>
-                    <p className="text-[9.5px] text-slate-500 mt-0.5">{log.employee.designation} &bull; {log.employee.department}</p>
+                    <span className="text-slate-500 block text-[9px] uppercase font-bold">Clock-Out</span>
+                    <span className="font-bold text-slate-700 block mt-0.5 font-mono">
+                      {log.checkOut 
+                        ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                        : 'Active'}
+                    </span>
+                    {log.checkOutLatitude !== undefined && (
+                      <a 
+                        href={`https://www.google.com/maps?q=${log.checkOutLatitude},${log.checkOutLongitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[9px] text-green-600 hover:text-green-700 flex items-center gap-0.5 mt-1"
+                      >
+                        <GoogleIcon name="map" size={10} /> Maps
+                      </a>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {/* Timing Grid */}
-              <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-900/60">
-                <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-semibold">Clock-In</span>
-                  <span className="font-semibold text-slate-300 block mt-0.5 font-mono">
-                    {new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {log.checkInLatitude !== undefined && (
-                    <a 
-                      href={`https://www.google.com/maps?q=${log.checkInLatitude},${log.checkInLongitude}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[9px] text-green-400 hover:text-green-305 hover:text-green-300 flex items-center gap-0.5 mt-1"
-                    >
-                      <GoogleIcon name="map" size={10} /> Maps
-                    </a>
-                  )}
+                {/* Working Durations */}
+                <div className="flex justify-between text-[10.5px] text-slate-500">
+                  <span>Duty Hours: <strong className="text-slate-800 font-bold font-mono">{log.totalWorkingHours} hrs</strong></span>
+                  <span>Breaks: <strong className="text-slate-800 font-bold font-mono">{log.totalBreakMinutes} mins</strong></span>
                 </div>
-                <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-semibold">Clock-Out</span>
-                  <span className="font-semibold text-slate-300 block mt-0.5 font-mono">
-                    {log.checkOut 
-                      ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                      : 'Active'}
-                  </span>
-                  {log.checkOutLatitude !== undefined && (
-                    <a 
-                      href={`https://www.google.com/maps?q=${log.checkOutLatitude},${log.checkOutLongitude}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[9px] text-green-400 hover:text-green-305 hover:text-green-300 flex items-center gap-0.5 mt-1"
-                    >
-                      <GoogleIcon name="map" size={10} /> Maps
-                    </a>
-                  )}
-                </div>
-              </div>
 
-              {/* Working Durations */}
-              <div className="flex justify-between text-[10.5px] text-slate-400">
-                <span>Duty Hours: <strong className="text-slate-200 font-mono">{log.totalWorkingHours} hrs</strong></span>
-                <span>Breaks: <strong className="text-slate-200 font-mono">{log.totalBreakMinutes} mins</strong></span>
+                {/* Action Button */}
+                {log.workDescription && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedWorkLog(log);
+                    }}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold py-2.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-sm"
+                  >
+                    View Work Summary Update
+                  </button>
+                )}
               </div>
-
-              {/* Action Button */}
-              {log.workDescription && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedWorkLog(log);
-                  }}
-                  className="w-full bg-slate-900 hover:bg-slate-850 text-gold border border-slate-800 font-bold py-2.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  View Work Summary Update
-                </button>
-              )}
-            </div>
-          ))}
+            ))
+          )}
 
           {logs.length === 0 && (
-            <div className="text-center py-12 text-slate-500 italic text-[11px] bg-card-dark border border-slate-800/80 rounded-2xl">
-              No shift records found for this selection.
+            <div className="text-center py-12 text-slate-400 italic text-[11px] bg-white border border-slate-100 rounded-2xl shadow-sm">
+              No verification records found.
             </div>
           )}
         </div>
@@ -949,9 +1143,9 @@ export default function AttendancePage() {
       {/* Assign Shift Modal */}
       {assignShiftModalOpen && assignShiftUser && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card-dark border border-gold/20 rounded-xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+              <h3 className="font-bold text-[#0a1f5c] text-sm flex items-center gap-2">
                 <GoogleIcon name="schedule" className="text-gold animate-pulse" size={18} />
                 Assign Shift
               </h3>
@@ -960,7 +1154,7 @@ export default function AttendancePage() {
                   setAssignShiftModalOpen(false);
                   setAssignShiftUser(null);
                 }} 
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <GoogleIcon name="close" size={18} />
               </button>
@@ -968,8 +1162,8 @@ export default function AttendancePage() {
 
             <div className="text-xs space-y-3">
               <div>
-                <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider block">Staff Name</span>
-                <span className="text-slate-200 font-bold text-sm block mt-0.5">
+                <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider block">Staff Name</span>
+                <span className="text-slate-800 font-bold text-sm block mt-0.5">
                   {assignShiftUser.firstName} {assignShiftUser.lastName}
                 </span>
                 <span className="text-slate-500 font-mono text-[10px]">
@@ -978,14 +1172,14 @@ export default function AttendancePage() {
               </div>
 
               <div>
-                <span className="text-slate-500 font-semibold uppercase text-[9px] tracking-wider block">Current Shift</span>
-                <span className="text-gold font-semibold font-mono block mt-0.5">
+                <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider block">Current Shift</span>
+                <span className="text-[#0a1f5c] font-bold font-mono block mt-0.5">
                   {assignShiftUser.shift || 'General Shift (09:00 AM - 05:00 PM)'}
                 </span>
               </div>
 
-              <div className="space-y-1.5 border-t border-slate-800/60 pt-3">
-                <label className="block text-slate-400 font-semibold uppercase text-[9px] tracking-wider flex items-center gap-1.5">
+              <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                <label className="block text-slate-500 font-bold uppercase text-[9px] tracking-wider flex items-center gap-1.5">
                   <GoogleIcon name="schedule" className="text-gold" size={12} />
                   Select New Shift
                 </label>
@@ -994,7 +1188,7 @@ export default function AttendancePage() {
                   <select
                     value={selectedShift}
                     onChange={(e) => setSelectedShift(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded px-3 py-2 text-white cursor-pointer focus:outline-none focus:border-gold max-h-40 overflow-y-auto"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 cursor-pointer focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold max-h-40 overflow-y-auto"
                   >
                     {shiftOptions.map((s, idx) => (
                       <option key={idx} value={s}>
@@ -1003,7 +1197,7 @@ export default function AttendancePage() {
                     ))}
                   </select>
                 </div>
-                <p className="text-[9px] text-slate-500 italic mt-1 leading-relaxed">
+                <p className="text-[9px] text-slate-400 italic mt-1 leading-relaxed">
                   Hover/focus over the selection field and scroll down to select from all active shifts.
                 </p>
               </div>
@@ -1011,19 +1205,272 @@ export default function AttendancePage() {
               <button
                 onClick={handleAssignShiftSubmit}
                 disabled={assigningShift}
-                className="w-full bg-gold hover:bg-gold-light text-slate-dark font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer mt-4"
+                className="w-full bg-[#0a1f5c] hover:bg-[#0a1f5c]/95 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer mt-4 shadow-sm"
               >
                 {assigningShift ? (
                   <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
                 ) : (
                   <GoogleIcon name="check" size={14} />
                 )}
-                Confirm Assignment
+                  Confirm Assignment
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Selfie Verification Modal */}
+      {selfieCompareLog && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-100 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden my-8">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-[#0a1f5c] text-sm flex items-center gap-2">
+                  🛡️ GPS Address & Selfie Verification Center
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Side-by-side verification: check-in vs check-out audit
+                </p>
+              </div>
+              <button
+                onClick={() => setSelfieCompareLog(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="close" size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs border-b border-slate-100">
+              {/* Check-In Column */}
+              <div className="space-y-4">
+                <div className="bg-green-50/50 border border-green-100 p-3 rounded-xl">
+                  <h4 className="font-extrabold text-green-700 uppercase text-[9px] tracking-wider">🟢 Check-In Info</h4>
+                  <p className="text-slate-600 mt-1">Time: <span className="font-mono text-slate-800 font-bold">{new Date(selfieCompareLog.checkIn).toLocaleString()}</span></p>
+                </div>
+                
+                {/* Selfie preview */}
+                <div className="aspect-video bg-slate-50 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
+                  {selfieCompareLog.checkInPhoto || selfieCompareLog.selfieUrl ? (
+                    <img src={selfieCompareLog.checkInPhoto || selfieCompareLog.selfieUrl} alt="Check-In Selfie" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-slate-400 italic">No Selfie Captured / Exempt</span>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl space-y-1 text-[11px]">
+                  <p className="text-slate-500 uppercase text-[8px] font-bold tracking-wider">Resolved Location</p>
+                  <p className="font-mono text-slate-800 font-semibold">
+                    Lat/Lng: {selfieCompareLog.checkInLatitude?.toFixed(5)}°, {selfieCompareLog.checkInLongitude?.toFixed(5)}°
+                  </p>
+                  <p className="text-slate-600 mt-1 leading-normal font-sans">
+                    Address: {selfieCompareLog.checkInAddress || 'Address Resolution Missing'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Check-Out Column */}
+              <div className="space-y-4">
+                <div className="bg-red-50/50 border border-red-100 p-3 rounded-xl">
+                  <h4 className="font-extrabold text-red-700 uppercase text-[9px] tracking-wider">🔴 Check-Out Info</h4>
+                  <p className="text-slate-600 mt-1">Time: <span className="font-mono text-slate-800 font-bold">{selfieCompareLog.checkOut ? new Date(selfieCompareLog.checkOut).toLocaleString() : 'Currently Active'}</span></p>
+                </div>
+
+                {/* Selfie preview */}
+                <div className="aspect-video bg-slate-50 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
+                  {selfieCompareLog.checkOut ? (
+                    selfieCompareLog.checkOutSelfie || selfieCompareLog.checkOutPhoto ? (
+                      <img src={selfieCompareLog.checkOutSelfie || selfieCompareLog.checkOutPhoto} alt="Check-Out Selfie" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-slate-400 italic">No Checkout Selfie / Exempt</span>
+                    )
+                  ) : (
+                    <span className="text-slate-400 italic">Staff Currently Active</span>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl space-y-1 text-[11px]">
+                  <p className="text-slate-500 uppercase text-[8px] font-bold tracking-wider">Resolved Location</p>
+                  <p className="font-mono text-slate-800 font-semibold">
+                    Lat/Lng: {selfieCompareLog.checkOutLatitude !== undefined ? `${selfieCompareLog.checkOutLatitude.toFixed(5)}°` : 'N/A'}, {selfieCompareLog.checkOutLongitude !== undefined ? `${selfieCompareLog.checkOutLongitude.toFixed(5)}°` : 'N/A'}
+                  </p>
+                  <p className="text-slate-600 mt-1 leading-normal font-sans">
+                    Address: {selfieCompareLog.checkOutAddress || 'Address Resolution Missing'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Audit & Device Security Section */}
+            <div className="p-5 bg-slate-50 text-[10.5px] text-slate-600 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-slate-100 font-sans">
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[8px] tracking-wider block">Device Fingerprint</span>
+                <span className="font-mono break-all text-slate-700">{selfieCompareLog.deviceFingerprint || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[8px] tracking-wider block">OS & Browser Info</span>
+                <span className="text-slate-700">{selfieCompareLog.os || 'Unknown OS'} • {selfieCompareLog.browserAgent ? selfieCompareLog.browserAgent.split(') ')[0].replace('Mozilla/5.0 (', '') : 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[8px] tracking-wider block">Network Audit</span>
+                <span className="text-slate-700">IP Address: {selfieCompareLog.ipAddress || 'N/A'}<br />Source: {selfieCompareLog.locationSource || 'N/A'}</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelfieCompareLog(null)}
+                className="px-5 py-2.5 bg-[#0a1f5c] hover:bg-[#0a1f5c]/95 text-white rounded-xl font-bold transition-all cursor-pointer text-xs"
+              >
+                Close Audit Comparison
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Map Modal */}
+      {mapViewLog && (
+        <MapModal log={mapViewLog} onClose={() => setMapViewLog(null)} />
+      )}
     </div>
   );
 }
+
+// Sub-component to load Leaflet dynamically on the client side only
+const MapModal = ({ log, onClose }: { log: AttendanceLog; onClose: () => void }) => {
+  const mapRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let mapInstance: any = null;
+
+    // Load leaflet CSS if not already loaded
+    if (typeof window !== 'undefined' && !document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    import('leaflet').then((L) => {
+      if (!isMounted) return;
+
+      // Leaflet default icon asset fix in Next.js/Webpack environment
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      const hasCheckIn = log.checkInLatitude !== undefined && log.checkInLongitude !== undefined;
+      const hasCheckOut = log.checkOutLatitude !== undefined && log.checkOutLongitude !== undefined;
+
+      if (!hasCheckIn && !hasCheckOut) return;
+
+      const centerLat = log.checkInLatitude ?? log.checkOutLatitude ?? 0;
+      const centerLng = log.checkInLongitude ?? log.checkOutLongitude ?? 0;
+
+      // Initialize Map
+      mapInstance = L.map('attendance-map').setView([centerLat, centerLng], 14);
+      mapRef.current = mapInstance;
+
+      // Add OpenStreetMap tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapInstance);
+
+      const employeeName = log.employee ? `${log.employee.firstName} ${log.employee.lastName}` : 'Employee';
+
+      if (hasCheckIn) {
+        const checkInMarker = L.marker([log.checkInLatitude!, log.checkInLongitude!])
+          .addTo(mapInstance)
+          .bindPopup(`
+            <div style="font-family: sans-serif; color: #1e293b; min-width: 200px;">
+              <strong style="color: #16a34a; font-size: 13px;">🟢 Check-In Location</strong><br/>
+              <strong>Employee:</strong> ${employeeName}<br/>
+              <strong>Time:</strong> ${new Date(log.checkIn).toLocaleTimeString()}<br/>
+              <strong>Coordinates:</strong> ${log.checkInLatitude?.toFixed(5)}, ${log.checkInLongitude?.toFixed(5)}<br/>
+              <strong>Address:</strong> ${log.checkInAddress || 'N/A'}
+            </div>
+          `);
+        if (!hasCheckOut) {
+          checkInMarker.openPopup();
+        }
+      }
+
+      if (hasCheckOut) {
+        const checkOutMarker = L.marker([log.checkOutLatitude!, log.checkOutLongitude!])
+          .addTo(mapInstance)
+          .bindPopup(`
+            <div style="font-family: sans-serif; color: #1e293b; min-width: 200px;">
+              <strong style="color: #dc2626; font-size: 13px;">🔴 Check-Out Location</strong><br/>
+              <strong>Employee:</strong> ${employeeName}<br/>
+              <strong>Time:</strong> ${new Date(log.checkOut!).toLocaleTimeString()}<br/>
+              <strong>Coordinates:</strong> ${log.checkOutLatitude?.toFixed(5)}, ${log.checkOutLongitude?.toFixed(5)}<br/>
+              <strong>Address:</strong> ${log.checkOutAddress || 'N/A'}
+            </div>
+          `);
+        checkOutMarker.openPopup();
+      }
+
+      if (hasCheckIn && hasCheckOut) {
+        const bounds = L.latLngBounds([
+          [log.checkInLatitude!, log.checkInLongitude!],
+          [log.checkOutLatitude!, log.checkOutLongitude!]
+        ]);
+        mapInstance.fitBounds(bounds, { padding: [50, 50] });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-slate-100 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col h-[80vh]">
+        <div className="flex justify-between items-center p-5 border-b border-slate-100">
+          <div>
+            <h3 className="font-extrabold text-[#0a1f5c] text-sm">
+              📍 GPS Location Map — {log.employee ? `${log.employee.firstName} ${log.employee.lastName}` : 'Staff'}
+            </h3>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Visualizing clock-in and clock-out markers on OpenStreetMap
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+          >
+            <GoogleIcon name="close" size={16} />
+          </button>
+        </div>
+        <div className="flex-1 relative bg-slate-50">
+          <div id="attendance-map" className="w-full h-full min-h-[400px] z-10" />
+        </div>
+        <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {log.checkInLatitude !== undefined && (
+            <div>
+              <span className="font-bold text-green-700">🟢 Check-In Coordinates:</span> {log.checkInLatitude.toFixed(5)}, {log.checkInLongitude?.toFixed(5)}
+              <p className="text-[10px] text-slate-500 mt-0.5">{log.checkInAddress || 'No Address resolved'}</p>
+            </div>
+          )}
+          {log.checkOutLatitude !== undefined && (
+            <div>
+              <span className="font-bold text-red-700">🔴 Check-Out Coordinates:</span> {log.checkOutLatitude.toFixed(5)}, {log.checkOutLongitude?.toFixed(5)}
+              <p className="text-[10px] text-slate-500 mt-0.5">{log.checkOutAddress || 'No Address resolved'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import next from 'next';
@@ -64,6 +65,7 @@ const authenticateSocket = async (socket: Socket, nextFn: (err?: any) => void) =
 
 nextApp.prepare().then(async () => {
   const app = express();
+  app.use(compression());
   const server = http.createServer(app);
 
   // Setup Socket.IO with CORS settings
