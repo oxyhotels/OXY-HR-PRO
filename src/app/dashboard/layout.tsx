@@ -688,7 +688,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#E2E8F0] z-35 flex justify-around items-center px-2 shadow-2xl">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#E2E8F0] z-35 flex justify-around items-center shadow-2xl">
           {[
             { name: 'Home', href: '/dashboard', icon: 'home' },
             { name: 'Attendance', href: '/dashboard/attendance', icon: 'event_available' },
@@ -701,13 +701,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+                className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all ${
                   isActive ? 'text-[#0A1F5C]' : 'text-[#64748B] hover:text-[#0A1F5C]'
                 }`}
               >
-                <div className={`flex flex-col items-center justify-center px-3 py-1 rounded-xl transition-all ${isActive ? 'bg-[#EEF2FF]' : ''}`}>
-                  <GoogleIcon name={tab.icon} size={22} className={isActive ? 'scale-110 text-[#0A1F5C]' : 'text-[#64748B]'} />
-                  <span className="text-[9px] font-bold mt-0.5 tracking-wider uppercase">{tab.name}</span>
+                <div className={`flex flex-col items-center justify-center w-full py-1 rounded-xl transition-all ${isActive ? 'bg-[#EEF2FF]' : ''}`}>
+                  <GoogleIcon name={tab.icon} size={20} className={isActive ? 'scale-110 text-[#0A1F5C]' : 'text-[#64748B]'} />
+                  <span className="text-[8px] font-bold mt-0.5 uppercase whitespace-nowrap">{tab.name}</span>
                 </div>
               </Link>
             );

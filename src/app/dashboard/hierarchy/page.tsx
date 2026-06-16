@@ -306,7 +306,7 @@ export default function HierarchyPage() {
                 {node.name.substring(0, 2)}
               </div>
               <div>
-                <p className="text-xs font-semibold text-white flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-black flex items-center gap-1.5">
                   {node.name}
                   <span className="bg-slate-800/80 text-[9px] text-slate-400 border border-slate-700/60 px-1.5 py-0.5 rounded-full font-normal">
                     {node.designation}

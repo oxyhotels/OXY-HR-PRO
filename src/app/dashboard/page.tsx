@@ -765,6 +765,135 @@ export default function DashboardPage() {
     .sort((a, b) => a.date.localeCompare(b.date))
   return (
     <div className="max-w-7xl mx-auto">
+      {/* ═══ UNIVERSAL SHIFT STATUS CARD — Shows on ALL devices (desktop, tablet, mobile) ═══ */}
+      {user?.role !== 'ROOT_ADMIN' && (
+        <div style={{
+          background: '#ffffff',
+          border: '2px solid #e2e8f0',
+          borderRadius: '16px',
+          padding: '20px',
+          marginBottom: '24px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+        }}>
+          {/* Card Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', marginBottom: '16px' }}>
+            <span style={{ fontSize: '13px', fontWeight: '800', color: '#0a1f5c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              ⏱ Shift Status Tracker
+            </span>
+            <span style={{
+              background: todayAttendance ? (todayAttendance.checkOut ? '#fee2e2' : '#dcfce7') : '#fef9c3',
+              color: todayAttendance ? (todayAttendance.checkOut ? '#991b1b' : '#166534') : '#854d0e',
+              fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: '99px', textTransform: 'uppercase'
+            }}>
+              {todayAttendance
+                ? (todayAttendance.checkOut ? '🔴 Shift Ended' : isBreakActive ? '🟡 On Break' : '🟢 Active Duty')
+                : '⚫ Off Duty'}
+            </span>
+          </div>
+
+          {/* Shift Info Row */}
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '16px', fontSize: '12px', color: '#475569' }}>
+            <div>
+              <span style={{ color: '#94a3b8', fontWeight: '600' }}>Assigned Shift: </span>
+              <span style={{ fontWeight: '700', color: '#0f172a' }}>{user?.shift || 'General Shift'}</span>
+            </div>
+            {todayAttendance && (
+              <>
+                <div>
+                  <span style={{ color: '#94a3b8', fontWeight: '600' }}>Clock-In: </span>
+                  <span style={{ fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
+                    {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: '#94a3b8', fontWeight: '600' }}>Duration: </span>
+                  <span style={{ fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>{todayAttendance.totalWorkingHours || 0} hrs</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Action Buttons — 4 buttons, always visible, inline styles, no Tailwind */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            {/* Work In */}
+            <button
+              type="button"
+              onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+              disabled={actionLoading || !!todayAttendance}
+              style={{
+                minHeight: '52px', background: '#16a34a', color: '#ffffff',
+                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                opacity: (actionLoading || !!todayAttendance) ? 0.45 : 1,
+                cursor: (actionLoading || !!todayAttendance) ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 8px rgba(22,163,74,0.3)'
+              }}
+            >
+              <GoogleIcon name="play_arrow" size={18} /> Work In
+            </button>
+
+            {/* Work Out — ALWAYS RED, always rendered */}
+            <button
+              type="button"
+              onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+              disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
+              style={{
+                minHeight: '52px', background: '#DC2626', color: '#ffffff',
+                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                opacity: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 0.45 : 1,
+                cursor: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 8px rgba(220,38,38,0.3)'
+              }}
+            >
+              <GoogleIcon name="logout" size={18} /> Work Out
+            </button>
+
+            {/* Break Start */}
+            <button
+              type="button"
+              onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+              disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
+              style={{
+                minHeight: '52px', background: '#fef3c7', color: '#92400e',
+                border: '1px solid #fde68a', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                opacity: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                cursor: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <GoogleIcon name="coffee" size={16} /> Break Start
+            </button>
+
+            {/* Break End */}
+            <button
+              type="button"
+              onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+              disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
+              style={{
+                minHeight: '52px', background: '#dbeafe', color: '#1e40af',
+                border: '1px solid #bfdbfe', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                opacity: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                cursor: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <GoogleIcon name="play_arrow" size={16} /> Break End
+            </button>
+          </div>
+
+          {/* Mobile: stack buttons vertically on small screens */}
+          <style>{`
+            @media (max-width: 640px) {
+              .shift-btn-grid { grid-template-columns: 1fr 1fr !important; }
+            }
+            @media (max-width: 400px) {
+              .shift-btn-grid { grid-template-columns: 1fr !important; }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Desktop Dashboard Overview Layout */}
       <div className="hidden md:block space-y-8">
         
@@ -1575,7 +1704,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Mobile-First Dashboard Overview Layout */}
-      <div className="md:hidden space-y-6 pb-12">
+      <div className="md:hidden space-y-6 pb-36">
         {/* Mobile Greeting Header Card */}
         <div className="bg-gradient-to-r from-[#0a1f5c] to-[#112d8a] text-white p-5 rounded-2xl shadow-lg border border-gold/15 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1634,6 +1763,118 @@ export default function DashboardPage() {
           }`}>
             <GoogleIcon name="info" className={feedback.type === 'success' ? 'text-green-600' : 'text-red-600'} size={14} />
             <span className="font-semibold">{feedback.message}</span>
+          </div>
+        )}
+
+        {/* ✅ SHIFT STATUS CARD — Moved to TOP for immediate mobile visibility */}
+        {user?.role !== 'ROOT_ADMIN' && (
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '10px', fontWeight: '800', color: '#0a1f5c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>⏱ Shift Status</span>
+              <span style={{ background: '#fef9c3', color: '#854d0e', fontSize: '9px', fontWeight: '700', padding: '2px 8px', borderRadius: '99px', textTransform: 'uppercase' }}>
+                {todayAttendance
+                  ? (todayAttendance.checkOut ? 'Shift Ended' : isBreakActive ? 'On Break' : '🟢 Active Duty')
+                  : '⭕ Off Duty'}
+              </span>
+            </div>
+
+            {/* Info rows */}
+            <div style={{ fontSize: '11px', color: '#475569', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8', fontWeight: '600' }}>Assigned Shift:</span>
+                <span style={{ fontWeight: '700', color: '#1e293b' }}>{user?.shift || 'General Shift'}</span>
+              </div>
+              {todayAttendance && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8', fontWeight: '600' }}>Clock-In:</span>
+                    <span style={{ fontWeight: '700', color: '#1e293b', fontFamily: 'monospace' }}>
+                      {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8', fontWeight: '600' }}>Duration:</span>
+                    <span style={{ fontWeight: '700', color: '#1e293b', fontFamily: 'monospace' }}>{todayAttendance.totalWorkingHours || 0} hrs</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Action Buttons — all 4, always visible */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Work In */}
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+                disabled={actionLoading || !!todayAttendance}
+                style={{
+                  width: '100%', minHeight: '52px',
+                  background: (actionLoading || !!todayAttendance) ? '#86efac' : '#16a34a',
+                  color: '#fff', border: 'none', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  fontSize: '15px', fontWeight: '800',
+                  opacity: (actionLoading || !!todayAttendance) ? 0.5 : 1,
+                  cursor: (actionLoading || !!todayAttendance) ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(22,163,74,0.25)'
+                }}
+              >
+                <GoogleIcon name="play_arrow" size={20} /> Work In
+              </button>
+
+              {/* Work Out — ALWAYS SHOWN IN RED */}
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+                disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
+                style={{
+                  width: '100%', minHeight: '52px',
+                  background: '#DC2626',
+                  color: '#fff', border: 'none', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  fontSize: '15px', fontWeight: '800',
+                  opacity: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                  cursor: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(220,38,38,0.25)'
+                }}
+              >
+                <GoogleIcon name="logout" size={20} /> Work Out
+              </button>
+
+              {/* Break buttons — side by side */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                  disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
+                  style={{
+                    minHeight: '48px', background: '#fef3c7', color: '#92400e',
+                    border: '1px solid #fde68a', borderRadius: '12px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    fontSize: '13px', fontWeight: '700',
+                    opacity: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                    cursor: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <GoogleIcon name="coffee" size={16} /> Break
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                  disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
+                  style={{
+                    minHeight: '48px', background: '#dbeafe', color: '#1e40af',
+                    border: '1px solid #bfdbfe', borderRadius: '12px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    fontSize: '13px', fontWeight: '700',
+                    opacity: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                    cursor: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <GoogleIcon name="play_arrow" size={16} /> Resume
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1761,78 +2002,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Work Status Tracker Panel (Visible to non-ROOT_ADMIN) */}
-        {user?.role !== 'ROOT_ADMIN' && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-bold text-[#0a1f5c] uppercase tracking-wider">Shift Status</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-gold/10 text-gold font-mono font-bold">
-                {todayAttendance ? (
-                  todayAttendance.checkOut ? 'Shift Ended' : isBreakActive ? 'On Break' : 'Active Duty'
-                ) : (
-                  'Off Duty'
-                )}
-              </span>
-            </div>
-
-            <div className="space-y-2 text-xs text-slate-600">
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-semibold">Assigned Shift:</span>
-                <span className="font-bold text-slate-700">{user?.shift || 'General Shift'}</span>
-              </div>
-              {todayAttendance && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400 font-semibold">Clock-In Time:</span>
-                    <span className="font-bold text-slate-700 font-mono">
-                      {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400 font-semibold">Total Duration:</span>
-                    <span className="font-bold text-slate-700 font-mono">{todayAttendance.totalWorkingHours || 0} hrs</span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="grid grid-cols-2 gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
-                disabled={actionLoading || !!todayAttendance}
-                className="bg-green-600 active:bg-green-500 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer border-0 shadow-sm"
-              >
-                <GoogleIcon name="play_arrow" size={14} /> Check In
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-                disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
-                className="bg-red-650 hover:bg-red-550 disabled:opacity-40 text-white text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer border-0 shadow-sm"
-              >
-                <GoogleIcon name="stop" size={14} /> Check Out
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-                disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
-                className="bg-slate-50 border border-slate-200 active:bg-slate-100 disabled:opacity-40 text-slate-700 text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
-              >
-                <GoogleIcon name="coffee" className="text-amber-500" size={14} /> Break Start
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-                disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
-                className="bg-slate-50 border border-slate-200 active:bg-slate-100 disabled:opacity-40 text-slate-700 text-[11px] font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
-              >
-                <GoogleIcon name="play_arrow" className="text-blue-500" size={14} /> Break End
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Work Status Tracker Panel — now moved to top of mobile layout, this is the old location placeholder */}
 
         {/* Pending onboarding approvals for Admins */}
         {(user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN') && pendingUsers.length > 0 && (

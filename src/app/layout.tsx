@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import PwaRegister from "../components/PwaRegister";
 import PerformancePanel from "@/components/PerformancePanel";
 import ContentAreaWrapper from "@/components/ContentAreaWrapper";
+import ThemeToggle from '@/components/ThemeToggle';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -31,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark antialiased ${plusJakartaSans.variable} ${outfit.variable}`}>
+    <html lang="en" className={`${plusJakartaSans.variable} ${outfit.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="manifest" href="/manifest.json" />
@@ -43,10 +44,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
+        {/* Inline script to apply persisted theme before hydration to avoid flash */}
+        <script dangerouslySetInnerHTML={{ __html: `try{const t=localStorage.getItem('oxy-theme');if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark')}catch(e){}` }} />
       </head>
-      <body className="bg-slate-dark text-slate-100 min-h-screen flex flex-col font-sans">
+      <body className="min-h-screen flex flex-col font-sans">
         <PwaRegister />
         <PerformancePanel />
+        <ThemeToggle />
         <div className="flex-1 flex flex-col">
           <ContentAreaWrapper>
             {children}

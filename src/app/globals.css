@@ -27,6 +27,49 @@
   }
 }
 
+/* Dark theme variable overrides and compatibility mappings */
+.dark {
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --card: #1E293B;
+  --card-foreground: #F8FAFC;
+  --popover: #111827;
+  --popover-foreground: #CBD5E1;
+  --primary: #0a1f5c;
+  --primary-foreground: #ffffff;
+  --secondary: #111827;
+  --secondary-foreground: #CBD5E1;
+  --muted: #111827;
+  --muted-foreground: #94A3B8;
+  --accent: #d4af37;
+  --accent-foreground: #0f172a;
+  --border: #334155;
+  --input: #0f172a;
+  --ring: #3b82f6;
+}
+
+/* Map common Tailwind utility classes to CSS variables when in dark mode to preserve existing markup */
+.dark .bg-white { background-color: var(--card) !important; }
+.dark .bg-slate-50, .dark .bg-slate-100 { background-color: #0f172a !important; }
+.dark .text-slate-800, .dark .text-slate-700, .dark .text-slate-600, .dark .text-slate-500 { color: var(--foreground) !important; }
+.dark .text-slate-400, .dark .text-slate-300 { color: var(--muted-foreground) !important; }
+.dark .border-slate-200, .dark .border-slate-100, .dark .border-slate-300 { border-color: var(--border) !important; }
+.dark .bg-slate-900, .dark .bg-slate-950 { background-color: #0b1220 !important; }
+.dark .bg-slate-800 { background-color: #111827 !important; }
+.dark .bg-white\/5, .dark .bg-white\/8, .dark .bg-white\/10 { background-color: rgba(255,255,255,0.03) !important; }
+.dark .glass-panel { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.03); box-shadow: none; }
+.dark .glass-card { background: var(--card) !important; border: 1px solid var(--border) !important; box-shadow: 0 6px 18px rgba(2,6,23,0.6) !important; }
+.dark .gold-glow { box-shadow: 0 0 20px rgba(212,175,55,0.04); }
+.dark table thead tr { background-color: #0b1220 !important; color: var(--foreground) !important; }
+.dark table tbody tr td { color: var(--foreground) !important; }
+.dark .hover\:bg-slate-50:hover { background-color: #0b1220 !important; }
+.dark button.bg-slate-800, .dark .btn-secondary { background-color: #111827 !important; color: var(--foreground) !important; border-color: var(--border) !important; }
+
+/* Buttons: primary/secondary state visibility */
+.dark .bg-[#0a1f5c], .dark .bg-gold { color: #fff !important; }
+.dark .text-white { color: var(--foreground) !important; }
+
+
 @theme {
   --color-gold: #d4af37;
   --color-gold-light: #f5d36a;
