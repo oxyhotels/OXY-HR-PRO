@@ -121,6 +121,8 @@ export default function AttendancePage() {
     'Morning Shift (07:00 AM - 03:00 PM)',
     'Afternoon Shift (03:00 PM - 11:00 PM)',
     'Night Shift (11:00 PM - 07:00 AM)',
+    '12-Hour Shift (09:00 AM - 09:00 PM)',
+    '9-Hour Shift (09:00 AM - 06:00 PM)',
   ];
 
   const isManager = userRole === 'ROOT_ADMIN' || userRole === 'HOTEL_ADMIN' || userRole === 'HR_MANAGER' || userRole === 'DEPT_MANAGER';

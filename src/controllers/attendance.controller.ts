@@ -57,21 +57,24 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
     const { latitude, longitude, accuracy, photo, deviceInfo, browserInfo, hotelId, deviceFingerprint, os, department } = req.body;
     const ipAddress = req.body.ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || '';
 
+    const resolvedHotelId = hotelId || req.user.hotel;
+    const resolvedDepartment = department || req.user.department;
+
     if (!exempt) {
       if (latitude === undefined || longitude === undefined || accuracy === undefined || !photo) {
         throw new ApiError(400, 'GPS coordinates and live selfie are mandatory for attendance verification');
       }
-      if (!hotelId) {
+      if (!resolvedHotelId) {
         throw new ApiError(400, 'Please select a hotel property to clock in');
       }
-      if (!department) {
+      if (!resolvedDepartment) {
         throw new ApiError(400, 'Please select a department to clock in');
       }
     }
 
-    // Validate hotel if provided
-    if (hotelId) {
-      const hotelExists = await Hotel.findOne({ _id: hotelId, status: 'Active' });
+    // Validate hotel if resolvedHotelId is provided
+    if (resolvedHotelId) {
+      const hotelExists = await Hotel.findOne({ _id: resolvedHotelId, status: 'Active' });
       if (!hotelExists) {
         throw new ApiError(404, 'Selected hotel property does not exist or is suspended');
       }
@@ -98,11 +101,11 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
 
     const attendance = await Attendance.create({
       employee: req.user._id,
-      hotel: hotelId || req.user.hotel,
+      hotel: resolvedHotelId,
       date: todayStr,
       checkIn: checkInTime,
       status,
-      department: department || req.user.department || undefined,
+      department: resolvedDepartment || undefined,
       // GPS & Selfie Verification fields (saved if provided or required)
       checkInLatitude: latitude !== undefined ? Number(latitude) : undefined,
       checkInLongitude: longitude !== undefined ? Number(longitude) : undefined,

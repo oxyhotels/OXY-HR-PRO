@@ -21,19 +21,26 @@ const onRefreshed = (token: string | null) => {
 };
 
 export const apiRequest = async (endpoint: string, options: RequestOptions = {}): Promise<any> => {
+
+
   const { accessToken, isAuthenticated, isHydrated } = useAuthStore.getState();
 
+  // Public endpoints don't need auth — allow them even if auth store isn't hydrated yet
+  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public'];
+  const isPublic = publicEndpoints.some(ep => endpoint.startsWith(ep));
+
   // === AUTH GUARD: Do not fire protected API calls before authentication ===
-  if (!isHydrated) {
+  // Fast-path: if localStorage has a token, treat as hydrated (happens right after login)
+  const localToken = typeof window !== 'undefined' ? localStorage.getItem('oxy_access_token') : null;
+  const effectivelyHydrated = isHydrated || !!localToken;
+  const effectiveToken = accessToken || localToken;
+
+  if (!effectivelyHydrated && !isPublic) {
     console.warn(`[API] Skipping ${endpoint} - Auth not yet hydrated`);
     throw new Error('Auth session not initialized');
   }
 
-  // Public endpoints don't need auth
-  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public'];
-  const isPublic = publicEndpoints.some(ep => endpoint.startsWith(ep));
-
-  if (!isAuthenticated && !accessToken && !isPublic) {
+  if (!isAuthenticated && !effectiveToken && !isPublic) {
     console.warn(`[API] Skipping protected endpoint ${endpoint} - User not authenticated`);
     throw new Error('Please login first');
   }
@@ -41,7 +48,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
 
-  const token = options.token || accessToken;
+  const token = options.token || accessToken || localToken;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }

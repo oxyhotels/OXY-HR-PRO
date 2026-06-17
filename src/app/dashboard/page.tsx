@@ -289,6 +289,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!user) return; // Wait until user is hydrated
     const syncUserProfile = async () => {
       try {
         const res = await api.get('/auth/me');
@@ -300,7 +301,7 @@ export default function DashboardPage() {
       }
     };
     syncUserProfile();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchDashboardData();

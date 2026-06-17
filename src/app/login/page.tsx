@@ -138,13 +138,13 @@ export default function LoginPage() {
                 Admin / Staff Email
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gold">
                   <GoogleIcon name="mail" size={16} />
                 </span>
                 <input
                   type="email"
                   placeholder="name@hotel.com"
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-gold transition-all text-xs"
+                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-gold transition-all text-xs"
                   {...registerLogin('email')}
                 />
               </div>
@@ -160,13 +160,13 @@ export default function LoginPage() {
                 </label>
               </div>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gold">
                   <GoogleIcon name="lock" size={16} />
                 </span>
                 <input
                   type={showLoginPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-10 pr-10 text-white focus:outline-none focus:border-gold transition-all text-xs"
+                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-10 text-white focus:outline-none focus:border-gold transition-all text-xs"
                   {...registerLogin('password')}
                 />
                 <button

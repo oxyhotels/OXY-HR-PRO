@@ -525,6 +525,8 @@ export default function EmployeesPage() {
                     <option value="Afternoon Shift (03:00 PM - 11:00 PM)">Afternoon Shift (03:00 PM - 11:00 PM)</option>
                     <option value="Night Shift (11:00 PM - 07:00 AM)">Night Shift (11:00 PM - 07:00 AM)</option>
                     <option value="General Shift (09:00 AM - 05:00 PM)">General Shift (09:00 AM - 05:00 PM)</option>
+                    <option value="12-Hour Shift (09:00 AM - 09:00 PM)">12-Hour Shift (09:00 AM - 09:00 PM)</option>
+                    <option value="9-Hour Shift (09:00 AM - 06:00 PM)">9-Hour Shift (09:00 AM - 06:00 PM)</option>
                   </select>
                   <div className="bg-slate-950/40 border border-slate-800 px-3 py-2 rounded text-slate-300 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap shadow-inner">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
