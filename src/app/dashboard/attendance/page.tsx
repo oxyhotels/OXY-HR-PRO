@@ -1107,7 +1107,7 @@ export default function AttendancePage() {
         >
           <div className="relative max-w-3xl max-h-[85vh] w-auto h-auto flex flex-col items-center">
             <button 
-              className="absolute top-[-40px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
+              className="absolute top-[-40px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
               onClick={() => setSelectedPreviewImage(null)}
             >
               <GoogleIcon name="close" size={14} />

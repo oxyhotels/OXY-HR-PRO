@@ -96,7 +96,7 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer"
           >
             <GoogleIcon name="close" size={18} />
           </button>
@@ -380,7 +380,7 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
 
           <button 
             onClick={onClose}
-            className="px-4.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors border border-slate-750"
+            className="px-4.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors border border-slate-750"
           >
             Close
           </button>

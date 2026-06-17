@@ -93,7 +93,7 @@ export default function WorkLogDrawer({ isOpen, onClose, log }: WorkLogDrawerPro
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer"
           >
             <GoogleIcon name="close" size={18} />
           </button>

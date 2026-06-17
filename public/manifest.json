@@ -1,13 +1,24 @@
 {
-  "name": "OXY Hotels Portal",
+  "name": "OXY-HR PRO - Enterprise Hotel HRMS",
   "short_name": "OXY-HR PRO",
-  "description": "Progressive Web App for OXY-HR PRO workforce management and hospitality HRMS system.",
+  "description": "Enterprise Workforce Management, Attendance Tracking, Payroll & HR Analytics for Multi-Hotel Chains across India. By OXY Hotels.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "scope": "/",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "human resources"],
+  "screenshots": [
+    {
+      "src": "/oxy-logo.jpeg",
+      "sizes": "800x400",
+      "type": "image/jpeg",
+      "label": "OXY-HR PRO Dashboard Overview"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192x192.png",
@@ -30,21 +41,35 @@
   ],
   "shortcuts": [
     {
-      "name": "Home",
+      "name": "Dashboard",
+      "short_name": "Home",
+      "description": "View your HR dashboard with attendance, tasks and performance",
       "url": "/dashboard",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Attendance",
+      "name": "Mark Attendance",
+      "short_name": "Attendance",
+      "description": "Clock in/out and view attendance logs",
       "url": "/dashboard/attendance",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tasks",
+      "short_name": "Tasks",
+      "description": "View and manage your assigned tasks",
       "url": "/dashboard/tasks",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Leave Requests",
+      "short_name": "Leaves",
+      "description": "Apply for leave and check leave balance",
+      "url": "/dashboard/leaves",
       "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ],
   "related_applications": [],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone", "browser"]
 }

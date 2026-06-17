@@ -918,7 +918,7 @@ export default function DashboardPage() {
                   <span className="text-[10px] font-bold text-gold-dark bg-gold/15 border border-gold/30 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
                     {formatRole(user?.role)}
                   </span>
-                  <span className="text-slate-350 text-xs font-semibold font-mono">Scope: Active Chain Portal</span>
+                  <span className="text-white text-xs font-semibold font-mono">Scope: Active Chain Portal</span>
                 </div>
                 <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-1 text-white">
                   Welcome back, {user?.firstName} {user?.lastName}!
@@ -1717,6 +1717,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <span className="text-[9px] font-bold text-gold-light uppercase tracking-wider block font-mono">{formatRole(user?.role)}</span>
+              <span className="text-white text-xs font-semibold font-mono block">Scope: Active Chain Portal</span>
               <h2 className="text-base font-extrabold text-white">Hello, {user?.firstName}!</h2>
               <p className="text-[9.5px] text-slate-300">Let's make today productive.</p>
             </div>
@@ -2112,7 +2113,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setWorkOutModalOpen(false)}
-                  className="bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded font-bold cursor-pointer"
+                  className="bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded font-bold cursor-pointer"
                 >
                   Cancel
                 </button>

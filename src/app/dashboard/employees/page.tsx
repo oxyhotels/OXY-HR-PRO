@@ -329,7 +329,7 @@ export default function EmployeesPage() {
                       <div className="text-slate-500 text-[10px] mt-0.5">{emp.designation || 'Staff Member'}</div>
                     </td>
                     <td className="p-4">
-                      <span className="bg-slate-800 text-slate-200 border border-slate-700 px-2 py-0.5 rounded text-[9px] uppercase font-semibold">
+                      <span className="bg-blue-600 text-white border border-blue-500 px-2 py-0.5 rounded text-[9px] uppercase font-semibold">
                         {formatRole(emp.role)}
                       </span>
                       {emp.shift && (

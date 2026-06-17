@@ -21,13 +21,29 @@ const onRefreshed = (token: string | null) => {
 };
 
 export const apiRequest = async (endpoint: string, options: RequestOptions = {}): Promise<any> => {
-  const { accessToken, setAccessToken, clearAuth } = useAuthStore.getState();
+  const { accessToken, isAuthenticated, isHydrated } = useAuthStore.getState();
+
+  // === AUTH GUARD: Do not fire protected API calls before authentication ===
+  if (!isHydrated) {
+    console.warn(`[API] Skipping ${endpoint} - Auth not yet hydrated`);
+    throw new Error('Auth session not initialized');
+  }
+
+  // Public endpoints don't need auth
+  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public'];
+  const isPublic = publicEndpoints.some(ep => endpoint.startsWith(ep));
+
+  if (!isAuthenticated && !accessToken && !isPublic) {
+    console.warn(`[API] Skipping protected endpoint ${endpoint} - User not authenticated`);
+    throw new Error('Please login first');
+  }
 
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
 
-  if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
+  const token = options.token || accessToken;
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   const config: RequestInit = {
@@ -36,6 +52,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
     credentials: options.credentials || 'include',
   };
 
+  // Deduplicate inflight requests
   const cacheKey = `${endpoint}:${JSON.stringify(options)}`;
   if (inflightRequests.has(cacheKey)) {
     return inflightRequests.get(cacheKey);
@@ -47,100 +64,107 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
       let response = await fetch(`${BASE_URL}${endpoint}`, config);
 
       // If unauthorized, try refreshing the token
-      if (response.status === 401 && endpoint !== '/auth/login' && endpoint !== '/auth/refresh') {
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          // Attempt refresh
-          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          });
+      if (response.status === 401 && !isPublic) {
+        if (!isRefreshing) {
+          isRefreshing = true;
+          try {
+            // Attempt refresh via cookie
+            const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+            });
 
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            const newToken = refreshData.data.accessToken;
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              const newToken = refreshData.data.accessToken;
 
-            setAccessToken(newToken);
+              useAuthStore.getState().setAccessToken(newToken);
+              isRefreshing = false;
+              onRefreshed(newToken);
+            } else {
+              isRefreshing = false;
+              useAuthStore.getState().clearAuth();
+              // Only redirect if we're on a dashboard page
+              if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+                window.location.href = '/login';
+              }
+              throw new Error('Session expired - please login again');
+            }
+          } catch (refreshErr) {
             isRefreshing = false;
-            onRefreshed(newToken);
-          } else {
-            isRefreshing = false;
-            clearAuth();
-            window.location.href = '/login';
-            throw new Error('Session expired');
+            useAuthStore.getState().clearAuth();
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = '/login';
+            }
+            throw refreshErr;
           }
-        } catch (refreshErr) {
-          isRefreshing = false;
-          clearAuth();
-          window.location.href = '/login';
-          throw refreshErr;
         }
-      }
 
-      // Wait for refresh to finish and retry
-      const retryPromise = new Promise((resolve) => {
-        subscribeTokenRefresh((newToken) => {
-          headers.set('Authorization', `Bearer ${newToken}`);
-          resolve(
-            fetch(`${BASE_URL}${endpoint}`, {
-              ...options,
-              headers,
-              credentials: options.credentials || 'include',
-            })
-          );
+        // Wait for refresh to finish and retry
+        const retryPromise = new Promise((resolve) => {
+          subscribeTokenRefresh((newToken) => {
+            headers.set('Authorization', `Bearer ${newToken}`);
+            resolve(
+              fetch(`${BASE_URL}${endpoint}`, {
+                ...options,
+                headers,
+                credentials: options.credentials || 'include',
+              })
+            );
+          });
         });
-      });
 
-      const retryRes = (await retryPromise) as Response;
-      if (!retryRes.ok) {
-        const retryText = await retryRes.text().catch(() => '');
-        let retryErr = 'Request failed after refresh';
-        try {
-          const errData = JSON.parse(retryText);
-          retryErr = errData.message || retryErr;
-        } catch (e) {
-          retryErr = `HTTP Error ${retryRes.status}: ${retryText || retryRes.statusText}`;
+        const retryRes = (await retryPromise) as Response;
+        if (!retryRes.ok) {
+          const retryText = await retryRes.text().catch(() => '');
+          let retryErr = 'Request failed after refresh';
+          try {
+            const errData = JSON.parse(retryText);
+            retryErr = errData.message || retryErr;
+          } catch (e) {
+            retryErr = `HTTP Error ${retryRes.status}: ${retryText || retryRes.statusText}`;
+          }
+          throw new Error(retryErr);
         }
-        throw new Error(retryErr);
+        if (retryRes.status === 240 || retryRes.status === 204) {
+          return null;
+        }
+        const updatedJson = await retryRes.json();
+        recordApiMetric(endpoint, Math.round(performance.now() - startTime), retryRes.status, false);
+        return updatedJson;
       }
-      if (retryRes.status === 240 || retryRes.status === 204) {
+
+      if (!response.ok) {
+        const responseText = await response.text().catch(() => '');
+        let errorMessage = 'Something went wrong';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = `HTTP Error ${response.status}: ${responseText || response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (response.status === 240 || response.status === 204) {
+        recordApiMetric(endpoint, Math.round(performance.now() - startTime), response.status, false);
         return null;
       }
-      const updatedJson = await retryRes.json();
-      recordApiMetric(endpoint, Math.round(performance.now() - startTime), retryRes.status, false);
-      return updatedJson;
-    }
 
-    if (!response.ok) {
-      const responseText = await response.text().catch(() => '');
-      let errorMessage = 'Something went wrong';
-      try {
-        const errorData = JSON.parse(responseText);
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        errorMessage = `HTTP Error ${response.status}: ${responseText || response.statusText}`;
-      }
-      throw new Error(errorMessage);
-    }
-
-    if (response.status === 240 || response.status === 204) {
+      const json = await response.json();
       recordApiMetric(endpoint, Math.round(performance.now() - startTime), response.status, false);
-      return null;
+      return json;
+    } catch (error: any) {
+      recordApiMetric(endpoint, Math.round(performance.now() - startTime), error?.status || 500, false);
+      if (error?.message !== 'Please login first' && error?.message !== 'Auth session not initialized') {
+        console.warn('[API Error]', endpoint, error?.message || error);
+      }
+      throw error;
+    } finally {
+      inflightRequests.delete(cacheKey);
     }
-
-    const json = await response.json();
-    recordApiMetric(endpoint, Math.round(performance.now() - startTime), response.status, false);
-    return json;
-  } catch (error: any) {
-    recordApiMetric(endpoint, Math.round(performance.now() - startTime), error?.status || 500, false);
-    console.warn('API Error Catch:', error?.message || error);
-    throw error;
-  } finally {
-    inflightRequests.delete(cacheKey);
-  }
-})();
+  })();
 
   inflightRequests.set(cacheKey, requestPromise);
   return requestPromise;
