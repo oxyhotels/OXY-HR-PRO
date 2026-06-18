@@ -1029,184 +1029,132 @@ export default function DashboardPage() {
 
             {/* Work Status Tracker (Visible to all EXCEPT ROOT_ADMIN) */}
             {user?.role !== 'ROOT_ADMIN' && (
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all space-y-4">
-                <div>
-                  <h2 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden">
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100">
+                  <h2 className="text-sm font-bold text-[#0a1f5c] uppercase tracking-wider flex items-center gap-1.5">
                     <GoogleIcon name="schedule" className="text-gold" size={18} />
                     Work Status Tracker
                   </h2>
-                  <p className="text-slate-550 text-slate-500 text-xs">Log your check-in/out and breaks for daily attendance logs.</p>
+                  <p className="text-slate-500 text-xs mt-1">Log your check-in/out and breaks for daily attendance logs.</p>
                 </div>
-                
-                {/* Clock & Status Panel */}
-                <div className="flex flex-col items-center justify-center bg-slate-50/50 border border-slate-100 rounded-xl p-5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Shift Status</span>
-                  <span className="text-base font-extrabold text-[#0a1f5c] mt-1">
-                    {todayAttendance ? (
-                      todayAttendance.checkOut ? 'Work Shift Ended' : isBreakActive ? 'On Break' : 'Currently Active (Working)'
-                    ) : (
-                      'Not Checked In'
-                    )}
-                  </span>
 
-                  {/* Running local clock & shift */}
-                  <div className="mt-3.5 flex flex-col gap-2.5 bg-white border border-slate-100 p-3 rounded-xl w-full text-left">
-                    <div>
-                      <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold block">Current Local Time</span>
-                      <span className="text-sm font-extrabold text-[#0a1f5c] font-mono">{currentTime || '--:--:--'}</span>
+                <div className="p-5 space-y-5">
+                  {/* WORKING NOW STATUS CARD - Big Green Gradient with Pulse */}
+                  {todayAttendance && !todayAttendance.checkOut && (
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 p-5 text-white shadow-lg">
+                      {/* Animated pulse rings */}
+                      <div className="absolute inset-0 animate-ping opacity-20">
+                        <div className="absolute inset-0 rounded-2xl bg-white" />
+                      </div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="relative">
+                            <span className="w-4 h-4 bg-white rounded-full block animate-pulse" />
+                            <span className="absolute inset-0 w-4 h-4 bg-white rounded-full animate-ping opacity-60" />
+                          </div>
+                          <span className="text-lg font-extrabold uppercase tracking-wider">Working Now</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+                            <span className="text-white/70 text-[9px] uppercase tracking-wider font-bold block mb-1">Check In Time</span>
+                            <span className="text-white font-bold font-mono text-sm">
+                              {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+                            <span className="text-white/70 text-[9px] uppercase tracking-wider font-bold block mb-1">Working Duration</span>
+                            <span className="text-white font-bold font-mono text-sm">
+                              {todayAttendance.totalWorkingHours || 0} hrs
+                            </span>
+                          </div>
+                          <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+                            <span className="text-white/70 text-[9px] uppercase tracking-wider font-bold block mb-1">Shift Status</span>
+                            <span className="text-white font-bold text-sm">
+                              {isBreakActive ? '🟡 On Break' : '🟢 Active Duty'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {todayAttendance.checkInAddress && (
+                          <div className="mt-3 bg-white/10 backdrop-blur-sm rounded-lg p-2.5 border border-white/10">
+                            <span className="text-white/60 text-[9px] uppercase tracking-wider font-bold block mb-0.5">Current Location</span>
+                            <span className="text-white/90 text-[11px] font-medium truncate block">{todayAttendance.checkInAddress}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="border-t border-slate-50 pt-2">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold block">Assigned Duty Shift</span>
-                      <span className="text-xs font-bold text-gold">{user?.shift || 'General Shift (09:00 AM - 05:00 PM)'}</span>
+                  )}
+
+                  {/* NOT CHECKED IN - Show subtle status */}
+                  {!todayAttendance && (
+                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 text-center">
+                      <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <GoogleIcon name="person_off" className="text-slate-400" size={24} />
+                      </div>
+                      <p className="text-slate-600 font-bold text-sm">Not Checked In</p>
+                      <p className="text-slate-400 text-[10px] mt-1">Use Work In button below to start your shift</p>
+                    </div>
+                  )}
+
+                  {/* SHIFT ENDED - Show ended status */}
+                  {todayAttendance?.checkOut && (
+                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 text-center">
+                      <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <GoogleIcon name="check_circle" className="text-slate-500" size={24} />
+                      </div>
+                      <p className="text-slate-600 font-bold text-sm">Shift Ended</p>
+                      <p className="text-slate-400 text-[10px] mt-1">You have completed your duty for today</p>
+                    </div>
+                  )}
+
+                  {/* Duty Action Triggers */}
+                  <div className="space-y-3">
+                    {/* Work In - Primary Green */}
+                    <button
+                      onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+                      disabled={actionLoading || !!todayAttendance}
+                      className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer border-0"
+                    >
+                      <GoogleIcon name="play_arrow" size={20} />
+                      Work In
+                    </button>
+
+                    {/* Work Out - Large Red - Full Width */}
+                    <button
+                      onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+                      disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
+                      className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer border-0"
+                    >
+                      <GoogleIcon name="logout" size={20} />
+                      Work Out
+                    </button>
+
+                    {/* Break Buttons - Secondary, Side by Side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                        disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
+                        className="bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-700 text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <GoogleIcon name="coffee" size={16} />
+                        Break Start
+                      </button>
+
+                      <button
+                        onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                        disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
+                        className="bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <GoogleIcon name="play_arrow" size={16} />
+                        Break End
+                      </button>
                     </div>
                   </div>
-
-                  {/* Pre-Clock-In Location Status Tracker */}
-                  {!todayAttendance && !isExempt(user) && (
-                    <div className="mt-3.5 w-full bg-white border border-slate-100 p-3.5 rounded-xl text-xs space-y-2 text-slate-600">
-                      <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                        <span className="font-bold text-[#0a1f5c] uppercase text-[9px] tracking-wider flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
-                          Geo Verification Link
-                        </span>
-                        <span className="text-[8px] font-mono text-slate-400">Mandatory</span>
-                      </div>
-                      
-                      <div className="flex items-start justify-between gap-4">
-                        <span className="text-slate-400 font-semibold">Location Coordinates:</span>
-                        <span className="font-mono text-right text-slate-700">
-                          {cardGpsCoords ? `${cardGpsCoords.latitude.toFixed(5)}°N, ${cardGpsCoords.longitude.toFixed(5)}°E` : cardGpsError ? 'N/A' : 'Accessing GPS...'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold">GPS Accuracy:</span>
-                        <span className={`font-bold flex items-center gap-1 ${cardGpsError ? 'text-red-500' : cardGpsCoords ? 'text-green-600' : 'text-amber-500'}`}>
-                          {cardGpsError ? `🔴 ${cardGpsError}` : cardGpsCoords ? `🟢 Verified (±${Math.round(cardGpsCoords.accuracy)}m)` : '🟡 Resolving Coordinates...'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold">Selfie Camera:</span>
-                        <span className={`font-bold ${cardCameraStatus === 'Permission Granted' || cardCameraStatus.includes('Ready') ? 'text-green-600' : 'text-red-500'}`}>
-                          {cardCameraStatus === 'Permission Granted' ? '🟢 Active' : cardCameraStatus === 'Blocked' ? '🔴 Blocked' : `🟡 ${cardCameraStatus}`}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-1 border-t border-slate-100 pt-2 text-[10.5px]">
-                        <span className="text-slate-450 font-bold text-slate-400 uppercase text-[8.5px]">Resolved Address:</span>
-                        <span className="text-slate-700 leading-normal font-sans">
-                          {cardAddressLoading ? (
-                            <span className="text-slate-450 italic animate-pulse flex items-center gap-1 text-slate-400">
-                              <span className="w-2 h-2 border border-t-transparent border-[#0a1f5c] rounded-full animate-spin" />
-                              Resolving real-world address...
-                            </span>
-                          ) : cardAddress ? (
-                            cardAddress
-                          ) : cardGpsError ? (
-                            <span className="text-red-500/80 italic">Please enable GPS to fetch address</span>
-                          ) : (
-                            <span className="text-slate-450 italic text-slate-400">Waiting for GPS Coordinates...</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Post-Clock-In Location Status Tracker */}
-                  {todayAttendance && (
-                    <div className="mt-3.5 w-full bg-white border border-slate-100 p-3.5 rounded-xl text-xs space-y-2 text-slate-600">
-                      <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                        <span className="font-bold text-green-600 uppercase text-[9px] tracking-wider flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                          Checked In Successfully
-                        </span>
-                        <span className="text-[8px] font-mono text-slate-400">Live Session Active</span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold">Duty Started:</span>
-                        <span className="font-mono text-slate-700 font-bold">
-                          {new Date(todayAttendance.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-
-                      {todayAttendance.checkInAddress ? (
-                        <div className="space-y-1.5 border-t border-slate-100 pt-2">
-                          <div className="flex items-start justify-between gap-4">
-                            <span className="text-slate-400 font-semibold">Verify Address:</span>
-                            <span className="text-right text-slate-700 flex-1 pl-4 leading-normal font-sans">{todayAttendance.checkInAddress}</span>
-                          </div>
-                          {todayAttendance.village && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-semibold">Location Area:</span>
-                              <span className="text-slate-700 font-bold">{todayAttendance.village}</span>
-                            </div>
-                          )}
-                          {todayAttendance.district && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-semibold">District:</span>
-                              <span className="text-slate-700 font-bold">{todayAttendance.district}</span>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="border-t border-slate-100 pt-2 text-[10px] text-slate-400 italic">
-                          Address verification skipped (exempt profile).
-                        </div>
-                      )}
-
-                      {!isExempt(user) && (
-                        <div className="flex gap-4 border-t border-slate-100 pt-2 text-[9px] justify-center">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200 font-bold uppercase">
-                            ✓ GPS Checked
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200 font-bold uppercase">
-                            ✓ Selfie OK
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Duty Action Triggers */}
-                <div className="grid grid-cols-2 gap-3.5">
-                  <button
-                    onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
-                    disabled={actionLoading || !!todayAttendance}
-                    className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md cursor-pointer border-0"
-                  >
-                    <GoogleIcon name="play_arrow" size={16} />
-                    Work In
-                  </button>
-
-                  <button
-                    onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-                    disabled={actionLoading || !todayAttendance || !!todayAttendance.checkOut}
-                    className="bg-gradient-to-r from-red-650 to-red-550 to-red-600 hover:from-red-500 hover:to-red-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md cursor-pointer border-0"
-                  >
-                    <GoogleIcon name="logout" size={16} />
-                    Work Out
-                  </button>
-
-                  <button
-                    onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-                    disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance.checkOut}
-                    className="bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <GoogleIcon name="coffee" className="text-amber-500" size={16} />
-                    Start Break
-                  </button>
-
-                  <button
-                    onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-                    disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance.checkOut}
-                    className="bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <GoogleIcon name="play_arrow" className="text-blue-500" size={16} />
-                    End Break
-                  </button>
                 </div>
               </div>
             )}

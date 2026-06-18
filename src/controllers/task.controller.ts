@@ -4,6 +4,7 @@ import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
+import { createNotification } from '@/services/notification.service';
 
 // Helper to calculate distance in meters using Haversine formula
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -27,19 +28,25 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 
     let hotelId = req.user?.hotel;
     if (req.user?.role === 'ROOT_ADMIN') {
+      // For ROOT_ADMIN, get hotel from assigned user if provided
       if (assignedTo) {
         const assignee = await User.findById(assignedTo);
         if (assignee && assignee.hotel) {
           hotelId = assignee.hotel;
         }
       }
+      // If still no hotel, try from request body
       if (!hotelId) {
         hotelId = req.body.hotelId;
       }
-      if (!hotelId) throw new ApiError(400, 'hotelId is required for ROOT_ADMIN');
+      // ROOT_ADMIN can assign tasks without hotel - notifications will go to respective dashboards
+      // Only require hotel for non-ROOT_ADMIN users
+      if (!hotelId && req.user?.role !== 'ROOT_ADMIN') {
+        throw new ApiError(400, 'Tenancy resolve error');
+      }
+    } else if (!hotelId) {
+      throw new ApiError(400, 'Tenancy resolve error');
     }
-
-    if (!hotelId) throw new ApiError(400, 'Tenancy resolve error');
 
     let targetAssignee = assignedTo || undefined;
     if (req.user?.role === 'EMPLOYEE') {
@@ -75,7 +82,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
     if (targetAssignee) {
       const activeCount = await Task.countDocuments({
         assignedTo: targetAssignee,
-        status: { $in: ['Todo', 'In_Progress'] },
+        status: { $in: ['Pending', 'In_Progress'] },
         isDeleted: { $ne: true },
       });
       const assigneeUser = await User.findById(targetAssignee);
@@ -92,7 +99,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
         for (const alt of alternatives) {
           const altCount = await Task.countDocuments({
             assignedTo: alt._id,
-            status: { $in: ['Todo', 'In_Progress'] },
+            status: { $in: ['Pending', 'In_Progress'] },
             isDeleted: { $ne: true },
           });
           if (altCount < (alt.capacityLimit || 5)) {
@@ -130,7 +137,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       assignedBy: req.user?._id,
       priority,
       dueDate,
-      status: 'Todo',
+      status: 'Pending',
       progress: 0,
       department: department || undefined,
       slaDuration,
@@ -148,6 +155,34 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       module: 'TASK',
       details: `Task "${title}" created (SLA: ${slaDuration}m). Workload Warning: ${workloadWarning ? workloadWarning.message : 'None'}`,
     });
+
+    // Send notification to assigned user(s)
+    try {
+      const assigneeIds: string[] = [];
+      
+      if (targetAssignee) {
+        assigneeIds.push(targetAssignee.toString());
+      } else if (req.body.assignedDepartments && req.body.assignedDepartments.length > 0) {
+        // For department-wise or all-departments assignment
+        const deptUsers = await User.find({
+          department: { $in: req.body.assignedDepartments },
+          status: 'Active'
+        }).select('_id');
+        deptUsers.forEach(u => assigneeIds.push(u._id.toString()));
+      }
+
+      for (const assigneeId of assigneeIds) {
+        await createNotification({
+          title: '📌 नया कार्य सौंपा गया है',
+          message: `नया कार्य "${title}" आपके लिए असाइन किया गया है। कृपया कार्य स्वीकार करें।`,
+          type: 'info',
+          recipientId: assigneeId,
+          link: '/dashboard/tasks'
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to send task notification:', notifError);
+    }
 
     res.status(201).json({
       status: 'success',
@@ -232,8 +267,8 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
 
       // Rollback to lower states -> record Rework
       if (
-        (previousStatus === 'Completed' || previousStatus === 'In_Review') &&
-        (status === 'Todo' || status === 'In_Progress')
+        (previousStatus === 'Completed' || previousStatus === 'In_Progress') &&
+        (status === 'Pending' || status === 'In_Progress')
       ) {
         task.reworkCount = (task.reworkCount || 0) + 1;
       }

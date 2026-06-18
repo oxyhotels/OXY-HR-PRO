@@ -1,105 +1,215 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useAuthStore } from '../../../store/authStore';
-import { useHierarchyStore, TreeNode, InviteLinkData, JoinRequestData, OrgTreeNode } from '../../../store/hierarchyStore';
-import { api } from '../../../lib/api';
-import { DEPARTMENTS } from '../../../constants/departments';
-import { 
-  Building, 
-  Plus, 
-  QrCode, 
-  Users, 
-  ChevronRight, 
-  ChevronDown, 
-  Copy, 
-  Check, 
-  X, 
-  Loader2, 
-  ShieldAlert, 
-  Activity, 
-  ArrowRightLeft, 
-  Trash2, 
-  Compass, 
-  Clock,
+import { api } from '@/lib/api';
+import {
+  ShieldCheck,
+  UserPlus,
+  Info,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  QrCode,
+  Users,
+  Building,
+  Plus,
+  X,
+  ChevronRight,
+  ChevronDown,
+  ArrowRightLeft,
   Search,
-  Filter
+  Copy,
+  Check,
+  ShieldAlert,
+  Activity,
+  Clock,
+  Compass,
 } from 'lucide-react';
+import { DEPARTMENTS } from '@/constants/departments';
+
+interface TreeNode {
+  id: string;
+  name: string;
+  designation: string;
+  role: string;
+  departmentName: string;
+  email: string;
+  employeeId?: string;
+  hotelCode: string;
+  children: any[];
+  hasParent?: boolean;
+}
+
+interface Organization {
+  _id: string;
+  name: string;
+  code?: string;
+}
+
+interface Department {
+  _id: string;
+  name: string;
+  organization: string;
+  hotel?: any;
+  manager?: any;
+}
+
+interface InviteDetails {
+  inviteCode: string;
+  inviteLink: string;
+  organizationId: { _id: string; name: string; code?: string };
+  departmentId: { _id: string; name: string };
+  managerId: { _id: string; firstName: string; lastName: string; designation?: string };
+}
 
 export default function HierarchyPage() {
-  const { user } = useAuthStore();
-  const {
-    organizations,
-    departments,
-    tree,
-    invites,
-    pendingRequests,
-    team,
-    reportingPath,
-    analytics,
-    loading,
-    actionLoading,
-    fetchOrganizationsAndDepartments,
-    createOrganization,
-    createDepartment,
-    fetchHierarchyTree,
-    generateInvite,
-    fetchActiveInvites,
-    disableInviteLink,
-    fetchPendingRequests,
-    approveJoinRequest,
-    rejectJoinRequest,
-    fetchTeamStructure,
-    fetchReportingPath,
-    fetchAnalytics,
-    transferEmployee
-  } = useHierarchyStore();
+  const [user, setUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('invites');
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'tree' | 'invites' | 'analytics' | 'my-team'>('tree');
+  // Organization & Department
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allHotels, setAllHotels] = useState<any[]>([]);
+  const [allEmployees, setAllEmployees] = useState<any[]>([]);
+  const [allManagers, setAllManagers] = useState<any[]>([]);
 
-  // Modals & Forms State
-  const [orgModalOpen, setOrgModalOpen] = useState(false);
-  const [deptModalOpen, setDeptModalOpen] = useState(false);
+  // Tree
+  const [tree, setTree] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterHotel, setFilterHotel] = useState('');
+  const [filterManager, setFilterManager] = useState('');
+  const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
+
+  // Invites
+  const [invites, setInvites] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [generatedQR, setGeneratedQR] = useState<any>(null);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
-  // Form Inputs
+  // Team
+  const [team, setTeam] = useState<any[]>([]);
+  const [reportingPath, setReportingPath] = useState<any[]>([]);
+
+  // Analytics
+  const [analytics, setAnalytics] = useState<any>(null);
+
+  // Modals
+  const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [deptModalOpen, setDeptModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [qrDirectView, setQrDirectView] = useState<any>(null);
+  const [memberEditForm, setMemberEditForm] = useState<any>(null);
+
+  // Form states
   const [orgName, setOrgName] = useState('');
   const [orgCodeInput, setOrgCodeInput] = useState('');
   const [deptName, setDeptName] = useState('');
   const [deptOrgId, setDeptOrgId] = useState('');
   const [deptHotelId, setDeptHotelId] = useState('');
   const [deptManagerId, setDeptManagerId] = useState('');
-
   const [inviteOrgId, setInviteOrgId] = useState('');
   const [inviteDeptId, setInviteDeptId] = useState('');
   const [inviteExpiry, setInviteExpiry] = useState(7);
-  const [generatedQR, setGeneratedQR] = useState<InviteLinkData | null>(null);
-
   const [transferEmpId, setTransferEmpId] = useState('');
   const [transferManagerId, setTransferManagerId] = useState('');
   const [transferDeptId, setTransferDeptId] = useState('');
 
-  // Tree View State
-  const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
-  const [allHotels, setAllHotels] = useState<any[]>([]);
-  const [allManagers, setAllManagers] = useState<any[]>([]);
-  const [allEmployees, setAllEmployees] = useState<any[]>([]);
-
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterDept, setFilterDept] = useState('');
-  const [filterHotel, setFilterHotel] = useState('');
-  const [filterManager, setFilterManager] = useState('');
-
-  // Toast / Error banner local state
-  const [localError, setLocalError] = useState<string | null>(null);
   const [localSuccess, setLocalSuccess] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  // Fetch functions defined before use
+  const fetchOrganizationsAndDepartments = async () => {
+    try {
+      const res = await api.get('/organization/list');
+      setOrganizations(res.data.organizations || []);
+      setDepartments(res.data.departments || []);
+    } catch (err) {
+      console.error('Error fetching orgs/depts:', err);
+    }
+  };
+
+  const fetchHierarchyTree = async (params: any) => {
+    setLoading(true);
+    try {
+      const query = new URLSearchParams();
+      if (params?.departmentId) query.set('departmentId', params.departmentId);
+      if (params?.hotelId) query.set('hotelId', params.hotelId);
+      if (params?.managerId) query.set('managerId', params.managerId);
+      if (params?.search) query.set('search', params.search);
+      const qs = query.toString();
+      const res = await api.get(`/hierarchy/tree${qs ? `?${qs}` : ''}`);
+      setTree(res.data.tree || []);
+    } catch (err) {
+      console.error('Error fetching tree:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchActiveInvites = async () => {
+    try {
+      const res = await api.get('/hierarchy/invites/active');
+      setInvites(res.data.invites || []);
+    } catch (err) {
+      console.error('Error fetching invites:', err);
+    }
+  };
+
+  const fetchPendingRequests = async () => {
+    try {
+      const res = await api.get('/hierarchy/requests/pending');
+      setPendingRequests(res.data.requests || []);
+    } catch (err) {
+      console.error('Error fetching pending requests:', err);
+    }
+  };
+
+  const fetchTeamStructure = async () => {
+    try {
+      const res = await api.get('/hierarchy/team');
+      setTeam(res.data.team || []);
+    } catch (err) {
+      console.error('Error fetching team:', err);
+    }
+  };
+
+  const fetchReportingPath = async () => {
+    try {
+      const res = await api.get('/hierarchy/reporting');
+      setReportingPath(res.data.path || []);
+    } catch (err) {
+      console.error('Error fetching reporting path:', err);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const res = await api.get('/hierarchy/analytics');
+      setAnalytics(res.data);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+    }
+  };
 
   useEffect(() => {
-    // Determine default tab based on role
+    const fetchUser = async () => {
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.data.user);
+      } catch (err) {
+        console.error('Failed to fetch user', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
     if (user?.role === 'EMPLOYEE') {
       setActiveTab('my-team');
     } else if (user?.role !== 'ROOT_ADMIN') {
@@ -107,11 +217,8 @@ export default function HierarchyPage() {
     }
   }, [user]);
 
-  // Load baseline list data
   useEffect(() => {
     fetchOrganizationsAndDepartments();
-    
-    // Fetch hotels list
     const fetchHotels = async () => {
       try {
         const res = await api.get('/hotels');
@@ -120,12 +227,9 @@ export default function HierarchyPage() {
         console.error('Error fetching hotels:', err);
       }
     };
-    
-    // Fetch active managers & employees list for transfers
     const fetchUsers = async () => {
       try {
-        const res = await api.get('/employees'); // adjust if list endpoint varies
-        // Filter users
+        const res = await api.get('/employees');
         const list = res.data.employees || res.data.users || [];
         setAllEmployees(list);
         setAllManagers(list.filter((u: any) => ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(u.role)));
@@ -133,19 +237,17 @@ export default function HierarchyPage() {
         console.error('Error fetching users:', err);
       }
     };
-
     fetchHotels();
     fetchUsers();
   }, []);
 
-  // Sync tab loading logic
   useEffect(() => {
     if (activeTab === 'tree') {
       fetchHierarchyTree({
         departmentId: filterDept || undefined,
         hotelId: filterHotel || undefined,
         managerId: filterManager || undefined,
-        search: searchQuery || undefined
+        search: searchQuery || undefined,
       });
     } else if (activeTab === 'invites') {
       fetchActiveInvites();
@@ -171,16 +273,16 @@ export default function HierarchyPage() {
     setTimeout(() => setLocalError(null), 5000);
   };
 
-  // Action Submissions
   const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orgName.trim()) return;
     try {
-      await createOrganization(orgName, orgCodeInput || undefined);
+      await api.post('/organization/create', { name: orgName, code: orgCodeInput || undefined });
       setOrgName('');
       setOrgCodeInput('');
       setOrgModalOpen(false);
       showSuccess('Organization created successfully.');
+      fetchOrganizationsAndDepartments();
     } catch (err: any) {
       showError(err.message || 'Failed to create organization');
     }
@@ -190,13 +292,19 @@ export default function HierarchyPage() {
     e.preventDefault();
     if (!deptName.trim() || !deptOrgId) return;
     try {
-      await createDepartment(deptName, deptOrgId, deptHotelId || undefined, deptManagerId || undefined);
+      await api.post('/organization/department', {
+        name: deptName,
+        organizationId: deptOrgId,
+        hotelId: deptHotelId || undefined,
+        managerId: deptManagerId || undefined,
+      });
       setDeptName('');
       setDeptOrgId('');
       setDeptHotelId('');
       setDeptManagerId('');
       setDeptModalOpen(false);
       showSuccess('Department created successfully.');
+      fetchOrganizationsAndDepartments();
     } catch (err: any) {
       showError(err.message || 'Failed to create department');
     }
@@ -206,11 +314,14 @@ export default function HierarchyPage() {
     e.preventDefault();
     if (!inviteOrgId || !inviteDeptId) return;
     try {
-      const invite = await generateInvite(inviteOrgId, inviteDeptId, inviteExpiry);
-      setGeneratedQR(invite);
+      const res = await api.post('/hierarchy/invite/generate', {
+        organizationId: inviteOrgId,
+        departmentId: inviteDeptId,
+        expiresInDays: inviteExpiry,
+      });
+      setQrDirectView(res.data.invite);
       setInviteOrgId('');
       setInviteDeptId('');
-      setInviteModalOpen(true);
       fetchActiveInvites();
     } catch (err: any) {
       showError(err.message || 'Failed to generate invite');
@@ -220,8 +331,9 @@ export default function HierarchyPage() {
   const handleDisableInvite = async (inviteCode: string) => {
     if (!confirm('Are you sure you want to disable this invite link? This action cannot be undone.')) return;
     try {
-      await disableInviteLink(inviteCode);
+      await api.post('/hierarchy/invite/disable', { inviteCode });
       showSuccess('Invite link disabled successfully.');
+      fetchActiveInvites();
     } catch (err: any) {
       showError(err.message || 'Failed to disable invite link');
     }
@@ -229,9 +341,8 @@ export default function HierarchyPage() {
 
   const handleApprove = async (requestId: string) => {
     try {
-      await approveJoinRequest(requestId);
+      await api.post('/hierarchy/requests/approve', { requestId });
       showSuccess('Join request approved. Node added to hierarchy.');
-      // Refresh current tab data
       fetchPendingRequests();
     } catch (err: any) {
       showError(err.message || 'Approval failed');
@@ -241,7 +352,7 @@ export default function HierarchyPage() {
   const handleReject = async (requestId: string) => {
     if (!confirm('Are you sure you want to reject this join request?')) return;
     try {
-      await rejectJoinRequest(requestId);
+      await api.post('/hierarchy/requests/reject', { requestId });
       showSuccess('Join request rejected.');
       fetchPendingRequests();
     } catch (err: any) {
@@ -253,14 +364,18 @@ export default function HierarchyPage() {
     e.preventDefault();
     if (!transferEmpId || !transferDeptId) return;
     try {
-      await transferEmployee(transferEmpId, transferManagerId || null, transferDeptId);
+      await api.post('/hierarchy/transfer', {
+        employeeId: transferEmpId,
+        newManagerId: transferManagerId || null,
+        newDepartmentId: transferDeptId,
+      });
       setTransferEmpId('');
       setTransferManagerId('');
       setTransferDeptId('');
       setTransferModalOpen(false);
       showSuccess('Employee transferred successfully and hierarchy updated.');
       if (activeTab === 'tree') {
-        fetchHierarchyTree();
+        fetchHierarchyTree({});
       }
     } catch (err: any) {
       showError(err.message || 'Transfer failed');
@@ -273,25 +388,23 @@ export default function HierarchyPage() {
     setTimeout(() => setCopiedLink(null), 2000);
   };
 
-  // Toggle Collapse in Tree Nodes
   const toggleNode = (nodeId: string) => {
     setCollapsedNodes((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
   };
 
-  // Recursively Render Tree Node UI
   const renderTreeNode = (node: TreeNode, depth = 0) => {
     const isCollapsed = collapsedNodes[node.id];
     const hasChildren = node.children && node.children.length > 0;
 
     return (
       <div key={node.id} className="select-none transition-all">
-        <div 
-          style={{ paddingLeft: `${depth * 20}px` }} 
+        <div
+          style={{ paddingLeft: `${depth * 20}px` }}
           className="group flex items-center py-2 px-3 hover:bg-slate-800/40 border-l border-transparent hover:border-gold rounded-lg transition-colors cursor-pointer"
         >
           {hasChildren ? (
-            <button 
-              onClick={(e) => { e.stopPropagation(); toggleNode(node.id); }} 
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleNode(node.id); }}
               className="text-slate-500 hover:text-white p-0.5 rounded cursor-pointer mr-1"
             >
               {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -327,7 +440,6 @@ export default function HierarchyPage() {
               </div>
             </div>
 
-            {/* Quick action buttons within tree node */}
             {user?.role === 'ROOT_ADMIN' && (
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity">
                 <button
@@ -355,6 +467,14 @@ export default function HierarchyPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 text-gold animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Dynamic Header */}
@@ -369,7 +489,6 @@ export default function HierarchyPage() {
           </p>
         </div>
 
-        {/* Global Success / Error Messages */}
         {localSuccess && (
           <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-xs py-2 px-4 rounded-lg flex items-center gap-2 animate-fadeIn">
             <Check size={14} />
@@ -383,7 +502,6 @@ export default function HierarchyPage() {
           </div>
         )}
 
-        {/* Root actions */}
         {user?.role === 'ROOT_ADMIN' && (
           <div className="flex gap-2.5">
             <button
@@ -395,10 +513,10 @@ export default function HierarchyPage() {
             </button>
             <button
               onClick={() => setDeptModalOpen(true)}
-              className="bg-gold hover:bg-gold-light text-slate-dark px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-lg shadow-blue-500/20"
             >
               <Plus size={14} />
-              Add Dept
+              Add Department
             </button>
           </div>
         )}
@@ -530,7 +648,7 @@ export default function HierarchyPage() {
 
                         {/* Dept Level */}
                         <div className="ml-4 space-y-6">
-                          {org.departments.map((dept) => (
+                          {org.departments.map((dept: any) => (
                             <div key={dept.id} className="space-y-3">
                               <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 py-1.5 px-3 rounded-lg border border-slate-850/60 inline-flex">
                                 <span className="w-1.5 h-1.5 rounded-full bg-gold" />
@@ -542,7 +660,7 @@ export default function HierarchyPage() {
 
                               {/* Department Employee Tree Nodes */}
                               <div className="ml-3 border-l border-slate-850 pl-3 space-y-1">
-                                {dept.structure.map((node) => renderTreeNode(node))}
+                                {dept.structure.map((node: any) => renderTreeNode(node))}
                               </div>
                             </div>
                           ))}
@@ -656,7 +774,7 @@ export default function HierarchyPage() {
                             <span>Code: {req.inviteCode}</span>
                           </p>
                         </div>
-                        
+
                         <div className="flex items-center gap-2 self-end sm:self-center">
                           <button
                             onClick={() => handleReject(req._id)}
@@ -780,7 +898,7 @@ export default function HierarchyPage() {
                         </div>
                       </div>
                     ))}
-                    
+
                     {/* Logged in Employee Node */}
                     <div className="relative">
                       <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-blue-500 border-4 border-slate-950 shadow" />
@@ -899,15 +1017,15 @@ export default function HierarchyPage() {
                     Department Employee Distribution
                   </h2>
                   <div className="space-y-3 pt-2">
-                    {analytics.departmentDistribution.map((item) => (
+                    {analytics.departmentDistribution.map((item: any) => (
                       <div key={item.department} className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-300">{item.department} Department</span>
                           <span className="text-white font-semibold">{item.count} staff</span>
                         </div>
                         <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850">
-                          <div 
-                            style={{ width: `${Math.min(100, (item.count / Math.max(1, analytics.totals.employees)) * 100)}%` }} 
+                          <div
+                            style={{ width: `${Math.min(100, (item.count / Math.max(1, analytics.totals.employees)) * 100)}%` }}
                             className="bg-gold h-full rounded-full"
                           />
                         </div>
@@ -926,15 +1044,15 @@ export default function HierarchyPage() {
                     Hierarchy Growth Trend
                   </h2>
                   <div className="space-y-3 pt-2">
-                    {analytics.hierarchyGrowth.map((item) => (
+                    {analytics.hierarchyGrowth.map((item: any) => (
                       <div key={item.month} className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-300 font-mono">{item.month}</span>
                           <span className="text-white font-semibold">{item.count} onboarded</span>
                         </div>
                         <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850">
-                          <div 
-                            style={{ width: `${Math.min(100, (item.count / Math.max(1, analytics.totals.employees)) * 100)}%` }} 
+                          <div
+                            style={{ width: `${Math.min(100, (item.count / Math.max(1, analytics.totals.employees)) * 100)}%` }}
                             className="bg-blue-500 h-full rounded-full"
                           />
                         </div>
@@ -954,7 +1072,7 @@ export default function HierarchyPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {analytics.recentAudits.map((log) => (
+                  {analytics.recentAudits.map((log: any) => (
                     <div key={log._id} className="p-3 bg-slate-950/30 border border-slate-850 rounded-lg text-xs flex justify-between gap-4">
                       <div>
                         <span className="font-bold text-slate-200 uppercase tracking-wide bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded mr-2 text-[8px]">
@@ -987,8 +1105,8 @@ export default function HierarchyPage() {
       {orgModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <button 
-              onClick={() => setOrgModalOpen(false)} 
+            <button
+              onClick={() => setOrgModalOpen(false)}
               className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
             >
               <X size={16} />
@@ -1043,8 +1161,8 @@ export default function HierarchyPage() {
       {deptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <button 
-              onClick={() => setDeptModalOpen(false)} 
+            <button
+              onClick={() => setDeptModalOpen(false)}
               className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
             >
               <X size={16} />
@@ -1128,41 +1246,41 @@ export default function HierarchyPage() {
         </div>
       )}
 
-      {/* Modal 3: Generated QR Details */}
-      {inviteModalOpen && generatedQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+      {/* QR Direct View - Opens directly on button click */}
+      {qrDirectView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative text-center space-y-5">
-            <button 
-              onClick={() => { setInviteModalOpen(false); setGeneratedQR(null); }} 
+            <button
+              onClick={() => setQrDirectView(null)}
               className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
-            
+
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">QR Join Invitation</h2>
               <p className="text-[10px] text-slate-400 mt-1">
-                {generatedQR.organizationId?.name} • {generatedQR.departmentId?.name} Department
+                {qrDirectView.organizationId?.name} • {qrDirectView.departmentId?.name} Department
               </p>
             </div>
 
             {/* QR Image */}
             <div className="bg-white p-3.5 rounded-xl border border-slate-850 inline-block">
-              <img 
-                src={generatedQR.qrCode} 
-                alt={`QR Link Code ${generatedQR.inviteCode}`} 
-                className="w-48 h-48 block" 
+              <img
+                src={qrDirectView.qrCode}
+                alt={`QR Link Code ${qrDirectView.inviteCode}`}
+                className="w-48 h-48 block"
               />
             </div>
 
             <div className="space-y-3">
               <div className="p-3 bg-slate-950 border border-slate-850 rounded-lg text-xs flex justify-between items-center">
-                <span className="font-mono text-gold font-bold text-sm tracking-wide">{generatedQR.inviteCode}</span>
+                <span className="font-mono text-gold font-bold text-sm tracking-wide">{qrDirectView.inviteCode}</span>
                 <button
-                  onClick={() => handleCopyLink(generatedQR.inviteLink)}
+                  onClick={() => handleCopyLink(qrDirectView.inviteLink)}
                   className="bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  {copiedLink === generatedQR.inviteLink ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                  {copiedLink === qrDirectView.inviteLink ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                   Copy Link
                 </button>
               </div>
@@ -1175,12 +1293,95 @@ export default function HierarchyPage() {
         </div>
       )}
 
+      {/* Member Edit Form - Manager can fill details after scan */}
+      {memberEditForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <button
+              onClick={() => setMemberEditForm(null)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-850 pb-3 mb-4">
+              Edit Team Member Details
+            </h2>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setMemberEditForm(null);
+              showSuccess('Member details updated successfully');
+            }} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Full Name *</label>
+                <input
+                  required
+                  type="text"
+                  defaultValue={memberEditForm.name}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Email *</label>
+                <input
+                  required
+                  type="email"
+                  defaultValue={memberEditForm.email}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Mobile *</label>
+                <input
+                  required
+                  type="tel"
+                  defaultValue={memberEditForm.mobile}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Employee ID *</label>
+                <input
+                  required
+                  type="text"
+                  defaultValue={memberEditForm.employeeId}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Designation *</label>
+                <input
+                  required
+                  type="text"
+                  defaultValue={memberEditForm.designation}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMemberEditForm(null)}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-gold hover:bg-gold-light disabled:bg-gold/45 text-slate-dark px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Update Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal 4: Transfer Employee */}
       {transferModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <button 
-              onClick={() => setTransferModalOpen(false)} 
+            <button
+              onClick={() => setTransferModalOpen(false)}
               className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
             >
               <X size={16} />

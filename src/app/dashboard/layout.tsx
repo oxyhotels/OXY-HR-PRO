@@ -9,6 +9,7 @@ import GoogleIcon from '../../components/GoogleIcon';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { io } from 'socket.io-client';
+import TaskNotificationPopup from '@/components/TaskNotificationPopup';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -342,6 +343,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Hierarchy', icon: 'account_tree', href: '/dashboard/hierarchy' },
     { name: 'Community', icon: 'forum', href: '/dashboard/community' },
     { name: 'Notifications', icon: 'notifications', href: '/dashboard/notifications' },
+    { name: 'Employee Tracking', icon: 'my_location', href: '/dashboard/tracking' },
     { name: 'Profile', icon: 'account_circle', href: '/dashboard/profile' },
   ];
 
@@ -349,6 +351,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (user?.role === 'EMPLOYEE') {
       const employeeAllowed = ['/dashboard', '/dashboard/attendance', '/dashboard/tasks', '/dashboard/performance', '/dashboard/lms', '/dashboard/policy', '/dashboard/tickets', '/dashboard/compliance', '/dashboard/community', '/dashboard/notifications', '/dashboard/profile'];
       return employeeAllowed.includes(item.href);
+    }
+    if (item.href === '/dashboard/tracking' && user?.role !== 'ROOT_ADMIN') {
+      return false;
     }
     return true;
   });
@@ -535,6 +540,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
           {children}
+          <TaskNotificationPopup />
         </main>
 
         <Footer />

@@ -40,7 +40,7 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
       const riskTasks = await Task.find({
         hotel: hotelId,
         isDeleted: { $ne: true },
-        status: { $in: ['Todo', 'In_Progress'] },
+        status: { $in: ['Pending', 'In_Progress'] },
         $or: [
           { priority: 'High' },
           { slaBreached: true },
@@ -67,7 +67,7 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
       for (const emp of employees) {
         const activeTasks = await Task.countDocuments({
           assignedTo: emp._id,
-          status: { $in: ['Todo', 'In_Progress'] },
+          status: { $in: ['Pending', 'In_Progress'] },
           isDeleted: { $ne: true }
         });
         const limit = emp.capacityLimit || 5;
@@ -98,7 +98,7 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
         const overdueCount = await Task.countDocuments({
           hotel: h._id,
           isDeleted: { $ne: true },
-          status: { $in: ['Todo', 'In_Progress'] },
+          status: { $in: ['Pending', 'In_Progress'] },
           dueDate: { $lt: new Date() }
         });
         stats.push({ hotelName: h.name, overdueCount });

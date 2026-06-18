@@ -200,7 +200,7 @@ const seedDatabase = async () => {
       assignedTo: employee._id,
       assignedBy: deptManager._id,
       priority: 'Medium',
-      status: 'Todo',
+      status: 'Pending',
       progress: 0,
       dueDate: new Date('2026-06-20'),
     });

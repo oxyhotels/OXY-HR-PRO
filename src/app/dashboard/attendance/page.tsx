@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../../../lib/api';
@@ -336,7 +337,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={() => setShowAnalytics(true)}
-                className="px-3 py-1.5 bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] border border-[#0a1f5c]/10 text-[#0a1f5c] hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-brand-primary/5 hover:bg-brand-primary border border-brand-primary/10 text-brand-primary hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Fullscreen Analytics Dashboard"
               >
                 <GoogleIcon name="analytics" size={14} />
@@ -378,7 +379,7 @@ export default function AttendancePage() {
                 <button
                   onClick={() => setViewMode('gps')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    viewMode === 'gps' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
+                    viewMode === 'gps' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
                   }`}
                 >
                   📍 GPS Verification Center
@@ -387,7 +388,7 @@ export default function AttendancePage() {
               <button
                 onClick={() => setViewMode('hotel')}
                 className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  viewMode === 'hotel' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
+                  viewMode === 'hotel' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
                 }`}
               >
                 Hotel View
@@ -395,7 +396,7 @@ export default function AttendancePage() {
               <button
                 onClick={() => setViewMode('personal')}
                 className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  viewMode === 'personal' ? 'bg-[#0a1f5c] text-white shadow-sm' : 'text-slate-600 hover:text-[#0a1f5c]'
+                  viewMode === 'personal' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
                 }`}
               >
                 My Shifts
@@ -464,7 +465,7 @@ export default function AttendancePage() {
                     id="viewAllHotelLogs"
                     checked={viewAllHotelLogs}
                     onChange={(e) => setViewAllHotelLogs(e.target.checked)}
-                    className="accent-[#0a1f5c] cursor-pointer h-4 w-4"
+                    className="accent-brand-primary cursor-pointer h-4 w-4"
                   />
                   <label htmlFor="viewAllHotelLogs" className="text-slate-700 font-bold cursor-pointer uppercase tracking-wider text-[10.5px]">
                     Show All History (All Dates)
@@ -624,7 +625,7 @@ export default function AttendancePage() {
                   <button
                     type="button"
                     onClick={fetchLogs}
-                    className="px-5 py-2 bg-[#0a1f5c] hover:bg-[#0a1f5c]/90 text-white rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                    className="px-5 py-2 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                   >
                     <GoogleIcon name="search" size={14} />
                     Search Logs
@@ -724,7 +725,7 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setMapViewLog(log)}
-                            className="bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] text-[#0a1f5c] hover:text-white border border-[#0a1f5c]/10 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                            className="bg-brand-primary/5 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/10 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
                           >
                             View Map
                           </button>
@@ -770,7 +771,7 @@ export default function AttendancePage() {
                       {viewMode === 'hotel' && (
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden shrink-0">
                               {log.employee?.photoUrl ? (
                                 <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                               ) : (
@@ -783,7 +784,7 @@ export default function AttendancePage() {
                               </div>
                               <div className="text-slate-500 text-[10px]">{log.employee?.designation} ({log.employee?.department})</div>
                               {log.employee?.shift && (
-                                <div className="text-[9px] text-[#0a1f5c] font-mono mt-0.5 uppercase font-semibold">⏱ {log.employee.shift.split(' (')[0]}</div>
+                                <div className="text-[9px] text-brand-primary font-mono mt-0.5 uppercase font-semibold">⏱ {log.employee.shift.split(' (')[0]}</div>
                               )}
                             </div>
                           </div>
@@ -793,7 +794,7 @@ export default function AttendancePage() {
                         <div className="flex items-center gap-2.5">
                           {/* Check-In Selfie Thumbnail */}
                           {viewMode === 'hotel' && (
-                            <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden relative group">
+                            <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0 overflow-hidden relative group">
                               {log.checkInPhoto ? (
                                 <>
                                   <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
@@ -842,7 +843,7 @@ export default function AttendancePage() {
                           <div className="flex items-center gap-2.5">
                             {/* Check-Out Selfie Thumbnail */}
                             {viewMode === 'hotel' && (
-                              <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden relative group">
+                              <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0 overflow-hidden relative group">
                                 {log.checkOutPhoto ? (
                                   <>
                                     <img src={log.checkOutPhoto} alt="Checkout Selfie" className="w-full h-full object-cover" />
@@ -882,7 +883,7 @@ export default function AttendancePage() {
                                 <button
                                   type="button"
                                   onClick={() => setSelectedWorkLog(log)}
-                                  className="text-[9px] text-[#0a1f5c] hover:text-[#112d8a] hover:underline font-bold mt-0.5 cursor-pointer block text-left"
+                                  className="text-[9px] text-brand-primary hover:text-brand-secondary hover:underline font-bold mt-0.5 cursor-pointer block text-left"
                                 >
                                   View Update &rarr;
                                 </button>
@@ -978,7 +979,7 @@ export default function AttendancePage() {
                   </button>
                   <button
                     onClick={() => setMapViewLog(log)}
-                    className="w-full bg-[#0a1f5c]/5 hover:bg-[#0a1f5c] text-[#0a1f5c] hover:text-white text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition-colors shadow-sm"
+                    className="w-full bg-brand-primary/5 hover:bg-brand-primary text-brand-primary hover:text-white text-[10px] font-bold py-2 rounded-lg text-center cursor-pointer transition-colors shadow-sm"
                   >
                     View Map
                   </button>
@@ -992,12 +993,12 @@ export default function AttendancePage() {
                 onClick={() => {
                   if (log.workDescription) setSelectedWorkLog(log);
                 }}
-                className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 border-gold/5"
+                className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 border border-gold/5"
               >
                 {/* Header: Date and Status */}
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 font-mono">
-                    <GoogleIcon name="calendar_today" size={14} className="text-[#0a1f5c]" />
+                    <GoogleIcon name="calendar_today" size={14} className="text-brand-primary" />
                     {log.date}
                   </div>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
@@ -1016,7 +1017,7 @@ export default function AttendancePage() {
                 {/* Employee Detail (Hotel View only) */}
                 {viewMode === 'hotel' && log.employee && (
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden shrink-0">
                       {log.employee.photoUrl ? (
                         <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
@@ -1109,7 +1110,7 @@ export default function AttendancePage() {
         >
           <div className="relative max-w-3xl max-h-[85vh] w-auto h-auto flex flex-col items-center">
             <button 
-              className="absolute top-[-40px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
+              className="absolute -top-10 right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"
               onClick={() => setSelectedPreviewImage(null)}
             >
               <GoogleIcon name="close" size={14} />
@@ -1147,7 +1148,7 @@ export default function AttendancePage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-[#0a1f5c] text-sm flex items-center gap-2">
+              <h3 className="font-bold text-brand-primary text-sm flex items-center gap-2">
                 <GoogleIcon name="schedule" className="text-gold animate-pulse" size={18} />
                 Assign Shift
               </h3>
@@ -1175,13 +1176,13 @@ export default function AttendancePage() {
 
               <div>
                 <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider block">Current Shift</span>
-                <span className="text-[#0a1f5c] font-bold font-mono block mt-0.5">
+                <span className="text-brand-primary font-bold font-mono block mt-0.5">
                   {assignShiftUser.shift || 'General Shift (09:00 AM - 05:00 PM)'}
                 </span>
               </div>
 
               <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                <label className="block text-slate-500 font-bold uppercase text-[9px] tracking-wider flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
                   <GoogleIcon name="schedule" className="text-gold" size={12} />
                   Select New Shift
                 </label>
@@ -1207,7 +1208,7 @@ export default function AttendancePage() {
               <button
                 onClick={handleAssignShiftSubmit}
                 disabled={assigningShift}
-                className="w-full bg-[#0a1f5c] hover:bg-[#0a1f5c]/95 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer mt-4 shadow-sm"
+                className="w-full bg-brand-primary hover:bg-brand-primary/95 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer mt-4 shadow-sm"
               >
                 {assigningShift ? (
                   <GoogleIcon name="progress_activity" size={14} className="animate-spin-icon" />
@@ -1227,7 +1228,7 @@ export default function AttendancePage() {
           <div className="bg-white border border-slate-100 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden my-8">
             <div className="flex justify-between items-center p-5 border-b border-slate-100">
               <div>
-                <h3 className="font-extrabold text-[#0a1f5c] text-sm flex items-center gap-2">
+                <h3 className="font-extrabold text-brand-primary text-sm flex items-center gap-2">
                   🛡️ GPS Address & Selfie Verification Center
                 </h3>
                 <p className="text-[10px] text-slate-500 mt-0.5">
@@ -1322,7 +1323,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={() => setSelfieCompareLog(null)}
-                className="px-5 py-2.5 bg-[#0a1f5c] hover:bg-[#0a1f5c]/95 text-white rounded-xl font-bold transition-all cursor-pointer text-xs"
+                className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary/95 text-white rounded-xl font-bold transition-all cursor-pointer text-xs"
               >
                 Close Audit Comparison
               </button>
@@ -1434,14 +1435,14 @@ const MapModal = ({ log, onClose }: { log: AttendanceLog; onClose: () => void })
         mapRef.current = null;
       }
     };
-  }, []);
+  }, [log]);
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
       <div className="bg-white border border-slate-100 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col h-[80vh]">
         <div className="flex justify-between items-center p-5 border-b border-slate-100">
           <div>
-            <h3 className="font-extrabold text-[#0a1f5c] text-sm">
+            <h3 className="font-extrabold text-brand-primary text-sm">
               📍 GPS Location Map — {log.employee ? `${log.employee.firstName} ${log.employee.lastName}` : 'Staff'}
             </h3>
             <p className="text-[10px] text-slate-500 mt-0.5">
@@ -1456,7 +1457,7 @@ const MapModal = ({ log, onClose }: { log: AttendanceLog; onClose: () => void })
           </button>
         </div>
         <div className="flex-1 relative bg-slate-50">
-          <div id="attendance-map" className="w-full h-full min-h-[400px] z-10" />
+          <div id="attendance-map" className="w-full h-full min-h-100 z-10" />
         </div>
         <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 grid grid-cols-1 md:grid-cols-2 gap-4">
           {log.checkInLatitude !== undefined && (

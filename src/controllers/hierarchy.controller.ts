@@ -372,48 +372,98 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
       throw new ApiError(400, 'User with this email or Employee ID already exists');
     }
 
-    const existingRequest = await JoinRequest.findOne({ 
-      $or: [{ email: email.toLowerCase() }, { employeeId }],
-      status: 'Pending'
-    });
-    if (existingRequest) {
-      throw new ApiError(400, 'You already have a pending join request awaiting approval');
+    // Get department details
+    const dept = await Department.findById(invite.departmentId);
+    if (!dept) {
+      throw new ApiError(404, 'Department associated with invite not found');
     }
 
-    const joinRequest = await JoinRequest.create({
-      inviteCode,
-      organizationId: invite.organizationId,
-      departmentId: invite.departmentId,
-      managerId: invite.managerId,
-      name,
-      email,
-      mobile,
+    // Get manager details
+    const manager = await User.findById(invite.managerId);
+    if (!manager) {
+      throw new ApiError(404, 'Manager not found');
+    }
+
+    // Split name
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || 'Staff';
+
+    // Create active user directly (no approval needed)
+    const newUser = await User.create({
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      phone: mobile,
       employeeId,
       designation,
       password,
-      status: 'Pending',
+      role: 'EMPLOYEE',
+      department: dept.name,
+      hotel: manager.hotel || undefined,
+      status: 'Active',
+      joinedDate: new Date(),
+      reportingManager: `${manager.firstName} ${manager.lastName}`,
+    });
+
+    // Construct reporting path
+    const managerStruct = await ReportingStructure.findOne({ userId: manager._id });
+    const parentPath = managerStruct ? managerStruct.path : `/${manager._id}`;
+    const currentPath = `${parentPath}/${newUser._id}`;
+
+    // Create reporting structure
+    await ReportingStructure.create({
+      userId: newUser._id,
+      managerId: manager._id,
+      departmentId: invite.departmentId,
+      organizationId: invite.organizationId,
+      path: currentPath,
+    });
+
+    // Create hierarchy node
+    await HierarchyNode.create({
+      userId: newUser._id,
+      parentId: manager._id,
+      departmentId: invite.departmentId,
+      organizationId: invite.organizationId,
+      role: 'EMPLOYEE',
     });
 
     // Log hierarchy audit
     await HierarchyAuditLog.create({
-      userId: invite.managerId, // Logged against inviting manager
-      action: 'JOIN_REQUESTED',
-      details: JSON.stringify({ requestId: joinRequest._id, name, email, employeeId, departmentId: invite.departmentId }),
+      userId: manager._id,
+      action: 'JOIN_DIRECT_APPROVED',
+      details: JSON.stringify({ 
+        employeeId: newUser._id, 
+        name: `${firstName} ${lastName}`,
+        email: newUser.email,
+        departmentId: invite.departmentId,
+        managerId: manager._id 
+      }),
     });
 
-    // Notify generating manager
+    // Notify manager
     await createNotification({
-      title: 'New Join Request',
-      message: `${name} has requested to join your team as ${designation}.`,
-      type: 'info',
-      recipientId: invite.managerId.toString(),
+      title: 'New Team Member Added',
+      message: `${firstName} ${lastName} has joined your team as ${designation} in ${dept.name} department.`,
+      type: 'success',
+      recipientId: manager._id.toString(),
       link: '/dashboard/hierarchy',
     });
 
-    res.status(201).json({
+    // Notify employee
+    await createNotification({
+      title: 'Welcome to the Team!',
+      message: `You have been added to ${dept.name} department. Your account is now active.`,
+      type: 'success',
+      recipientId: newUser._id.toString(),
+      link: '/dashboard/profile',
+    });
+
+    res.status(200).json({
       status: 'success',
-      message: 'Join request submitted successfully. Awaiting manager approval.',
-      data: { joinRequest },
+      message: 'Successfully joined the team! Your account has been created.',
+      data: { user: newUser },
     });
   } catch (error) {
     next(error);
