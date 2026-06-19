@@ -7,9 +7,13 @@ export default function ThemeToggle() {
   const theme = useThemeStore((s: any) => s.theme);
   const setTheme = useThemeStore((s: any) => s.setTheme);
   const toggle = useThemeStore((s: any) => s.toggle);
+  const initializeTheme = useThemeStore((s: any) => s.initializeTheme);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    initializeTheme();
+    setMounted(true);
+  }, [initializeTheme]);
 
   if (!mounted) return null;
 

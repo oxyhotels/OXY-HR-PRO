@@ -34,7 +34,7 @@ const CourseSchema = new Schema<ICourse>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
-    department: { type: String, required: true, default: 'Operations', enum: [...DEPARTMENTS, 'Operations'] },
+    department: { type: String, required: true, default: 'Operations' },
     thumbnailUrl: { type: String, default: '' },
     bannerUrl: { type: String, default: '' },
     category: { type: String, default: 'Safety Training' },
@@ -172,7 +172,7 @@ const LmsAssignmentSchema = new Schema<ILmsAssignment>(
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     targetType: { type: String, enum: ['Employee', 'Department', 'Hotel'], required: true },
     targetEmployee: { type: Schema.Types.ObjectId, ref: 'User' },
-    targetDepartment: { type: String, enum: [...DEPARTMENTS, 'Operations'] },
+    targetDepartment: { type: String },
     targetHotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
     assignedDate: { type: Date, default: Date.now },
     dueDate: { type: Date, required: true },

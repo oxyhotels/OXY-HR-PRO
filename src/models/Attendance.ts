@@ -7,7 +7,7 @@ export interface IBreak {
 
 export interface IAttendance extends Document {
   employee: Schema.Types.ObjectId;
-  hotel: Schema.Types.ObjectId;
+  hotel?: Schema.Types.ObjectId; // ✅ FIX: Made optional for Global IT/HR
   date: string; // YYYY-MM-DD format
   checkIn: Date;
   checkOut?: Date;
@@ -69,7 +69,7 @@ export interface IAttendance extends Document {
 const AttendanceSchema = new Schema<IAttendance>(
   {
     employee: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    hotel: { type: Schema.Types.ObjectId, ref: 'Hotel', required: true },
+    hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' }, // ✅ FIX: Removed required: true
     date: { type: String, required: true }, // Format: YYYY-MM-DD
     checkIn: { type: Date, required: true },
     checkOut: { type: Date },

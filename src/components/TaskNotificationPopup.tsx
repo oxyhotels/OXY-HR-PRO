@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import GoogleIcon from '@/components/GoogleIcon';
@@ -15,7 +15,10 @@ interface Task {
   assignedBy: {
     firstName: string;
     lastName: string;
+    role?: string;
   };
+  department?: string;
+  evidenceRequirement?: string;
 }
 
 export default function TaskNotificationPopup() {
@@ -24,34 +27,111 @@ export default function TaskNotificationPopup() {
   const [showPopup, setShowPopup] = useState(false);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playedTasks, setPlayedTasks] = useState<Set<string>>(new Set());
 
-  const fetchPendingTasks = async () => {
+  // Load played tasks from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('played_task_ids');
+      if (stored) {
+        setPlayedTasks(new Set(JSON.parse(stored)));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Initialize audio for notification sound using the file in public folder
+  useEffect(() => {
+    audioRef.current = new Audio('/alerm sound.mp3');
+  }, []);
+
+  const isAssignedToCurrentUser = (assignedTo: any, userId: string) => {
+    if (!assignedTo) return false;
+    if (Array.isArray(assignedTo)) {
+      return assignedTo.some((item) => {
+        if (!item) return false;
+        if (typeof item === 'string') return item === userId;
+        if (typeof item === 'object') return item._id?.toString() === userId || item.id?.toString() === userId;
+        return false;
+      });
+    }
+    if (typeof assignedTo === 'string') return assignedTo === userId;
+    if (typeof assignedTo === 'object') return assignedTo._id?.toString() === userId || assignedTo.id?.toString() === userId;
+    return false;
+  };
+
+  const fetchPendingTasks = useCallback(async () => {
+    if (!user) return;
     try {
       setLoading(true);
       const res = await api.get('/tasks?status=Pending');
       const tasks = res.data.tasks || [];
       
       const myTasks = tasks.filter((task: any) => 
-        task.assignedTo?.some((assigneeId: string) => assigneeId === user?.id)
+        isAssignedToCurrentUser(task.assignedTo, user.id)
       );
       
       setPendingTasks(myTasks);
       
-      if (myTasks.length > 0 && !showPopup) {
-        setShowPopup(true);
+      if (myTasks.length > 0) {
+        setShowPopup(prev => {
+          if (!prev) return true;
+          return prev;
+        });
       }
     } catch (err) {
       console.error('Failed to fetch pending tasks:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // Effect to play alarm when a pending task is loaded for manager/employee
+  useEffect(() => {
+    if (showPopup && pendingTasks.length > 0 && user) {
+      const isTargetUser = user.role.includes('MANAGER') || user.role === 'EMPLOYEE';
+      
+      // Find pending tasks that haven't played the alarm yet
+      const unplayedTasks = pendingTasks.filter((task: any) => {
+        return !playedTasks.has(task._id);
+      });
+
+      if (isTargetUser && unplayedTasks.length > 0) {
+        // Mark these tasks as played and persist to localStorage
+        const updatedPlayed = new Set(playedTasks);
+        unplayedTasks.forEach(task => updatedPlayed.add(task._id));
+        setPlayedTasks(updatedPlayed);
+        try {
+          localStorage.setItem('played_task_ids', JSON.stringify(Array.from(updatedPlayed)));
+        } catch (e) {
+          console.error(e);
+        }
+        
+        // Play the alarm
+        if (audioRef.current) {
+          audioRef.current.play().catch(err => console.log('Audio play failed:', err));
+        }
+      }
+    }
+  }, [showPopup, pendingTasks, playedTasks, user]);
 
   useEffect(() => {
     fetchPendingTasks();
     const interval = setInterval(fetchPendingTasks, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    const handleNewNotification = () => {
+      fetchPendingTasks();
+    };
+
+    window.addEventListener('new_notification', handleNewNotification);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('new_notification', handleNewNotification);
+    };
+  }, [fetchPendingTasks]);
 
   const handleAction = async (action: 'accept' | 'hold' | 'reject') => {
     if (pendingTasks.length === 0) return;
@@ -61,12 +141,12 @@ export default function TaskNotificationPopup() {
     if (action === 'hold' || action === 'reject') {
       const reason = prompt(
         action === 'hold' 
-          ? 'कृपया होल्ड करने का कारण लिखें (Minimum 10 characters):' 
-          : 'कृपया रिजेक्ट करने का कारण लिखें (Minimum 10 characters):'
+          ? 'कृपया होल्ड करने का कारण लिखें:' 
+          : 'कृपया रिजेक्ट करने का कारण लिखें:'
       );
       
-      if (!reason || reason.trim().length < 10) {
-        alert('कृपया कारण लिखें (Minimum 10 characters)');
+      if (!reason || !reason.trim()) {
+        alert('कृपया कारण लिखें');
         return;
       }
       
@@ -167,7 +247,7 @@ export default function TaskNotificationPopup() {
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-[10px] text-blue-800 font-semibold">
-              Assigned by: {currentTask.assignedBy.firstName} {currentTask.assignedBy.lastName}
+              Assigned by: {currentTask.assignedBy?.firstName} {currentTask.assignedBy?.lastName}
             </p>
           </div>
 
@@ -190,21 +270,21 @@ export default function TaskNotificationPopup() {
             className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             <GoogleIcon name="check" size={16} />
-            स्वीकार करें
+            Accept / स्वीकार करें
           </button>
           <button
             onClick={() => handleAction('hold')}
             className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             <GoogleIcon name="pause" size={16} />
-            होल्ड करें
+            Hold / होल्ड करें
           </button>
           <button
             onClick={() => handleAction('reject')}
             className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             <GoogleIcon name="close" size={16} />
-            रिजेक्ट करें
+            Reject / रिजेक्ट करें
           </button>
         </div>
 

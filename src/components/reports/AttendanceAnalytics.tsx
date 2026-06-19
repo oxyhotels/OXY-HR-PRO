@@ -42,6 +42,25 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await fetch('/api/organization/public-departments');
+        if (res.ok) {
+          const result = await res.json();
+          if (result?.data?.departments) {
+            setDepartmentsList(result.data.departments);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   // Filter states
   const [selectedHotelId, setSelectedHotelId] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
@@ -254,7 +273,7 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
               className="bg-transparent border-none text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer pr-4"
             >
               <option value="">All Departments</option>
-              {DEPARTMENTS.map((dept) => (
+              {departmentsList.map((dept) => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>

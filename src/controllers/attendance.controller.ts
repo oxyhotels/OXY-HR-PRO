@@ -15,21 +15,35 @@ const getLocalDateString = (): string => {
   return localDate.toISOString().split('T')[0];
 };
 
-// Exemption check: Root Admin, HR Department, IT Department are exempt
+// ✅ UPGRADED: Exemption check (Handles ObjectIds, Populated Objects, and Direct Roles)
 const isExempt = (user: any): boolean => {
   if (!user) return false;
   if (user.role === 'ROOT_ADMIN') return true;
 
-  const dept = (user.department || '').toLowerCase();
-  const role = (user.role || '').toLowerCase();
+  const role = (user.role || '').toUpperCase();
+  
+  // 1. Direct Role Check
+  if (role.includes('HR') || role.includes('IT')) {
+    return true;
+  }
+
+  // 2. Safe Department Check (Handles both String ID and Populated Object)
+  let deptName = '';
+  if (typeof user.department === 'string') {
+    deptName = user.department;
+  } else if (user.department && typeof user.department === 'object') {
+    deptName = user.department.name || '';
+  }
+
+  deptName = deptName.toLowerCase();
 
   // HR Department
-  if (dept.includes('hr') || dept.includes('human resources') || role === 'hr_manager') {
+  if (deptName.includes('hr') || deptName.includes('human resources')) {
     return true;
   }
 
   // IT Department
-  if (dept.includes('it') || dept.includes('information technology') || dept.includes('it services')) {
+  if (deptName.includes('it') || deptName.includes('information technology') || deptName.includes('it services')) {
     return true;
   }
 
@@ -72,11 +86,18 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       }
     }
 
-    // Validate hotel if resolvedHotelId is provided
+    // ✅ UPGRADED: Smart Hotel Validation for IT/HR
+    let finalHotelId = resolvedHotelId;
     if (resolvedHotelId) {
       const hotelExists = await Hotel.findOne({ _id: resolvedHotelId, status: 'Active' });
       if (!hotelExists) {
-        throw new ApiError(404, 'Selected hotel property does not exist or is suspended');
+        if (!exempt) {
+          // Normal employees must be assigned to an active hotel
+          throw new ApiError(404, 'Selected hotel property does not exist or is suspended');
+        } else {
+          // IT/HR are exempt. If their profile has a suspended/old hotel ID, ignore it and let them work-in globally.
+          finalHotelId = undefined; 
+        }
       }
     }
 
@@ -101,26 +122,26 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
 
     const attendance = await Attendance.create({
       employee: req.user._id,
-      hotel: resolvedHotelId,
+      hotel: finalHotelId, // Uses the safely validated finalHotelId
       date: todayStr,
       checkIn: checkInTime,
       status,
       department: resolvedDepartment || undefined,
-      // GPS & Selfie Verification fields (saved if provided or required)
+      // GPS & Selfie Verification fields
       checkInLatitude: latitude !== undefined ? Number(latitude) : undefined,
       checkInLongitude: longitude !== undefined ? Number(longitude) : undefined,
       checkInAccuracy: accuracy !== undefined ? Number(accuracy) : undefined,
       checkInPhoto: photo || undefined,
-      selfieUrl: photo || undefined, // legacy compat
+      selfieUrl: photo || undefined, 
       checkInCoordinates: (latitude !== undefined && longitude !== undefined) ? {
         lat: Number(latitude),
         lng: Number(longitude)
-      } : undefined, // legacy compat
+      } : undefined, 
       deviceInfo: deviceInfo || undefined,
       browserInfo: browserInfo || undefined,
       ipAddress: ipAddress || undefined,
       
-      // New geocoding, client-side metadata, and security audit fields
+      // geocoding, metadata, and security audit fields
       checkInAddress: addressData?.formattedAddress || undefined,
       country: addressData?.country || undefined,
       state: addressData?.state || undefined,
@@ -140,8 +161,7 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
     });
 
     // Resolve property name for notification description
-    let propertyName = 'Property';
-    const finalHotelId = hotelId || req.user.hotel;
+    let propertyName = 'Global IT/HR Operations';
     if (finalHotelId) {
       const hotelDoc = await Hotel.findById(finalHotelId);
       if (hotelDoc) {
@@ -158,15 +178,13 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
       recipientRole: 'ROOT_ADMIN'
     });
 
-    // ── Gamification: award XP + streak for check-in ──
+    // Gamification
     try {
-      const finalHotelForGamification = hotelId || req.user.hotel;
-      if (finalHotelForGamification) {
+      if (finalHotelId) {
         const isEarly = checkInTime.getHours() < 9 || (checkInTime.getHours() === 9 && checkInTime.getMinutes() === 0);
-        await processAttendanceStreak(req.user._id.toString(), finalHotelForGamification.toString(), isEarly);
+        await processAttendanceStreak(req.user._id.toString(), finalHotelId.toString(), isEarly);
       }
     } catch (gamErr) {
-      // Non-blocking — don't fail check-in if gamification errors
       console.warn('[Gamification] Streak processing error:', gamErr);
     }
 
@@ -226,7 +244,6 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
       throw new ApiError(400, 'You have already checked out for today');
     }
 
-    // Geocode coordinates on checkout
     let addressData: any = null;
     if (latitude !== undefined && longitude !== undefined) {
       try {
@@ -244,7 +261,6 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     if (workPictureUrl) attendance.workPictureUrl = workPictureUrl;
     if (workVideoUrl) attendance.workVideoUrl = workVideoUrl;
 
-    // Save Verification details
     if (latitude !== undefined) attendance.checkOutLatitude = Number(latitude);
     if (longitude !== undefined) attendance.checkOutLongitude = Number(longitude);
     if (accuracy !== undefined) attendance.checkOutAccuracy = Number(accuracy);
@@ -259,7 +275,6 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     if (browserInfo) attendance.browserInfo = browserInfo;
     if (ipAddress) attendance.ipAddress = ipAddress;
 
-    // Save checkout geocoding and security metadata
     attendance.checkOutAddress = addressData?.formattedAddress || undefined;
     attendance.checkOutCountry = addressData?.country || undefined;
     attendance.checkOutState = addressData?.state || undefined;
@@ -283,7 +298,7 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
       }
     });
 
-    // Calculate total break minutes
+    // Calculate times
     let breakMs = 0;
     attendance.breaks.forEach((b: any) => {
       if (b.end) {
@@ -293,13 +308,11 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     const totalBreakMinutes = Math.round(breakMs / 60000);
     attendance.totalBreakMinutes = totalBreakMinutes;
 
-    // Calculate total working hours
     const totalDurationMs = checkOutTime.getTime() - attendance.checkIn.getTime();
     const workingMs = totalDurationMs - breakMs;
     const totalWorkingHours = Math.max(0, parseFloat((workingMs / 3600000).toFixed(2)));
     attendance.totalWorkingHours = totalWorkingHours;
 
-    // If working hours are less than 4, mark as Half-Day
     if (totalWorkingHours < 4 && attendance.status !== 'Late') {
       attendance.status = 'Half-Day';
     }
@@ -342,7 +355,6 @@ export const startBreak = async (req: Request, res: Response, next: NextFunction
       throw new ApiError(400, 'You have already checked out for today');
     }
 
-    // Check if there is an active break (no end time)
     const activeBreak = attendance.breaks.find((b: any) => !b.end);
     if (activeBreak) {
       throw new ApiError(400, 'You are already on an active break');
@@ -381,7 +393,6 @@ export const endBreak = async (req: Request, res: Response, next: NextFunction):
 
     activeBreak.end = new Date();
 
-    // Recompute total break minutes
     let breakMs = 0;
     attendance.breaks.forEach((b: any) => {
       if (b.end) {
@@ -408,7 +419,6 @@ export const getMyAttendance = async (req: Request, res: Response, next: NextFun
     const filter: any = { employee: req.user._id };
     
     if (req.query.month) {
-      // month format "YYYY-MM"
       filter.date = new RegExp(`^${req.query.month}`);
     }
 
@@ -428,21 +438,18 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
   try {
     const filter: any = {};
 
-    // Tenancy Check
     if (req.user?.role !== 'ROOT_ADMIN') {
       filter.hotel = req.user?.hotel;
     } else if (req.query.hotelId) {
       filter.hotel = req.query.hotelId;
     }
 
-    // Employee Check
     if (req.query.employeeId) {
       filter.employee = req.query.employeeId;
     }
 
-    // Date filtering: optional if query parameter "all" is true
     if (req.query.all === 'true') {
-      // Fetch historical records
+      // Fetch historical
     } else if (req.query.date) {
       filter.date = req.query.date;
     } else {
@@ -460,7 +467,6 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
 
     const logs = await queryBuilder;
 
-    // Fetch all Managers (HOTEL_ADMIN) to map them to hotels in-memory
     const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel');
     const managerMap: any = {};
     managers.forEach((m) => {
@@ -474,7 +480,6 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
       }
     });
 
-    // Attach manager details to attendance logs
     const logsJson = logs.map(log => {
       const obj = log.toObject() as any;
       const hotelId = obj.hotel?._id?.toString() || obj.hotel?.toString();
@@ -496,7 +501,6 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
   try {
     const filter: any = {};
     
-    // Tenancy Check
     if (req.user?.role !== 'ROOT_ADMIN') {
       filter.hotel = req.user?.hotel;
     } else if (req.query.hotelId) {

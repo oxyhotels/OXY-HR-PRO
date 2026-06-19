@@ -2,9 +2,18 @@ import { Schema, model, models, Document } from 'mongoose';
 import { DEPARTMENTS } from '@/constants/departments';
 
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type TaskStatus = 'Pending' | 'Accepted' | 'In_Progress' | 'Completed' | 'On_Hold' | 'Rejected';
+export type TaskStatus = 'Pending' | 'To_Do' | 'Accepted' | 'In_Progress' | 'Completed' | 'On_Hold' | 'Rejected'; // ✅ Added To_Do
 export type AssignmentType = 'all_departments' | 'individual' | 'department_wise' | 'name_wise' | 'designation_wise';
 export type EvidenceRequirement = 'optional' | 'mandatory';
+
+// ✅ NEW: Task History Interface
+export interface ITaskHistory {
+  action: string;
+  remark?: string;
+  userId: Schema.Types.ObjectId;
+  userName: string;
+  timestamp: Date;
+}
 
 export interface ITask extends Document {
   title: string;
@@ -33,32 +42,30 @@ export interface ITask extends Document {
   healthScore?: number;
   reworkCount?: number;
   escalationLevel?: number;
-  rca?: {
-    reason: string;
-    category: string;
-    loggedAt: Date;
-  };
-  businessImpact?: {
-    guestSatisfaction: number;
-    revenueImpact: number;
-    complianceImpact: number;
-  };
-  geoVerified?: {
-    verified: boolean;
-    lat: number;
-    lng: number;
-    selfieUrl: string;
-    isSuspicious: boolean;
-    fraudFlags: string[];
-  };
-  responses: {
-    userId: Schema.Types.ObjectId;
-    action: 'accepted' | 'held' | 'rejected' | 'completed';
+  rca?: { reason: string; category: string; loggedAt: Date; };
+  businessImpact?: { guestSatisfaction: number; revenueImpact: number; complianceImpact: number; };
+  geoVerified?: { verified: boolean; lat: number; lng: number; selfieUrl: string; isSuspicious: boolean; fraudFlags: string[]; };
+  responses: { userId: Schema.Types.ObjectId; action: 'accepted' | 'held' | 'rejected' | 'completed'; reason?: string; timestamp: Date; evidenceUrl?: string; evidenceType?: 'photo' | 'video'; }[];
+  
+  // ✅ NEW: Kanban & Timeline Fields
+  latestRemark?: string;
+  holdReason?: string;
+  completionRemark?: string;
+  taskHistory: ITaskHistory[];
+
+  // ✅ NEW: Task Updates Array for Lifecycle Tracking
+  taskUpdates: {
+    status: string;
+    description?: string;
     reason?: string;
-    timestamp: Date;
-    evidenceUrl?: string;
-    evidenceType?: 'photo' | 'video';
+    photoUrl?: string;
+    updatedBy: Schema.Types.ObjectId;
+    updatedByName: string;
+    department: string;
+    designation: string;
+    createdAt: Date;
   }[];
+
   viewCount: number;
   acceptedAt?: Date;
   completedAt?: Date;
@@ -68,29 +75,17 @@ export interface ITask extends Document {
   updatedAt: Date;
 }
 
-// Backward compatibility: Normalize old status values to new enum
 function normalizeStatus(status: any): string {
   if (!status) return 'Pending';
   const normalized = status.toString().trim();
   const statusMap: Record<string, string> = {
-    'Todo': 'Pending',
-    'todo': 'Pending',
-    'Pending': 'Pending',
-    'pending': 'Pending',
-    'Accepted': 'Accepted',
-    'accepted': 'Accepted',
-    'In_Progress': 'In_Progress',
-    'in_progress': 'In_Progress',
-    'inprogress': 'In_Progress',
-    'InProgress': 'In_Progress',
-    'Completed': 'Completed',
-    'completed': 'Completed',
-    'On_Hold': 'On_Hold',
-    'on_hold': 'On_Hold',
-    'onhold': 'On_Hold',
-    'OnHold': 'On_Hold',
-    'Rejected': 'Rejected',
-    'rejected': 'Rejected',
+    'Todo': 'To_Do', 'todo': 'To_Do', 'To_Do': 'To_Do',
+    'Pending': 'Pending', 'pending': 'Pending',
+    'Accepted': 'To_Do', 'accepted': 'To_Do', // Map old Accepted to new To_Do automatically
+    'In_Progress': 'In_Progress', 'in_progress': 'In_Progress', 'inprogress': 'In_Progress', 'InProgress': 'In_Progress',
+    'Completed': 'Completed', 'completed': 'Completed',
+    'On_Hold': 'On_Hold', 'on_hold': 'On_Hold', 'onhold': 'On_Hold', 'OnHold': 'On_Hold',
+    'Rejected': 'Rejected', 'rejected': 'Rejected',
   };
   return statusMap[normalized] || 'Pending';
 }
@@ -101,82 +96,58 @@ const TaskSchema = new Schema<ITask>(
     description: { type: String, required: true, trim: true },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel', required: true },
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
+    department: { type: String, trim: true },
     assignedTo: { type: [Schema.Types.ObjectId], ref: 'User', required: false },
     assignedDepartments: [{ type: String, trim: true }],
-    assignmentType: {
-      type: String,
-      enum: ['all_departments', 'individual', 'department_wise', 'name_wise', 'designation_wise'],
-      default: 'individual',
-    },
-    priority: {
-      type: String,
-      enum: ['Low', 'Medium', 'High', 'Urgent'],
-      default: 'Medium',
-    },
-    status: {
-      type: String,
-      enum: ['Pending', 'Accepted', 'In_Progress', 'Completed', 'On_Hold', 'Rejected'],
-      default: 'Pending',
-    },
+    assignmentType: { type: String, enum: ['all_departments', 'individual', 'department_wise', 'name_wise', 'designation_wise'], default: 'individual' },
+    priority: { type: String, enum: ['Low', 'Medium', 'High', 'Urgent'], default: 'Medium' },
+    status: { type: String, enum: ['Pending', 'To_Do', 'Accepted', 'In_Progress', 'Completed', 'On_Hold', 'Rejected'], default: 'Pending' },
     progress: { type: Number, min: 0, max: 100, default: 0 },
     dueDate: { type: Date, required: true },
     dueTime: { type: String },
-    evidenceRequirement: {
-      type: String,
-      enum: ['optional', 'mandatory'],
-      default: 'optional',
-    },
-    checklist: [
-      {
-        text: { type: String, required: true },
-        done: { type: Boolean, default: false },
-      },
-    ],
+    evidenceRequirement: { type: String, enum: ['optional', 'mandatory'], default: 'optional' },
+    checklist: [{ text: { type: String, required: true }, done: { type: Boolean, default: false } }],
     evidenceUrl: { type: String },
     evidenceType: { type: String, enum: ['photo', 'video'] },
-    evidenceLocation: {
-      lat: { type: Number },
-      lng: { type: Number },
-    },
+    evidenceLocation: { lat: { type: Number }, lng: { type: Number } },
     isRecurring: { type: Boolean, default: false },
-    recurringInterval: {
-      type: String,
-      enum: ['Daily', 'Weekly', 'None'],
-      default: 'None',
-    },
+    recurringInterval: { type: String, enum: ['Daily', 'Weekly', 'None'], default: 'None' },
     slaDuration: { type: Number, default: 30 },
     slaStart: { type: Date },
     slaBreached: { type: Boolean, default: false },
     healthScore: { type: Number, default: 100 },
     reworkCount: { type: Number, default: 0 },
     escalationLevel: { type: Number, default: 0 },
-    rca: {
-      reason: { type: String },
-      category: { type: String },
-      loggedAt: { type: Date },
-    },
-    businessImpact: {
-      guestSatisfaction: { type: Number, default: 5 },
-      revenueImpact: { type: Number, default: 0 },
-      complianceImpact: { type: Number, default: 0 },
-    },
-    geoVerified: {
-      verified: { type: Boolean, default: false },
-      lat: { type: Number },
-      lng: { type: Number },
-      selfieUrl: { type: String },
-      isSuspicious: { type: Boolean, default: false },
-      fraudFlags: [{ type: String }],
-    },
-    responses: [{
-      userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-      action: { type: String, enum: ['accepted', 'held', 'rejected', 'completed'], required: true },
-      reason: { type: String },
-      timestamp: { type: Date, default: Date.now },
-      evidenceUrl: { type: String },
-      evidenceType: { type: String, enum: ['photo', 'video'] },
+    rca: { reason: { type: String }, category: { type: String }, loggedAt: { type: Date } },
+    businessImpact: { guestSatisfaction: { type: Number, default: 5 }, revenueImpact: { type: Number, default: 0 }, complianceImpact: { type: Number, default: 0 } },
+    geoVerified: { verified: { type: Boolean, default: false }, lat: { type: Number }, lng: { type: Number }, selfieUrl: { type: String }, isSuspicious: { type: Boolean, default: false }, fraudFlags: [{ type: String }] },
+    responses: [{ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, action: { type: String, enum: ['accepted', 'held', 'rejected', 'completed'], required: true }, reason: { type: String }, timestamp: { type: Date, default: Date.now }, evidenceUrl: { type: String }, evidenceType: { type: String, enum: ['photo', 'video'] } }],
+    
+    // ✅ NEW: Kanban & Timeline DB Fields
+    latestRemark: { type: String },
+    holdReason: { type: String },
+    completionRemark: { type: String },
+    taskHistory: [{
+      action: { type: String, required: true },
+      remark: { type: String },
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      userName: { type: String },
+      timestamp: { type: Date, default: Date.now }
     }],
+
+    // ✅ NEW: Task Updates Array for Lifecycle Tracking
+    taskUpdates: [{
+      status: { type: String, required: true },
+      description: { type: String },
+      reason: { type: String },
+      photoUrl: { type: String },
+      updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: false },
+      updatedByName: { type: String, required: false },
+      department: { type: String },
+      designation: { type: String },
+      createdAt: { type: Date, default: Date.now }
+    }],
+
     viewCount: { type: Number, default: 0 },
     acceptedAt: { type: Date },
     completedAt: { type: Date },
@@ -186,20 +157,14 @@ const TaskSchema = new Schema<ITask>(
   { timestamps: true }
 );
 
-// Pre-save hook to normalize status values
 (TaskSchema as any).pre('save', function(this: any, next: Function) {
-  if (this.isModified('status')) {
-    this.status = normalizeStatus(this.status);
-  }
+  if (this.isModified('status')) this.status = normalizeStatus(this.status);
   next();
 });
 
-// Pre-update hook to normalize status values
 (TaskSchema as any).pre('findOneAndUpdate', function(this: any, next: Function) {
   const update = this.getUpdate() as any;
-  if (update.status) {
-    update.status = normalizeStatus(update.status);
-  }
+  if (update.status) update.status = normalizeStatus(update.status);
   next();
 });
 

@@ -33,6 +33,23 @@ export default function AnalyticsPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [hotels, setHotels] = useState<any[]>([]);
+
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -495,7 +512,7 @@ export default function AnalyticsPage() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 cursor-pointer focus:outline-none focus:border-blue-500"
               >
                 <option value="">All Departments</option>
-                {DEPARTMENTS.map((dept) => (
+                {departmentsList.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>

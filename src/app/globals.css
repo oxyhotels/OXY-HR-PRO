@@ -66,8 +66,17 @@
 .dark button.bg-slate-800, .dark .btn-secondary { background-color: #111827 !important; color: var(--foreground) !important; border-color: var(--border) !important; }
 
 /* Buttons: primary/secondary state visibility */
-.dark .bg-[#0a1f5c], .dark .bg-gold { color: #fff !important; }
-.dark .text-white { color: var(--foreground) !important; }
+.dark .bg-gold {
+  color: #fff !important;
+}
+
+.dark .text-white {
+  color: var(--foreground) !important;
+}
+
+.dark .oxy-dark-card {
+  color: #fff !important;
+}
 
 
 @theme {

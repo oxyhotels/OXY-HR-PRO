@@ -26,7 +26,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
   const { accessToken, isAuthenticated, isHydrated } = useAuthStore.getState();
 
   // Public endpoints don't need auth — allow them even if auth store isn't hydrated yet
-  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public'];
+  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public', '/organization/public-departments'];
   const isPublic = publicEndpoints.some(ep => endpoint.startsWith(ep));
 
   // === AUTH GUARD: Do not fire protected API calls before authentication ===

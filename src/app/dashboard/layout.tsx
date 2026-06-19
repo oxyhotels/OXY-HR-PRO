@@ -98,6 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     socketConn.on('new_notification', (notification: any) => {
       setNotifications(prev => [notification, ...prev]);
+      window.dispatchEvent(new CustomEvent('new_notification', { detail: notification }));
     });
 
     socketConn.on('disconnect', (reason) => {
@@ -333,6 +334,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Leaves', icon: 'calendar_today', href: '/dashboard/leaves' },
     { name: 'Payroll', icon: 'payments', href: '/dashboard/payroll' },
     { name: 'Tasks', icon: 'fact_check', href: '/dashboard/tasks' },
+    { name: 'My Tasks', icon: 'assignment', href: '/dashboard/tasks/my-tasks' },
+    { name: 'Task Monitoring', icon: 'monitor', href: '/dashboard/tasks/monitoring' },
     { name: 'Performance', icon: 'leaderboard', href: '/dashboard/performance' },
     { name: 'Reports', icon: 'description', href: '/dashboard/reports' },
     { name: 'LMS', icon: 'school', href: '/dashboard/lms' },
@@ -349,7 +352,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const visibleMenuItems = menuItems.filter(item => {
     if (user?.role === 'EMPLOYEE') {
-      const employeeAllowed = ['/dashboard', '/dashboard/attendance', '/dashboard/tasks', '/dashboard/performance', '/dashboard/lms', '/dashboard/policy', '/dashboard/tickets', '/dashboard/compliance', '/dashboard/community', '/dashboard/notifications', '/dashboard/profile'];
+      const employeeAllowed = ['/dashboard', '/dashboard/attendance', '/dashboard/tasks', '/dashboard/tasks/my-tasks', '/dashboard/performance', '/dashboard/lms', '/dashboard/policy', '/dashboard/tickets', '/dashboard/compliance', '/dashboard/community', '/dashboard/notifications', '/dashboard/profile'];
       return employeeAllowed.includes(item.href);
     }
     if (item.href === '/dashboard/tracking' && user?.role !== 'ROOT_ADMIN') {

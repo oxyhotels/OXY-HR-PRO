@@ -100,9 +100,19 @@ export default function HierarchyPage() {
   // Modals
   const [orgModalOpen, setOrgModalOpen] = useState(false);
   const [deptModalOpen, setDeptModalOpen] = useState(false);
+  const [createDeptModalOpen, setCreateDeptModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [qrDirectView, setQrDirectView] = useState<any>(null);
   const [memberEditForm, setMemberEditForm] = useState<any>(null);
+
+  // Custom Department Form states
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptCode, setNewDeptCode] = useState('');
+  const [newDeptDesc, setNewDeptDesc] = useState('');
+  const [newDeptHead, setNewDeptHead] = useState('');
+  const [newDeptStatus, setNewDeptStatus] = useState('Active');
+  const [newDeptOrgId, setNewDeptOrgId] = useState('');
+  const [newDeptHotelId, setNewDeptHotelId] = useState('');
 
   // Form states
   const [orgName, setOrgName] = useState('');
@@ -307,6 +317,40 @@ export default function HierarchyPage() {
       fetchOrganizationsAndDepartments();
     } catch (err: any) {
       showError(err.message || 'Failed to create department');
+    }
+  };
+
+  const handleCreateCustomDept = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDeptName.trim() || !newDeptCode.trim() || !newDeptOrgId) {
+      showError('Department Name, Code, and Organization are required.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await api.post('/organization/department', {
+        name: newDeptName.trim(),
+        code: newDeptCode.trim().toUpperCase(),
+        description: newDeptDesc.trim() || undefined,
+        managerId: newDeptHead || undefined,
+        status: newDeptStatus,
+        organizationId: newDeptOrgId,
+        hotelId: newDeptHotelId || undefined,
+      });
+      setNewDeptName('');
+      setNewDeptCode('');
+      setNewDeptDesc('');
+      setNewDeptHead('');
+      setNewDeptStatus('Active');
+      setNewDeptOrgId('');
+      setNewDeptHotelId('');
+      setCreateDeptModalOpen(false);
+      showSuccess('Custom department created successfully.');
+      fetchOrganizationsAndDepartments();
+    } catch (err: any) {
+      showError(err.message || 'Failed to create department');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -517,6 +561,13 @@ export default function HierarchyPage() {
             >
               <Plus size={14} />
               Add Department
+            </button>
+            <button
+              onClick={() => setCreateDeptModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+            >
+              <Plus size={14} />
+              Create Department
             </button>
           </div>
         )}
@@ -1239,6 +1290,141 @@ export default function HierarchyPage() {
                   className="bg-gold hover:bg-gold-light disabled:bg-gold/45 text-slate-dark px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Save Department
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2.5: Create Custom Department */}
+      {createDeptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <button
+              onClick={() => setCreateDeptModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-850 pb-3 mb-4">
+              Create Department
+            </h2>
+            <form onSubmit={handleCreateCustomDept} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Department Name *</label>
+                <input
+                  required
+                  type="text"
+                  list="hospitality-suggestions"
+                  value={newDeptName}
+                  onChange={(e) => setNewDeptName(e.target.value)}
+                  placeholder="e.g. Front Office"
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold placeholder:text-slate-650"
+                />
+                <datalist id="hospitality-suggestions">
+                  <option value="Front Office" />
+                  <option value="Housekeeping" />
+                  <option value="Food & Beverage Service" />
+                  <option value="Kitchen" />
+                  <option value="HR" />
+                  <option value="IT" />
+                  <option value="Accounts" />
+                  <option value="Sales & Marketing" />
+                  <option value="Maintenance" />
+                  <option value="Security" />
+                  <option value="Purchase & Store" />
+                  <option value="Reservation" />
+                  <option value="Laundry" />
+                  <option value="Engineering" />
+                  <option value="Administration" />
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Department Code *</label>
+                <input
+                  required
+                  type="text"
+                  value={newDeptCode}
+                  onChange={(e) => setNewDeptCode(e.target.value)}
+                  placeholder="e.g. FRONT"
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold placeholder:text-slate-650"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Description</label>
+                <textarea
+                  value={newDeptDesc}
+                  onChange={(e) => setNewDeptDesc(e.target.value)}
+                  placeholder="Describe the department's responsibilities..."
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold placeholder:text-slate-650 min-h-[60px]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Select Organization *</label>
+                <select
+                  required
+                  value={newDeptOrgId}
+                  onChange={(e) => setNewDeptOrgId(e.target.value)}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
+                >
+                  <option value="">Choose organization...</option>
+                  {organizations.map((org) => (
+                    <option key={org._id} value={org._id}>{org.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Associate Hotel (Optional)</label>
+                <select
+                  value={newDeptHotelId}
+                  onChange={(e) => setNewDeptHotelId(e.target.value)}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
+                >
+                  <option value="">None (Global)</option>
+                  {allHotels.map((h) => (
+                    <option key={h._id} value={h._id}>{h.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Department Head / Manager (Optional)</label>
+                <select
+                  value={newDeptHead}
+                  onChange={(e) => setNewDeptHead(e.target.value)}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
+                >
+                  <option value="">None</option>
+                  {allManagers.map((m) => (
+                    <option key={m._id} value={m._id}>{m.firstName} {m.lastName} ({m.designation || m.role})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5 font-bold tracking-wider">Status</label>
+                <select
+                  value={newDeptStatus}
+                  onChange={(e) => setNewDeptStatus(e.target.value)}
+                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateDeptModalOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="bg-gold hover:bg-gold-light disabled:bg-gold/45 text-slate-dark px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Create Department
                 </button>
               </div>
             </form>

@@ -23,7 +23,7 @@ const KnowledgeItemSchema = new Schema<IKnowledgeItem>(
     content: { type: String, required: true },
     author: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel', required: true },
-    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
+    department: { type: String, trim: true },
     attachments: [
       {
         name: { type: String, required: true },

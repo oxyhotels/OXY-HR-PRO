@@ -51,6 +51,22 @@ export default function CommunityHubPage() {
   // Active Section Tab: 'chat' | 'social' | 'knowledge' | 'analytics'
   const [activeTab, setActiveTab] = useState<'chat' | 'social' | 'knowledge' | 'analytics'>('chat');
   const [mobileShowSidebar, setMobileShowSidebar] = useState(true);
+
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
   
   // Real-time Chat States
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -1421,7 +1437,7 @@ export default function CommunityHubPage() {
                     className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none cursor-pointer"
                   >
                     <option value="">Select Department...</option>
-                    {DEPARTMENTS.map((dept) => (
+                    {departmentsList.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -1702,7 +1718,7 @@ export default function CommunityHubPage() {
                     className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none cursor-pointer"
                   >
                     <option value="">Select Department...</option>
-                    {DEPARTMENTS.map((dept) => (
+                    {departmentsList.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>

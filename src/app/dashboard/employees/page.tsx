@@ -61,6 +61,22 @@ export default function EmployeesPage() {
   const { register, handleSubmit, reset } = useForm();
   const { register: registerDoc, handleSubmit: handleSubmitDoc, reset: resetDoc } = useForm();
 
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -472,7 +488,7 @@ export default function EmployeesPage() {
                     {...register('department')}
                   >
                     <option value="">Select Department...</option>
-                    {DEPARTMENTS.map((dept) => (
+                    {departmentsList.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>

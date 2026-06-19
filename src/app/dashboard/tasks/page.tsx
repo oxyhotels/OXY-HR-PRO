@@ -74,6 +74,22 @@ export default function TasksPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   const isManager = user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'DEPT_MANAGER';
 
   const fetchTasks = async () => {
@@ -122,7 +138,7 @@ export default function TasksPage() {
         payload.department = formData.department;
         payload.assignedDepartments = [formData.department];
       } else if (formData.assignmentType === 'all_departments') {
-        payload.assignedDepartments = DEPARTMENTS;
+        payload.assignedDepartments = departmentsList;
       }
 
       await api.post('/tasks', payload);
@@ -447,7 +463,7 @@ export default function TasksPage() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 cursor-pointer"
                   >
                     <option value="">Select department...</option>
-                    {DEPARTMENTS.map((dept) => (
+                    {departmentsList.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -568,8 +584,8 @@ function TaskDetailModal({ task, onClose, onAction, isManager }: { task: Task; o
   };
 
   const handleReasonSubmit = () => {
-    if (!actionReason || actionReason.trim().length < 10) {
-      alert('Please provide a reason (minimum 10 characters)');
+    if (!actionReason || !actionReason.trim()) {
+      alert('Please provide a reason');
       return;
     }
     onAction(task._id, showReasonInput!, actionReason);
@@ -664,7 +680,7 @@ function TaskDetailModal({ task, onClose, onAction, isManager }: { task: Task; o
               value={actionReason}
               onChange={(e) => setActionReason(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400"
-              placeholder={`Please provide reason (minimum 10 characters)...`}
+              placeholder={`Please provide reason...`}
             />
             <div className="flex gap-2 mt-3">
               <button

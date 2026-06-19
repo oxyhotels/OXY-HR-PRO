@@ -86,6 +86,22 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     fetchProperties();
   }, []);
 
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   // Sign Up Form Hook
   const {
     register: registerSignup,
@@ -341,7 +357,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                       {...registerSignup('department')}
                     >
                       <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
-                      {DEPARTMENTS.map((dept) => (
+                      {departmentsList.map((dept) => (
                         <option key={dept} value={dept} className="bg-slate-950 text-white">
                           {dept}
                         </option>
@@ -506,7 +522,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                   {...registerEmpSignup('department')}
                 >
                   <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
-                  {DEPARTMENTS.map((dept) => (
+                  {departmentsList.map((dept) => (
                     <option key={dept} value={dept} className="bg-slate-950 text-white">
                       {dept}
                     </option>

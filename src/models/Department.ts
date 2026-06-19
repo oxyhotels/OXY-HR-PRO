@@ -6,16 +6,22 @@ export interface IDepartment extends Document {
   organization: Schema.Types.ObjectId;
   hotel?: Schema.Types.ObjectId;
   manager?: Schema.Types.ObjectId;
+  code?: string;
+  description?: string;
+  status?: 'Active' | 'Inactive';
   createdAt: Date;
   updatedAt: Date;
 }
 
 const DepartmentSchema = new Schema<IDepartment>(
   {
-    name: { type: String, required: true, trim: true, enum: DEPARTMENTS },
+    name: { type: String, required: true, trim: true },
     organization: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
     manager: { type: Schema.Types.ObjectId, ref: 'User' },
+    code: { type: String, trim: true },
+    description: { type: String, trim: true },
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
   },
   { timestamps: true }
 );

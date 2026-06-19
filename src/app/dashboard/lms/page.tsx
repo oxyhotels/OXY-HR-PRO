@@ -226,7 +226,21 @@ export default function LmsPage() {
 
   // Predefined lists
   const categoriesList = ['All', 'Safety Training', 'Guest Relations', 'Kitchen Hygiene', 'Housekeeping', 'F&B Operations', 'General Compliance'];
-  const departmentsList = DEPARTMENTS;
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
 
   const isEmployee = (role?: string) => {
     return role === 'EMPLOYEE';

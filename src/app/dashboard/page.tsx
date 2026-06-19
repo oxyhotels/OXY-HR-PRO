@@ -815,8 +815,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Action Buttons — 4 buttons, always visible, inline styles, no Tailwind */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-            {/* Work In */}
+          <div className="shift-btn-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            {/* Work In — Primary Green */}
             <button
               type="button"
               onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
@@ -833,24 +833,7 @@ export default function DashboardPage() {
               <GoogleIcon name="play_arrow" size={18} /> Work In
             </button>
 
-            {/* Work Out — ALWAYS RED, always rendered */}
-            <button
-              type="button"
-              onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-              disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
-              style={{
-                minHeight: '52px', background: '#DC2626', color: '#ffffff',
-                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                opacity: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 0.45 : 1,
-                cursor: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(220,38,38,0.3)'
-              }}
-            >
-              <GoogleIcon name="logout" size={18} /> Work Out
-            </button>
-
-            {/* Break Start */}
+            {/* Break Start — Yellow */}
             <button
               type="button"
               onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
@@ -866,7 +849,7 @@ export default function DashboardPage() {
               <GoogleIcon name="coffee" size={16} /> Break Start
             </button>
 
-            {/* Break End */}
+            {/* Break End — Blue */}
             <button
               type="button"
               onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
@@ -880,6 +863,23 @@ export default function DashboardPage() {
               }}
             >
               <GoogleIcon name="play_arrow" size={16} /> Break End
+            </button>
+
+            {/* Work Out — Red, Last */}
+            <button
+              type="button"
+              onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+              disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
+              style={{
+                minHeight: '52px', background: '#DC2626', color: '#ffffff',
+                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                opacity: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 0.45 : 1,
+                cursor: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 8px rgba(220,38,38,0.3)'
+              }}
+            >
+              <GoogleIcon name="logout" size={18} /> Work Out
             </button>
           </div>
 
@@ -1753,7 +1753,7 @@ export default function DashboardPage() {
 
             {/* Action Buttons — all 4, always visible */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {/* Work In */}
+              {/* Work In — Primary Green */}
               <button
                 type="button"
                 onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
@@ -1772,7 +1772,43 @@ export default function DashboardPage() {
                 <GoogleIcon name="play_arrow" size={20} /> Work In
               </button>
 
-              {/* Work Out — ALWAYS SHOWN IN RED */}
+              {/* Break Start — Yellow */}
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
+                style={{
+                  width: '100%', minHeight: '52px',
+                  background: '#fef3c7', color: '#92400e',
+                  border: '1px solid #fde68a', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  fontSize: '15px', fontWeight: '700',
+                  opacity: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                  cursor: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <GoogleIcon name="coffee" size={20} /> Break Start
+              </button>
+
+              {/* Break End — Blue */}
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
+                style={{
+                  width: '100%', minHeight: '52px',
+                  background: '#dbeafe', color: '#1e40af',
+                  border: '1px solid #bfdbfe', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  fontSize: '15px', fontWeight: '700',
+                  opacity: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
+                  cursor: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <GoogleIcon name="play_arrow" size={20} /> Break End
+              </button>
+
+              {/* Work Out — Red, Last */}
               <button
                 type="button"
                 onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
@@ -1790,40 +1826,6 @@ export default function DashboardPage() {
               >
                 <GoogleIcon name="logout" size={20} /> Work Out
               </button>
-
-              {/* Break buttons — side by side */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-                  disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
-                  style={{
-                    minHeight: '48px', background: '#fef3c7', color: '#92400e',
-                    border: '1px solid #fde68a', borderRadius: '12px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                    fontSize: '13px', fontWeight: '700',
-                    opacity: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
-                    cursor: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <GoogleIcon name="coffee" size={16} /> Break
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-                  disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
-                  style={{
-                    minHeight: '48px', background: '#dbeafe', color: '#1e40af',
-                    border: '1px solid #bfdbfe', borderRadius: '12px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                    fontSize: '13px', fontWeight: '700',
-                    opacity: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
-                    cursor: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <GoogleIcon name="play_arrow" size={16} /> Resume
-                </button>
-              </div>
             </div>
           </div>
         )}

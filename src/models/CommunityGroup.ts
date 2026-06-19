@@ -53,7 +53,7 @@ const CommunityGroupSchema = new Schema<ICommunityGroup>(
     },
     description: { type: String, trim: true },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
-    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
+    department: { type: String, trim: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     members: [GroupMemberSchema],
     pinMessages: [{ type: Schema.Types.ObjectId, ref: 'CommunityMessage' }]

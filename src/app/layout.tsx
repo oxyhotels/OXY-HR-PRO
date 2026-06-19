@@ -130,7 +130,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
         
         {/* Inline theme script */}
-        <script dangerouslySetInnerHTML={{ __html: `try{const t=localStorage.getItem('oxy-theme');if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark')}catch(e){}` }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{const t=localStorage.getItem('oxy-theme');const theme=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';if(theme==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark')}catch(e){}`,
+          }}
+        />
         
         {/* JSON-LD Structured Data */}
         <script

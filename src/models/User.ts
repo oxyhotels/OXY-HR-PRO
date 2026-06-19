@@ -76,7 +76,7 @@ const UserSchema = new Schema<IUser>(
       default: 'EMPLOYEE',
     },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
-    department: { type: String, trim: true, enum: [...DEPARTMENTS, 'Operations'] },
+    department: { type: String, trim: true },
     designation: { type: String, trim: true },
     phone: { type: String, trim: true },
     employeeId: { type: String, trim: true },

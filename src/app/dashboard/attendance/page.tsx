@@ -84,6 +84,23 @@ export default function AttendancePage() {
   const { user } = useAuthStore();
   const userRole = user?.role;
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+
+  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/organization/public-departments');
+        if (res?.data?.departments) {
+          setDepartmentsList(res.data.departments);
+        }
+      } catch (err) {
+        console.error('Failed to load active departments', err);
+      }
+    };
+    fetchDepts();
+  }, []);
+
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('2026-06');
   const [selectedDate, setSelectedDate] = useState('2026-06-08');
@@ -528,7 +545,7 @@ export default function AttendancePage() {
                     className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold cursor-pointer text-xs"
                   >
                     <option value="">All Departments</option>
-                    {DEPARTMENTS.map((dept) => (
+                    {departmentsList.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>

@@ -55,7 +55,7 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
       throw new ApiError(403, 'Only Root Administrators can create departments');
     }
 
-    const { name, organizationId, hotelId, managerId } = req.body;
+    const { name, organizationId, hotelId, managerId, code, description, status } = req.body;
     if (!name || !organizationId) {
       throw new ApiError(400, 'Department name and Organization ID are required');
     }
@@ -65,17 +65,22 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
       throw new ApiError(404, 'Organization not found');
     }
 
+    const finalCode = code || name.replace(/[^A-Za-z0-9]/g, '').substring(0, 4).toUpperCase();
+
     const dept = await Department.create({
       name,
       organization: organizationId,
       hotel: hotelId || undefined,
       manager: managerId || undefined,
+      code: finalCode,
+      description: description || undefined,
+      status: status || 'Active',
     });
 
     await HierarchyAuditLog.create({
       userId: req.user._id,
       action: 'DEPARTMENT_CREATED',
-      details: JSON.stringify({ departmentId: dept._id, name: dept.name, organizationId }),
+      details: JSON.stringify({ departmentId: dept._id, name: dept.name, organizationId, code: finalCode }),
     });
 
     res.status(201).json({
