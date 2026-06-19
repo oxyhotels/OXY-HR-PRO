@@ -116,6 +116,9 @@ export default function TaskMonitoringPage() {
         });
         activeSocket = socketConn;
 
+        // Join Root Admin Room to receive real-time task updates
+        socketConn.emit('join_room', { role: 'ROOT_ADMIN' });
+
         const handleTaskUpdate = (data: { taskId: string; task: Task }) => {
           setTasks(prev => prev.map(t => t._id === data.taskId ? data.task : t));
           if (selectedTask && selectedTask._id === data.taskId) {

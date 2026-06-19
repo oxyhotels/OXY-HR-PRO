@@ -110,6 +110,18 @@ nextApp.prepare().then(async () => {
     // Join user-specific room for notifications
     socket.join(`user_${userId}`);
 
+    // Join room for root admin or specific hotel tasks monitoring
+    socket.on('join_room', (roomData: any) => {
+      if (roomData?.role === 'ROOT_ADMIN') {
+        socket.join('ROOT_ADMIN_ROOM');
+        console.log(`[Socket Room Joined] User: ${userDisplayName} joined ROOT_ADMIN_ROOM`);
+      }
+      if (roomData?.hotelId) {
+        socket.join(`HOTEL_${roomData.hotelId}`);
+        console.log(`[Socket Room Joined] User: ${userDisplayName} joined HOTEL_${roomData.hotelId}`);
+      }
+    });
+
     // Handle joining chat rooms corresponding to specific community groups
     socket.on('join_group', (groupId: string) => {
       socket.join(`group_${groupId}`);

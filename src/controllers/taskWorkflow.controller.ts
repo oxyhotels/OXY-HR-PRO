@@ -679,7 +679,7 @@ export const getTaskMonitoringDashboard = async (req: Request, res: Response, ne
     let filter: any = { isDeleted: { $ne: true } };
     if (req.query.hotelId) {
       filter.hotel = req.query.hotelId;
-    } else {
+    } else if (user.hotel) {
       filter.hotel = user.hotel;
     }
 

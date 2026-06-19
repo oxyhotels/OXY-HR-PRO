@@ -33,6 +33,9 @@ export const initSocket = (server: NetServer) => {
 
 export const getIO = () => {
   if (!io) {
+    io = (global as any).io;
+  }
+  if (!io) {
     console.warn('Socket.io not initialized. Real-time updates skipped.');
     return null;
   }
