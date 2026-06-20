@@ -33,6 +33,13 @@ export default function HotelsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Root Admin password confirmation states
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordConfirmLoading, setPasswordConfirmLoading] = useState(false);
+  const [passwordAction, setPasswordAction] = useState<(() => Promise<void>) | null>(null);
+
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
   const fetchHotels = async () => {
@@ -100,13 +107,38 @@ export default function HotelsPage() {
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure')) return;
+  const handleDelete = (id: string) => {
+    setPasswordAction(() => async () => {
+      try {
+        await api.delete(`/hotels/${id}`);
+        fetchHotels();
+      } catch (err: any) {
+        alert(err.message || 'Delete failed');
+      }
+    });
+    setPasswordValue('');
+    setPasswordError(null);
+    setPasswordModalOpen(true);
+  };
+
+  const handleVerifyPasswordConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordValue) {
+      setPasswordError('Password is required');
+      return;
+    }
+    setPasswordConfirmLoading(true);
+    setPasswordError(null);
     try {
-      await api.delete(`/hotels/${id}`);
-      fetchHotels();
+      await api.post('/auth/verify-password', { password: passwordValue });
+      if (passwordAction) {
+        await passwordAction();
+      }
+      setPasswordModalOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Delete failed');
+      setPasswordError(err.message || 'Incorrect password or verification failed');
+    } finally {
+      setPasswordConfirmLoading(false);
     }
   };
 
@@ -408,6 +440,78 @@ export default function HotelsPage() {
                 {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {editingHotel ? 'Save Changes' : 'Confirm Registration'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Root Admin Password Confirmation Modal */}
+      {passwordModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <ShieldAlert className="text-red-500" size={18} />
+                Delete Protection
+              </h3>
+              <button 
+                onClick={() => setPasswordModalOpen(false)} 
+                className="text-slate-400 hover:text-white"
+                disabled={passwordConfirmLoading}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {passwordError && (
+              <div className="p-3 bg-red-950/40 border border-red-500/30 text-xs text-red-300 rounded-lg">
+                {passwordError}
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyPasswordConfirm} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-2 uppercase tracking-wider">
+                  Enter Root Admin Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 text-white outline-none focus:border-gold"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  disabled={passwordConfirmLoading}
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPasswordModalOpen(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  disabled={passwordConfirmLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordConfirmLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-800/50 text-white py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {passwordConfirmLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      Confirm Delete
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -58,6 +58,12 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const localToday = new Date();
+  const yyyy = localToday.getFullYear();
+  const mm = String(localToday.getMonth() + 1).padStart(2, '0');
+  const dd = String(localToday.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+
   // Form states
   const [formData, setFormData] = useState({
     title: '',
@@ -70,6 +76,8 @@ export default function TasksPage() {
     assignedTo: '',
     assignedDepartments: [] as string[],
     department: '',
+    taskType: 'one_time' as 'daily' | 'recurring' | 'one_time',
+    recurringInterval: 'weekly' as 'weekly' | 'monthly',
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -126,13 +134,36 @@ export default function TasksPage() {
     e.preventDefault();
     setSubmitting(true);
 
+    // Date Validation
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedD = new Date(formData.dueDate);
+    selectedD.setHours(0, 0, 0, 0);
+    if (selectedD < today) {
+      alert('Due Date cannot be in the past');
+      setSubmitting(false);
+      return;
+    }
+
     try {
+      let isRecurring = false;
+      let recurringInterval = undefined;
+      if (formData.taskType === 'daily') {
+        isRecurring = true;
+        recurringInterval = 'daily';
+      } else if (formData.taskType === 'recurring') {
+        isRecurring = true;
+        recurringInterval = formData.recurringInterval || 'weekly';
+      }
+
       const payload: any = {
         ...formData,
+        isRecurring,
+        recurringInterval,
         hotelId: user?.hotel,
       };
 
-      if (formData.assignmentType === 'individual' && formData.assignedTo) {
+      if ((formData.assignmentType === 'individual' || formData.assignmentType === 'name_wise' || formData.assignmentType === 'designation_wise') && formData.assignedTo) {
         payload.assignedTo = formData.assignedTo;
       } else if (formData.assignmentType === 'department_wise' && formData.department) {
         payload.department = formData.department;
@@ -154,6 +185,8 @@ export default function TasksPage() {
         assignedTo: '',
         assignedDepartments: [],
         department: '',
+        taskType: 'one_time',
+        recurringInterval: 'weekly',
       });
       fetchTasks();
     } catch (err: any) {
@@ -396,12 +429,73 @@ export default function TasksPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1.5 text-xs uppercase tracking-wider">Task Type *</label>
+                <select
+                  value={formData.taskType}
+                  onChange={(e) => setFormData({ ...formData, taskType: e.target.value as any })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 cursor-pointer"
+                >
+                  <option value="one_time">One-time Task</option>
+                  <option value="daily">Daily Checklist</option>
+                  <option value="recurring">Recurring Task (Weekly/Monthly)</option>
+                </select>
+                
+                <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-3 rounded-lg space-y-1 border border-slate-100">
+                  {formData.taskType === 'daily' && (
+                    <>
+                      <p className="font-bold text-slate-600 uppercase">Daily Checklist Examples:</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li>Routine checks (e.g., Toilet inspection log)</li>
+                        <li>Shift handovers & daily cleanups</li>
+                        <li>Daily opening/closing checklist</li>
+                      </ul>
+                    </>
+                  )}
+                  {formData.taskType === 'recurring' && (
+                    <>
+                      <p className="font-bold text-slate-600 uppercase">Recurring Task Examples:</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li>Weekly deep cleaning audits (e.g., Kitchen deep clean every Monday)</li>
+                        <li>Monthly machinery & HVAC maintenance</li>
+                        <li>Periodic safety and fire extinguisher inspections</li>
+                      </ul>
+                    </>
+                  )}
+                  {formData.taskType === 'one_time' && (
+                    <>
+                      <p className="font-bold text-slate-600 uppercase">One-time Task Examples:</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li>Isolated repairs (e.g., Fix broken lock in room 204)</li>
+                        <li>Ad-hoc event preparations</li>
+                        <li>Immediate/urgent customer service requests</li>
+                      </ul>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {formData.taskType === 'recurring' && (
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1.5 text-xs uppercase tracking-wider">Recurring Interval *</label>
+                  <select
+                    value={formData.recurringInterval}
+                    onChange={(e) => setFormData({ ...formData, recurringInterval: e.target.value as any })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 cursor-pointer"
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1.5 text-xs uppercase tracking-wider">Due Date *</label>
                   <input
                     type="date"
                     required
+                    min={todayStr}
                     value={formData.dueDate}
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 cursor-pointer"

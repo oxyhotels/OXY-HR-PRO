@@ -10,9 +10,17 @@ import { getIO } from '@/lib/socket'; // ✅ Socket import added
 const normalizeAssignedToIds = (assignedTo: any): string[] => {
   if (!assignedTo) return [];
   if (Array.isArray(assignedTo)) {
-    return assignedTo.map((id) => id?.toString()).filter(Boolean);
+    return assignedTo
+      .map((id) => id?.toString()?.trim())
+      .filter(Boolean)
+      .flatMap((id: string) => (id.includes(',') ? id.split(',').map((s: string) => s.trim()) : [id]))
+      .filter(Boolean);
   }
-  return [assignedTo.toString()];
+  const str = assignedTo.toString().trim();
+  if (str.includes(',')) {
+    return str.split(',').map((s: string) => s.trim()).filter(Boolean);
+  }
+  return [str];
 };
 
 const isAssignedToUser = (task: any, userId: string): boolean => {
@@ -37,7 +45,29 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
 
 export const createTask = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { title, description, assignedTo, priority, dueDate, department } = req.body;
+    const { 
+      title, 
+      description, 
+      assignedTo, 
+      priority, 
+      dueDate, 
+      dueTime,
+      department,
+      isRecurring,
+      recurringInterval
+    } = req.body;
+
+    if (!dueDate) {
+      throw new ApiError(400, 'Due Date is required');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const parsedDueDate = new Date(dueDate);
+    parsedDueDate.setHours(0, 0, 0, 0);
+    if (parsedDueDate < today) {
+      throw new ApiError(400, 'Due Date cannot be in the past');
+    }
 
     let hotelId = req.body.hotelId || req.body.hotel || req.user?.hotel;
     if (req.user?.role === 'ROOT_ADMIN') {
@@ -144,6 +174,22 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       complianceImpact = 100;
     }
 
+    let normalizedInterval: 'Daily' | 'Weekly' | 'None' = 'None';
+    const recurringBool = isRecurring === true || isRecurring === 'true';
+    if (recurringBool) {
+      const lower = (recurringInterval || '').toString().toLowerCase();
+      if (lower === 'daily') {
+        normalizedInterval = 'Daily';
+      } else if (lower === 'weekly') {
+        normalizedInterval = 'Weekly';
+      } else if (lower === 'monthly') {
+        // Fallback or handle monthly if required, otherwise default Daily
+        normalizedInterval = 'Weekly';
+      } else {
+        normalizedInterval = 'Daily';
+      }
+    }
+
     const task = await Task.create({
       title,
       description,
@@ -152,9 +198,12 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       assignedBy: req.user?._id,
       priority,
       dueDate,
+      dueTime: dueTime || undefined,
       status: 'Pending',
       progress: 0,
       department: department || undefined,
+      isRecurring: recurringBool,
+      recurringInterval: normalizedInterval,
       slaDuration,
       businessImpact: { guestSatisfaction, revenueImpact, complianceImpact },
       taskHistory: [{ // ✅ Initial assignment history

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { io } from 'socket.io-client';
 import TaskNotificationPopup from '@/components/TaskNotificationPopup';
+import TaskDeadlineAlert from '@/components/TaskDeadlineAlert';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -544,6 +545,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
           {children}
           <TaskNotificationPopup />
+          <TaskDeadlineAlert />
         </main>
 
         <Footer />

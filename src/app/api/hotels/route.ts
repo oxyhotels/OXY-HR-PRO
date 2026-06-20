@@ -5,5 +5,7 @@ import { restrictTo } from '@/middlewares/role.middleware';
 
 const middlewares = [authMiddleware, restrictTo('ROOT_ADMIN')];
 
-export const GET = adaptRoute(getHotels, { middlewares });
+export const GET = adaptRoute(getHotels, {
+  middlewares: [authMiddleware, restrictTo('ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER')]
+});
 export const POST = adaptRoute(createHotel, { middlewares });

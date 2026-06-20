@@ -5,6 +5,19 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import GoogleIcon from '@/components/GoogleIcon';
 import { useRouter } from 'next/navigation';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
+} from 'recharts';
 
 interface TaskUpdate {
   status: string;
@@ -80,6 +93,11 @@ export default function TaskMonitoringPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [showUpdatesDrawer, setShowUpdatesDrawer] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
@@ -148,6 +166,87 @@ export default function TaskMonitoringPage() {
     };
   }, [selectedTask]);
 
+  const isTaskDue = useCallback((task: Task) => {
+    if (task.status.toLowerCase() === 'completed') return false;
+    if (!task.dueDate) return false;
+    
+    const dueD = new Date(task.dueDate);
+    if (isNaN(dueD.getTime())) return false;
+    
+    let hours = 23;
+    let minutes = 59;
+    
+    if (task.dueTime) {
+      const parts = task.dueTime.split(':');
+      if (parts.length >= 2) {
+        hours = parseInt(parts[0], 10);
+        minutes = parseInt(parts[1], 10);
+      }
+    }
+    
+    const deadline = new Date(dueD.getFullYear(), dueD.getMonth(), dueD.getDate(), hours, minutes, 59, 999);
+    return Date.now() > deadline.getTime();
+  }, []);
+
+  const statusAnalyticsData = React.useMemo(() => {
+    let todo = 0;
+    let inProgress = 0;
+    let hold = 0;
+    let due = 0;
+    let completed = 0;
+
+    tasks.forEach((t) => {
+      const isDue = isTaskDue(t);
+      if (isDue) {
+        due++;
+      } else {
+        const s = t.status.toLowerCase();
+        if (s === 'pending' || s === 'to_do' || s === 'accepted' || s === 'rejected') {
+          todo++;
+        } else if (s === 'in_progress' || s === 'inprogress') {
+          inProgress++;
+        } else if (s === 'on_hold' || s === 'onhold' || s === 'hold') {
+          hold++;
+        } else if (s === 'completed') {
+          completed++;
+        } else {
+          todo++;
+        }
+      }
+    });
+
+    return [
+      { name: 'To Do', value: todo, color: '#94A3B8' },
+      { name: 'In Progress', value: inProgress, color: '#3B82F6' },
+      { name: 'On Hold', value: hold, color: '#F59E0B' },
+      { name: 'Due', value: due, color: '#EF4444' },
+      { name: 'Complete', value: completed, color: '#10B981' },
+    ].filter(d => d.value > 0);
+  }, [tasks, isTaskDue]);
+
+  const priorityAnalyticsData = React.useMemo(() => {
+    let urgent = 0;
+    let high = 0;
+    let medium = 0;
+    let low = 0;
+
+    tasks.forEach((t) => {
+      const p = t.priority;
+      if (p === 'Urgent') urgent++;
+      else if (p === 'High') high++;
+      else if (p === 'Medium') medium++;
+      else if (p === 'Low') low++;
+      else medium++;
+    });
+
+    return [
+      { name: 'Urgent', count: urgent, color: '#EF4444' },
+      { name: 'High', count: high, color: '#F97316' },
+      { name: 'Medium', count: medium, color: '#3B82F6' },
+      { name: 'Low', count: low, color: '#64748B' },
+    ];
+  }, [tasks]);
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'Urgent': return 'bg-red-100 text-red-700 border-red-200';
@@ -158,7 +257,10 @@ export default function TaskMonitoringPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isDue?: boolean) => {
+    if (isDue) {
+      return <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">Due</span>;
+    }
     switch (status) {
       case 'To_Do':
       case 'Accepted':
@@ -177,7 +279,29 @@ export default function TaskMonitoringPage() {
   };
 
   const filteredTasks = tasks.filter(task => {
-    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'due') {
+        if (!isTaskDue(task)) return false;
+      } else {
+        const isDue = isTaskDue(task);
+        if (isDue) return false;
+        
+        const s = task.status.toLowerCase();
+        if (filterStatus === 'To_Do') {
+          if (s !== 'pending' && s !== 'to_do' && s !== 'accepted') return false;
+        } else if (filterStatus === 'In_Progress') {
+          if (s !== 'in_progress' && s !== 'inprogress') return false;
+        } else if (filterStatus === 'On_Hold') {
+          if (s !== 'on_hold' && s !== 'onhold' && s !== 'hold') return false;
+        } else if (filterStatus === 'Completed') {
+          if (s !== 'completed') return false;
+        } else if (filterStatus === 'Rejected') {
+          if (s !== 'rejected') return false;
+        } else if (task.status !== filterStatus) {
+          return false;
+        }
+      }
+    }
     if (searchQuery) {
       const search = searchQuery.toLowerCase();
       return (
@@ -196,29 +320,57 @@ export default function TaskMonitoringPage() {
     let hold = 0;
     let completed = 0;
     let rejected = 0;
+    let due = 0;
 
     tasks.forEach((t) => {
-      const s = t.status.toLowerCase();
-      if (s === 'pending' || s === 'to_do' || s === 'accepted') {
-        todo++;
-      } else if (s === 'in_progress' || s === 'inprogress') {
-        inProgress++;
-      } else if (s === 'on_hold' || s === 'onhold' || s === 'hold') {
-        hold++;
-      } else if (s === 'completed') {
-        completed++;
-      } else if (s === 'rejected') {
-        rejected++;
+      let isDue = false;
+      if (t.status.toLowerCase() !== 'completed' && t.dueDate) {
+        const dueD = new Date(t.dueDate);
+        if (!isNaN(dueD.getTime())) {
+          let hours = 23;
+          let minutes = 59;
+          if (t.dueTime) {
+            const parts = t.dueTime.split(':');
+            if (parts.length >= 2) {
+              hours = parseInt(parts[0], 10);
+              minutes = parseInt(parts[1], 10);
+            }
+          }
+          const deadline = new Date(dueD.getFullYear(), dueD.getMonth(), dueD.getDate(), hours, minutes, 59, 999);
+          isDue = Date.now() > deadline.getTime();
+        }
+      }
+
+      if (isDue) {
+        due++;
       } else {
-        todo++;
+        const s = t.status.toLowerCase();
+        if (s === 'pending' || s === 'to_do' || s === 'accepted') {
+          todo++;
+        } else if (s === 'in_progress' || s === 'inprogress') {
+          inProgress++;
+        } else if (s === 'on_hold' || s === 'onhold' || s === 'hold') {
+          hold++;
+        } else if (s === 'completed') {
+          completed++;
+        } else if (s === 'rejected') {
+          rejected++;
+        } else {
+          todo++;
+        }
       }
     });
 
-    return { total, todo, inProgress, hold, completed, rejected };
+    return { total, todo, inProgress, hold, completed, rejected, due };
   }, [tasks]);
 
   const getTasksForColumn = (column: string) => {
     return filteredTasks.filter((t) => {
+      const isDue = isTaskDue(t);
+      if (isDue) {
+        return column === 'due';
+      }
+      
       const s = t.status.toLowerCase();
       if (column === 'todo') {
         return s === 'pending' || s === 'to_do' || s === 'accepted' || s === 'rejected';
@@ -261,6 +413,7 @@ export default function TaskMonitoringPage() {
             columnTasks.map((task) => {
               const assignee = task.assignedTo && task.assignedTo.length > 0 ? task.assignedTo[0] : null;
               const hasPhoto = task.latestUpdate?.photoUrl || task.evidenceUrl;
+              const isDue = isTaskDue(task);
               return (
                 <div
                   key={task._id}
@@ -268,7 +421,11 @@ export default function TaskMonitoringPage() {
                     setSelectedTask(task);
                     setShowDetailModal(true);
                   }}
-                  className="bg-white border border-slate-200 hover:border-blue-400/60 rounded-xl p-3.5 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-3 relative group"
+                  className={`border rounded-xl p-3.5 shadow-xs transition-all cursor-pointer space-y-3 relative group ${
+                    isDue
+                      ? 'bg-red-50/60 border-red-300 hover:border-red-400 hover:shadow-md'
+                      : 'bg-white border-slate-200 hover:border-blue-400/60 hover:shadow-md'
+                  }`}
                 >
                   {/* Priority & Status Badges */}
                   <div className="flex justify-between items-start">
@@ -276,7 +433,7 @@ export default function TaskMonitoringPage() {
                       <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${getPriorityColor(task.priority)}`}>
                         {task.priority}
                       </span>
-                      {getStatusBadge(task.status)}
+                      {getStatusBadge(task.status, isDue)}
                     </div>
                     <span className="text-[9px] text-slate-400 font-mono font-medium">
                       {task.latestUpdate ? `Updated: ${new Date(task.latestUpdate.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'Created'}
@@ -359,8 +516,8 @@ export default function TaskMonitoringPage() {
     { label: 'To Do', value: localSummary.todo, icon: 'pending', color: 'bg-slate-500' },
     { label: 'In Progress', value: localSummary.inProgress, icon: 'progress_activity', color: 'bg-purple-500' },
     { label: 'On Hold', value: localSummary.hold, icon: 'pause_circle', color: 'bg-yellow-500' },
+    { label: 'Due', value: localSummary.due, icon: 'warning', color: 'bg-red-600' },
     { label: 'Completed', value: localSummary.completed, icon: 'check_circle', color: 'bg-green-500' },
-    { label: 'Rejected', value: localSummary.rejected, icon: 'cancel', color: 'bg-red-500' },
   ];
 
   if (user?.role !== 'ROOT_ADMIN') {
@@ -406,6 +563,94 @@ export default function TaskMonitoringPage() {
         ))}
       </div>
 
+      {/* Analytics Card */}
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <GoogleIcon name="analytics" className="text-blue-600" size={20} />
+          Task Performance & Distribution Analytics
+        </h2>
+        
+        {!isMounted ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
+            <div className="bg-slate-100 rounded-xl h-[260px]" />
+            <div className="bg-slate-100 rounded-xl h-[260px]" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left Side: Donut Chart */}
+            <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex flex-col items-center">
+              <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Task Status Distribution</h3>
+              {tasks.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center min-h-[220px]">
+                  <p className="text-xs text-slate-400 italic">No tasks available</p>
+                </div>
+              ) : (
+                <div className="w-full h-[220px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusAnalyticsData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {statusAnalyticsData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', fontSize: '10px' }}
+                        itemStyle={{ color: '#fff' }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36} 
+                        iconSize={8}
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* Right Side: Priority Breakdown (Bar Chart) */}
+            <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex flex-col items-center">
+              <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Task Priority Breakdown</h3>
+              {tasks.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center min-h-[220px]">
+                  <p className="text-xs text-slate-400 italic">No tasks available</p>
+                </div>
+              ) : (
+                <div className="w-full h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={priorityAnalyticsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
+                      <YAxis stroke="#64748b" fontSize={9} tickLine={false} allowDecimals={false} />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(226, 232, 240, 0.4)' }}
+                        contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', fontSize: '10px' }}
+                        itemStyle={{ color: '#fff' }}
+                      />
+                      <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={35}>
+                        {priorityAnalyticsData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -430,6 +675,7 @@ export default function TaskMonitoringPage() {
             <option value="To_Do">To Do</option>
             <option value="In_Progress">In Progress</option>
             <option value="On_Hold">On Hold</option>
+            <option value="due">Due</option>
             <option value="Completed">Completed</option>
             <option value="Rejected">Rejected</option>
           </select>
@@ -437,11 +683,12 @@ export default function TaskMonitoringPage() {
       </div>
 
       {/* Tasks Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {renderColumn('To Do', 'todo', 'bg-slate-400', 'text-slate-700')}
         {renderColumn('In Progress', 'inProgress', 'bg-blue-500', 'text-white')}
         {renderColumn('Hold', 'hold', 'bg-amber-500', 'text-white')}
-        {renderColumn('Completed', 'completed', 'bg-emerald-500', 'text-white')}
+        {renderColumn('Due', 'due', 'bg-red-500', 'text-white')}
+        {renderColumn('Complete', 'completed', 'bg-emerald-500', 'text-white')}
       </div>
 
       {/* Task Detail Modal */}
@@ -474,7 +721,7 @@ export default function TaskMonitoringPage() {
               </div>
               <div>
                 <span className="text-slate-500 font-semibold block text-[10px] uppercase">Status</span>
-                <div className="mt-1">{getStatusBadge(selectedTask.status)}</div>
+                <div className="mt-1">{getStatusBadge(selectedTask.status, isTaskDue(selectedTask))}</div>
               </div>
               <div>
                 <span className="text-slate-500 font-semibold block text-[10px] uppercase">Progress</span>

@@ -12,12 +12,18 @@ import { ApiError } from '@/utils/ApiError';
 import { createNotification } from '@/services/notification.service';
 import mongoose from 'mongoose';
 
+// Ensure all Mongoose models are loaded to avoid tree-shaking and MissingSchemaErrors on populate
+const registerModels = () => {
+  return [Organization, Department, User, InviteLink, JoinRequest, ReportingStructure, HierarchyAuditLog, Hotel, HierarchyNode];
+};
+
 // ==========================================
 // ORGANIZATION & DEPARTMENT SETUP (ROOT ADMIN)
 // ==========================================
 
 export const createOrganization = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user || req.user.role !== 'ROOT_ADMIN') {
       throw new ApiError(403, 'Only Root Administrators can create organizations');
     }
@@ -51,6 +57,7 @@ export const createOrganization = async (req: Request, res: Response, next: Next
 
 export const createDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user || req.user.role !== 'ROOT_ADMIN') {
       throw new ApiError(403, 'Only Root Administrators can create departments');
     }
@@ -94,6 +101,7 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
 
 export const getOrganizations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     const orgs = await Organization.find().sort({ name: 1 });
     const departments = await Department.find().populate('manager', 'firstName lastName email').sort({ name: 1 });
 
@@ -115,6 +123,7 @@ export const getOrganizations = async (req: Request, res: Response, next: NextFu
 
 export const getOrganizationTree = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     const { departmentId, hotelId, managerId, search } = req.query;
 
     // Fetch all structure documents
@@ -257,6 +266,7 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
 
 export const generateInvite = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
     }
@@ -323,6 +333,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
 
 export const getInviteDetails = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     const { code } = req.params;
     const invite = await InviteLink.findOne({ inviteCode: code })
       .populate('organizationId', 'name code')
@@ -356,6 +367,7 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
 
 export const joinHierarchy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     const { inviteCode, name, email, mobile, employeeId, designation, password } = req.body;
     
     if (!inviteCode || !name || !email || !mobile || !employeeId || !designation || !password) {
@@ -477,6 +489,7 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
 
 export const approveRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
     }
@@ -668,6 +681,7 @@ export const disableInvite = async (req: Request, res: Response, next: NextFunct
 
 export const getPendingRequests = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
     }
@@ -690,6 +704,7 @@ export const getPendingRequests = async (req: Request, res: Response, next: Next
 
 export const getActiveInvites = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
     }
@@ -719,6 +734,7 @@ export const getActiveInvites = async (req: Request, res: Response, next: NextFu
 
 export const getTeamStructure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
     }
@@ -949,3 +965,84 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+export const deleteInvite = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Please authenticate');
+    }
+
+    const { inviteCode } = req.body;
+    if (!inviteCode) {
+      throw new ApiError(400, 'Invite code is required');
+    }
+
+    const invite = await InviteLink.findOne({ inviteCode });
+    if (!invite) {
+      throw new ApiError(404, 'Invite link not found');
+    }
+
+    // Only Root Admin can delete invite links
+    if (req.user.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Permission denied: Only Root Administrators can delete invite links');
+    }
+
+    await InviteLink.deleteOne({ inviteCode });
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: 'INVITE_DELETED',
+      details: JSON.stringify({ inviteCode }),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Invite link deleted successfully from dashboard and database',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleInviteStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Please authenticate');
+    }
+
+    const { inviteCode, status } = req.body;
+    if (!inviteCode || !status) {
+      throw new ApiError(400, 'Invite code and status are required');
+    }
+
+    if (status !== 'Active' && status !== 'Disabled') {
+      throw new ApiError(400, 'Invalid status value');
+    }
+
+    const invite = await InviteLink.findOne({ inviteCode });
+    if (!invite) {
+      throw new ApiError(404, 'Invite link not found');
+    }
+
+    if (req.user.role !== 'ROOT_ADMIN' && invite.managerId.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, 'Permission denied: You do not have permission to manage this invite');
+    }
+
+    invite.status = status;
+    await invite.save();
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: status === 'Active' ? 'INVITE_ENABLED' : 'INVITE_DISABLED',
+      details: JSON.stringify({ inviteCode }),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Invite link status successfully updated to ${status}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

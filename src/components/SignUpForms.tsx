@@ -8,18 +8,265 @@ import { api } from '../lib/api';
 import GoogleIcon from './GoogleIcon';
 import { DEPARTMENTS } from '@/constants/departments';
 
+const TOP_LEVEL_DEPARTMENTS = [
+  "Property Department",
+  "IT Department",
+  "HR Department",
+  "Accounts Department",
+  "Marketing Department",
+  "Purchase Department",
+  "Security Department",
+  "Engineering Department",
+  "Reservation Department",
+  "Admin Department"
+];
+
+const DEPARTMENT_MAP: Record<string, {
+  categories: string[];
+  designations: Record<string, string[]>;
+  showProperty: boolean;
+  categoryLabel?: string;
+}> = {
+  "Property Department": {
+    showProperty: true,
+    categoryLabel: "Operational Category",
+    categories: [
+      "Property Manager",
+      "Front Office",
+      "GRA",
+      "GRE",
+      "Kitchen",
+      "Housekeeping",
+      "F&B Service",
+      "Maintenance",
+      "Security",
+      "Laundry",
+      "Reservation"
+    ],
+    designations: {
+      "Property Manager": ["Property Manager", "Assistant Property Manager", "General Manager"],
+      "Front Office": ["Front Office Executive", "Front Office Associate", "Receptionist", "Front Office Manager"],
+      "GRA": ["Guest Relation Associate", "Guest Relation Specialist"],
+      "GRE": ["Guest Relation Executive", "Guest Relation Supervisor"],
+      "Kitchen": ["Commi I", "Commi II", "Chef de Partie", "Sous Chef", "Executive Chef"],
+      "Housekeeping": ["Housekeeping Executive", "Housekeeping Supervisor", "Housekeeping Attendant"],
+      "F&B Service": ["F&B Service Associate", "F&B Service Executive", "F&B Service Manager"],
+      "Maintenance": ["Maintenance Executive", "Maintenance Engineer", "Maintenance Manager"],
+      "Security": ["Security Guard", "Security Supervisor", "Security Manager"],
+      "Laundry": ["Laundry Attendant", "Laundry Supervisor"],
+      "Reservation": ["Reservation Executive", "Reservation Agent", "Reservation Supervisor"]
+    }
+  },
+  "IT Department": {
+    showProperty: false,
+    categoryLabel: "IT Category",
+    categories: [
+      "Software Development",
+      "Web Development",
+      "App Development",
+      "Digital Marketing",
+      "UI/UX Design",
+      "QA & Testing",
+      "Technical Support",
+      "Network & Security"
+    ],
+    designations: {
+      "Web Development": ["Junior Web Developer", "Web Developer", "Senior Web Developer", "Lead Web Developer"],
+      "App Development": ["Junior App Developer", "App Developer", "Senior App Developer", "Lead App Developer"],
+      "Software Development": ["Junior Software Engineer", "Software Engineer", "Senior Software Engineer", "Technical Lead"],
+      "Digital Marketing": ["Digital Marketing Executive", "SEO Executive", "Social Media Manager", "Digital Marketing Manager"],
+      "UI/UX Design": ["UI/UX Designer", "Senior UI/UX Designer", "UI/UX Lead"],
+      "QA & Testing": ["QA Engineer", "Senior QA Engineer", "QA Lead"],
+      "Technical Support": ["IT Support Executive", "Senior IT Support Executive", "IT Manager"],
+      "Network & Security": ["Network Engineer", "Security Engineer", "Network Manager"]
+    }
+  },
+  "HR Department": {
+    showProperty: false,
+    categoryLabel: "HR Category",
+    categories: [
+      "Recruitment",
+      "Payroll",
+      "Employee Relations",
+      "Training & Development",
+      "HR Operations"
+    ],
+    designations: {
+      "Recruitment": ["Recruiter", "Senior Recruiter", "Recruitment Manager"],
+      "Payroll": ["Payroll Specialist", "Payroll Analyst", "Payroll Manager"],
+      "Employee Relations": ["Employee Relations Officer", "Employee Relations Specialist", "Employee Relations Manager"],
+      "Training & Development": ["Trainer", "Senior Trainer", "Training Manager"],
+      "HR Operations": ["HR Executive", "Senior HR Executive", "HR Manager", "Senior HR Manager", "HR Generalist"]
+    }
+  },
+  "Accounts Department": {
+    showProperty: false,
+    categoryLabel: "Finance & Accounts Category",
+    categories: [
+      "Billing",
+      "Accounts Payable",
+      "Accounts Receivable",
+      "Auditing",
+      "Finance & Tax"
+    ],
+    designations: {
+      "Billing": ["Billing Clerk", "Billing Specialist", "Billing Supervisor"],
+      "Accounts Payable": ["AP Clerk", "AP Specialist", "AP Supervisor"],
+      "Accounts Receivable": ["AR Clerk", "AR Specialist", "AR Supervisor"],
+      "Auditing": ["Internal Auditor", "Senior Auditor", "Audit Manager"],
+      "Finance & Tax": ["Finance Executive", "Financial Analyst", "Tax Executive", "Tax Consultant", "Finance Manager"]
+    }
+  },
+  "Marketing Department": {
+    showProperty: false,
+    categoryLabel: "Marketing Category",
+    categories: ["Digital Marketing", "Brand Management", "Public Relations", "Content Strategy", "Market Research"],
+    designations: {
+      "Digital Marketing": ["SEO Executive", "PPC Specialist", "Digital Marketing Manager"],
+      "Brand Management": ["Brand Associate", "Brand Manager", "Senior Brand Manager"],
+      "Public Relations": ["PR Executive", "PR Manager", "Communications Lead"],
+      "Content Strategy": ["Content Writer", "Copywriter", "Content Manager"],
+      "Market Research": ["Research Analyst", "Market Analyst", "Research Manager"]
+    }
+  },
+  "Purchase Department": {
+    showProperty: false,
+    categoryLabel: "Purchase Category",
+    categories: ["Sourcing", "Inventory Control", "Vendor Management", "Logistics", "Procurement"],
+    designations: {
+      "Sourcing": ["Sourcing Agent", "Sourcing Specialist", "Sourcing Manager"],
+      "Inventory Control": ["Inventory Clerk", "Inventory Controller", "Inventory Manager"],
+      "Vendor Management": ["Vendor Coordinator", "Vendor Relations Manager"],
+      "Logistics": ["Logistics Executive", "Logistics Coordinator", "Logistics Manager"],
+      "Procurement": ["Procurement Officer", "Procurement Specialist", "Procurement Manager"]
+    }
+  },
+  "Security Department": {
+    showProperty: false,
+    categoryLabel: "Security Category",
+    categories: ["Physical Security", "Surveillance", "Loss Prevention", "Emergency Response"],
+    designations: {
+      "Physical Security": ["Security Guard", "Security Supervisor", "Security Inspector"],
+      "Surveillance": ["CCTV Operator", "Surveillance Supervisor"],
+      "Loss Prevention": ["Loss Prevention Officer", "Loss Prevention Manager"],
+      "Emergency Response": ["Safety Officer", "Emergency Coordinator", "Safety Manager"]
+    }
+  },
+  "Engineering Department": {
+    showProperty: false,
+    categoryLabel: "Engineering Category",
+    categories: ["Civil Maintenance", "Electrical", "HVAC", "Plumbing", "General Engineering"],
+    designations: {
+      "Civil Maintenance": ["Mason", "Carpenter", "Civil Supervisor", "Civil Engineer"],
+      "Electrical": ["Electrician", "Senior Electrician", "Electrical Engineer"],
+      "HVAC": ["AC Technician", "HVAC Engineer", "HVAC Manager"],
+      "Plumbing": ["Plumber", "Plumbing Supervisor"],
+      "General Engineering": ["Technician", "Maintenance Engineer", "Chief Engineer"]
+    }
+  },
+  "Reservation Department": {
+    showProperty: false,
+    categoryLabel: "Reservation Category",
+    categories: ["Room Reservations", "Event Booking", "Ticketing", "Customer Relations"],
+    designations: {
+      "Room Reservations": ["Reservation Agent", "Reservation Executive", "Reservation Manager"],
+      "Event Booking": ["Event Coordinator", "Event Booking Executive", "Event Manager"],
+      "Ticketing": ["Ticketing Agent", "Ticketing Executive"],
+      "Customer Relations": ["Customer Care Agent", "CRM Executive", "Guest Relations Executive"]
+    }
+  },
+  "Admin Department": {
+    showProperty: false,
+    categoryLabel: "Admin Category",
+    categories: ["General Administration", "Facilities Management", "Liaison", "Office Support"],
+    designations: {
+      "General Administration": ["Admin Assistant", "Admin Executive", "Admin Manager", "General Manager"],
+      "Facilities Management": ["Facilities Executive", "Facilities Manager"],
+      "Liaison": ["Liaison Officer", "Public Relations Executive"],
+      "Office Support": ["Office Assistant", "Receptionist", "Data Entry Operator"]
+    }
+  }
+};
+
+const getNormalizedDeptKey = (dept: string): string => {
+  if (!dept) return "";
+  const d = dept.toLowerCase().trim();
+  
+  if (d.includes("property department") || d.includes("property operations") || d.includes("property manager") || d.includes("operational manager") || d.includes("f&b manager") || d.includes("front office") || d.includes("gre") || d.includes("gra") || d.includes("housekeeping") || d.includes("maintenance") || d.includes("laundry") || d.includes("kitchen") || d.includes("f&b service")) {
+    return "Property Department";
+  }
+  if (d === "it" || d.includes("it department") || d.includes("information technology") || d.includes("software") || d.includes("technical")) {
+    return "IT Department";
+  }
+  if (d === "hr" || d.includes("human resources") || d.includes("hr department") || d.includes("recruitment")) {
+    return "HR Department";
+  }
+  if (d === "accounts" || d === "finance" || d.includes("accounts department") || d.includes("finance department") || d.includes("billing")) {
+    return "Accounts Department";
+  }
+  if (d.includes("marketing") || d.includes("sales")) {
+    return "Marketing Department";
+  }
+  if (d.includes("purchase") || d.includes("procurement") || d.includes("sourcing")) {
+    return "Purchase Department";
+  }
+  if (d.includes("security")) {
+    return "Security Department";
+  }
+  if (d.includes("engineering") || d.includes("electrical") || d.includes("maintenance")) {
+    return "Engineering Department";
+  }
+  if (d.includes("reservation") || d.includes("ticketing")) {
+    return "Reservation Department";
+  }
+  if (d.includes("admin") || d.includes("compliance") || d.includes("general")) {
+    return "Admin Department";
+  }
+  
+  return "IT Department";
+};
+
+const getCategoriesForDept = (dept: string): string[] => {
+  const key = getNormalizedDeptKey(dept);
+  return DEPARTMENT_MAP[key]?.categories || [];
+};
+
+const getCategoryLabel = (dept: string): string => {
+  const key = getNormalizedDeptKey(dept);
+  return DEPARTMENT_MAP[key]?.categoryLabel || "Category";
+};
+
+const getDesignationsForCategory = (dept: string, category: string): string[] => {
+  if (!dept || !category) return [];
+  const key = getNormalizedDeptKey(dept);
+  const designationsMap = DEPARTMENT_MAP[key]?.designations;
+  if (!designationsMap) return [];
+  return designationsMap[category] || [];
+};
+
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   phone: z.string().min(8, 'Mobile number must be at least 8 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters'),
-  property: z.string().min(1, 'Property selection is required'),
+  property: z.string().optional(),
   department: z.string().min(1, 'Department selection is required'),
+  category: z.string().min(1, 'Category selection is required'),
+  designation: z.string().min(1, 'Designation selection is required'),
   role: z.string().min(1, 'Role selection is required'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
+}).refine((data) => {
+  const normDept = getNormalizedDeptKey(data.department);
+  if (normDept === 'Property Department') {
+    return !!data.property && data.property.length > 0;
+  }
+  return true;
+}, {
+  message: "Property selection is required for Property Department",
+  path: ["property"],
 });
 
 const employeeRegisterSchema = z.object({
@@ -28,8 +275,9 @@ const employeeRegisterSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters'),
-  property: z.string().min(1, 'Property selection is required'),
+  property: z.string().optional(),
   department: z.string().min(1, 'Department selection is required'),
+  category: z.string().min(1, 'Category selection is required'),
   role: z.string().default('EMPLOYEE'),
   employeeId: z.string().min(1, 'Employee ID is required'),
   reportingManager: z.string().min(1, 'Reporting Manager is required'),
@@ -49,6 +297,15 @@ const employeeRegisterSchema = z.object({
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
+}).refine((data) => {
+  const normDept = getNormalizedDeptKey(data.department);
+  if (normDept === 'Property Department') {
+    return !!data.property && data.property.length > 0;
+  }
+  return true;
+}, {
+  message: "Property selection is required for Property Department",
+  path: ["property"],
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -86,7 +343,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     fetchProperties();
   }, []);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>(TOP_LEVEL_DEPARTMENTS);
 
   useEffect(() => {
     const fetchDepts = async () => {
@@ -108,6 +365,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     handleSubmit: handleSubmitSignup,
     formState: { errors: signupErrors },
     reset: resetSignup,
+    watch: watchSignup,
+    setValue: setValueSignup,
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
   });
@@ -118,10 +377,49 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     handleSubmit: handleSubmitEmpSignup,
     formState: { errors: empSignupErrorsRaw },
     reset: resetEmpSignup,
+    watch: watchEmpSignup,
+    setValue: setValueEmpSignup,
   } = useForm<any>({
     resolver: zodResolver(employeeRegisterSchema),
   });
   const empSignupErrors = empSignupErrorsRaw as any;
+
+  // Watchers for dynamic dropdown logic
+  const selectedDeptSignup = watchSignup('department');
+  const selectedCategorySignup = watchSignup('category');
+
+  const selectedDeptEmpSignup = watchEmpSignup('department');
+  const selectedCategoryEmpSignup = watchEmpSignup('category');
+
+  // Clear dependent fields when department changes
+  useEffect(() => {
+    if (selectedDeptSignup) {
+      setValueSignup('category', '');
+      setValueSignup('designation', '');
+    }
+  }, [selectedDeptSignup, setValueSignup]);
+
+  // Clear designation when category changes
+  useEffect(() => {
+    if (selectedCategorySignup) {
+      setValueSignup('designation', '');
+    }
+  }, [selectedCategorySignup, setValueSignup]);
+
+  // Clear dependent fields when department changes (Employee)
+  useEffect(() => {
+    if (selectedDeptEmpSignup) {
+      setValueEmpSignup('category', '');
+      setValueEmpSignup('designation', '');
+    }
+  }, [selectedDeptEmpSignup, setValueEmpSignup]);
+
+  // Clear designation when category changes (Employee)
+  useEffect(() => {
+    if (selectedCategoryEmpSignup) {
+      setValueEmpSignup('designation', '');
+    }
+  }, [selectedCategoryEmpSignup, setValueEmpSignup]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
@@ -324,68 +622,120 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
           <div className="space-y-3">
             <div className="space-y-3">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Property *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Department *</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                    <GoogleIcon name="corporate_fare" size={14} />
+                    <GoogleIcon name="work" size={14} />
                   </span>
                   <select
                     className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
-                    {...registerSignup('property')}
+                    {...registerSignup('department')}
                   >
-                    <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
-                    {properties.map((p) => (
-                      <option key={p._id} value={p._id} className="bg-slate-950 text-white">
-                        {p.name}
+                    <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
+                    {departmentsList.map((dept) => (
+                      <option key={dept} value={dept} className="bg-slate-950 text-white">
+                        {dept}
                       </option>
                     ))}
-                    <option value="other" className="bg-slate-950 text-white">Other</option>
                   </select>
                 </div>
-                {signupErrors.property && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.property.message}</p>}
+                {signupErrors.department && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.department.message}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Conditional Property Dropdown */}
+              {selectedDeptSignup && getNormalizedDeptKey(selectedDeptSignup) === 'Property Department' && (
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Department *</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Property *</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                      <GoogleIcon name="work" size={14} />
+                      <GoogleIcon name="corporate_fare" size={14} />
                     </span>
                     <select
                       className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
-                      {...registerSignup('department')}
+                      {...registerSignup('property')}
                     >
-                      <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
-                      {departmentsList.map((dept) => (
-                        <option key={dept} value={dept} className="bg-slate-950 text-white">
-                          {dept}
+                      <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
+                      {properties.map((p) => (
+                        <option key={p._id} value={p._id} className="bg-slate-950 text-white">
+                          {p.name}
                         </option>
                       ))}
+                      <option value="other" className="bg-slate-950 text-white">Other</option>
                     </select>
                   </div>
-                  {signupErrors.department && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.department.message}</p>}
+                  {signupErrors.property && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.property.message}</p>}
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Role *</label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                      <GoogleIcon name="person" size={14} />
-                    </span>
-                    <select
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
-                      {...registerSignup('role')}
-                    >
-                      <option value="" className="bg-slate-950 text-slate-400">Select Role</option>
-                      <option value="EMPLOYEE" className="bg-slate-950 text-white">Employee</option>
-                      <option value="DEPT_MANAGER" className="bg-slate-950 text-white">Department Manager</option>
-                      <option value="HR_MANAGER" className="bg-slate-950 text-white">HR Manager</option>
-                      <option value="HOTEL_ADMIN" className="bg-slate-950 text-white">Manager</option>
-                    </select>
+              {/* Dependent Category & Designation Dropdowns */}
+              {selectedDeptSignup && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">
+                      {getCategoryLabel(selectedDeptSignup)} *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
+                        <GoogleIcon name="category" size={14} />
+                      </span>
+                      <select
+                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                        {...registerSignup('category')}
+                      >
+                        <option value="" className="bg-slate-950 text-slate-400">
+                          Select {getCategoryLabel(selectedDeptSignup)}
+                        </option>
+                        {getCategoriesForDept(selectedDeptSignup).map((cat) => (
+                          <option key={cat} value={cat} className="bg-slate-950 text-white">
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {signupErrors.category && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.category.message}</p>}
                   </div>
-                  {signupErrors.role && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.role.message}</p>}
+
+                  <div>
+                    <label className="block text-slate-400 font-semibold mb-1">Designation *</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
+                        <GoogleIcon name="badge" size={14} />
+                      </span>
+                      <select
+                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                        {...registerSignup('designation')}
+                      >
+                        <option value="" className="bg-slate-950 text-slate-400">Select Designation</option>
+                        {getDesignationsForCategory(selectedDeptSignup, selectedCategorySignup).map((des) => (
+                          <option key={des} value={des} className="bg-slate-950 text-white">
+                            {des}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {signupErrors.designation && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.designation.message}</p>}
+                  </div>
                 </div>
+              )}
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Role *</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
+                    <GoogleIcon name="person" size={14} />
+                  </span>
+                  <select
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    {...registerSignup('role')}
+                  >
+                    <option value="" className="bg-slate-950 text-slate-400">Select Role</option>
+                    <option value="EMPLOYEE" className="bg-slate-950 text-white">Employee</option>
+                    <option value="DEPT_MANAGER" className="bg-slate-950 text-white">Department Manager</option>
+                    <option value="HR_MANAGER" className="bg-slate-950 text-white">HR Manager</option>
+                    <option value="HOTEL_ADMIN" className="bg-slate-950 text-white">Manager</option>
+                  </select>
+                </div>
+                {signupErrors.role && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.role.message}</p>}
               </div>
             </div>
           </div>
@@ -492,55 +842,82 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
           <div className="space-y-3 pt-2">
             <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Job & Hotel Scoping</h5>
             
-            {/* Property Section */}
+            {/* Department Section */}
             <div>
-              <label className="block text-slate-400 mb-1">Property Selection *</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
-                  <GoogleIcon name="corporate_fare" size={14} />
-                </span>
-                <select
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
-                  {...registerEmpSignup('property')}
-                >
-                  <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
-                  {properties.map((p) => (
-                    <option key={p._id} value={p._id} className="bg-slate-950 text-white">
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {empSignupErrors.property?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.property.message}</p>}
+              <label className="block text-slate-400 mb-1">Department *</label>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                {...registerEmpSignup('department')}
+              >
+                <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
+                {departmentsList.map((dept) => (
+                  <option key={dept} value={dept} className="bg-slate-950 text-white">
+                    {dept}
+                  </option>
+                ))}
+              </select>
+              {empSignupErrors.department?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.department.message}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Conditional Property Dropdown */}
+            {selectedDeptEmpSignup && getNormalizedDeptKey(selectedDeptEmpSignup) === 'Property Department' && (
               <div>
-                <label className="block text-slate-400 mb-1">Department *</label>
-                <select
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
-                  {...registerEmpSignup('department')}
-                >
-                  <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
-                  {departmentsList.map((dept) => (
-                    <option key={dept} value={dept} className="bg-slate-950 text-white">
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-                {empSignupErrors.department?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.department.message}</p>}
+                <label className="block text-slate-400 mb-1">Property Selection *</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
+                    <GoogleIcon name="corporate_fare" size={14} />
+                  </span>
+                  <select
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    {...registerEmpSignup('property')}
+                  >
+                    <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
+                    {properties.map((p) => (
+                      <option key={p._id} value={p._id} className="bg-slate-950 text-white">
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {empSignupErrors.property?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.property.message}</p>}
               </div>
-              <div>
-                <label className="block text-slate-400 mb-1">Designation *</label>
-                <input
-                  type="text"
-                  placeholder="Receptionist"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                  {...registerEmpSignup('designation')}
-                />
-                {empSignupErrors.designation?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.designation.message}</p>}
+            )}
+
+            {/* Dependent Category & Designation Dropdowns */}
+            {selectedDeptEmpSignup && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1">{getCategoryLabel(selectedDeptEmpSignup)} *</label>
+                  <select
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    {...registerEmpSignup('category')}
+                  >
+                    <option value="" className="bg-slate-950 text-slate-400">Select {getCategoryLabel(selectedDeptEmpSignup)}</option>
+                    {getCategoriesForDept(selectedDeptEmpSignup).map((cat) => (
+                      <option key={cat} value={cat} className="bg-slate-950 text-white">
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                  {empSignupErrors.category?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.category.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Designation *</label>
+                  <select
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    {...registerEmpSignup('designation')}
+                  >
+                    <option value="" className="bg-slate-950 text-slate-400">Select Designation</option>
+                    {getDesignationsForCategory(selectedDeptEmpSignup, selectedCategoryEmpSignup).map((des) => (
+                      <option key={des} value={des} className="bg-slate-950 text-white">
+                        {des}
+                      </option>
+                    ))}
+                  </select>
+                  {empSignupErrors.designation?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.designation.message}</p>}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

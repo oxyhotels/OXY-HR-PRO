@@ -13,6 +13,7 @@ export interface IUser extends Document {
   role: UserRole;
   hotel?: Schema.Types.ObjectId; // Empty for ROOT_ADMIN
   department?: string; // e.g. Front Office, Housekeeping, Kitchen, F&B, HR, IT
+  category?: string; // e.g. IT Support, Recruitment, etc.
   designation?: string;
   phone?: string;
   employeeId?: string;
@@ -77,6 +78,7 @@ const UserSchema = new Schema<IUser>(
     },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
     department: { type: String, trim: true },
+    category: { type: String, trim: true },
     designation: { type: String, trim: true },
     phone: { type: String, trim: true },
     employeeId: { type: String, trim: true },

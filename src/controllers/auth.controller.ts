@@ -341,6 +341,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       password, 
       property, 
       department, 
+      category, 
       role,
       employeeId,
       reportingManager,
@@ -366,35 +367,37 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       throw new ApiError(400, 'User email already exists');
     }
 
-    // Verify property/hotel
+    // Verify property/hotel (optional for non-Property-Operations departments)
     let hotel;
-    if (property === 'other') {
-      hotel = await Hotel.findOne({ hotelCode: 'OTHER' });
-      if (!hotel) {
-        // Create the "Other" hotel dynamically
-        hotel = await Hotel.create({
-          name: 'Other',
-          hotelCode: 'OTHER',
-          email: 'other@oxyhr.com',
-          phone: '000-000-0000',
-          address: {
-            street: 'Main Street',
-            city: 'City',
-            state: 'State',
-            zip: '00000',
-            country: 'Country'
-          },
-          status: 'Active',
-          subscriptionPlan: 'Standard'
-        });
-      }
-    } else {
-      if (!mongoose.Types.ObjectId.isValid(property)) {
-        throw new ApiError(400, 'Invalid property ID format');
-      }
-      hotel = await Hotel.findById(property);
-      if (!hotel) {
-        throw new ApiError(400, 'Selected property does not exist');
+    if (property) {
+      if (property === 'other') {
+        hotel = await Hotel.findOne({ hotelCode: 'OTHER' });
+        if (!hotel) {
+          // Create the "Other" hotel dynamically
+          hotel = await Hotel.create({
+            name: 'Other',
+            hotelCode: 'OTHER',
+            email: 'other@oxyhr.com',
+            phone: '000-000-0000',
+            address: {
+              street: 'Main Street',
+              city: 'City',
+              state: 'State',
+              zip: '00000',
+              country: 'Country'
+            },
+            status: 'Active',
+            subscriptionPlan: 'Standard'
+          });
+        }
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(property)) {
+          throw new ApiError(400, 'Invalid property ID format');
+        }
+        hotel = await Hotel.findById(property);
+        if (!hotel) {
+          throw new ApiError(400, 'Selected property does not exist');
+        }
       }
     }
 
@@ -417,8 +420,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       password,
       role,
       department,
+      category,
       phone,
-      hotel: hotel._id,
+      hotel: hotel?._id,
       status: 'Pending',
       joinedDate: joiningDate ? new Date(joiningDate) : new Date(),
       employeeId,
@@ -462,6 +466,35 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     res.status(201).json({
       status: 'success',
       message: 'Your registration request has been submitted successfully and is pending approval by the Administrator.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      throw new ApiError(400, 'Password is required');
+    }
+    if (req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: Root Admin privileges required');
+    }
+    
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      throw new ApiError(404, 'User not found');
+    }
+    
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      throw new ApiError(401, 'Incorrect password');
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Password verified successfully'
     });
   } catch (error) {
     next(error);
