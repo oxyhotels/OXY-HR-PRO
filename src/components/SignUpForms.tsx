@@ -330,6 +330,221 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
   const [empBankFile, setEmpBankFile] = useState<string | null>(null);
   const [empResumeFile, setEmpResumeFile] = useState<string | null>(null);
 
+  // Manager doc uploads states
+  const [mgrAadhaarFile, setMgrAadhaarFile] = useState<string | null>(null);
+  const [mgrPanFile, setMgrPanFile] = useState<string | null>(null);
+  const [mgrBankFile, setMgrBankFile] = useState<string | null>(null);
+  const [mgrResumeFile, setMgrResumeFile] = useState<string | null>(null);
+
+  // Home Location states
+  const [homeAddress, setHomeAddress] = useState('');
+  const [homeState, setHomeState] = useState('');
+  const [homeDistrict, setHomeDistrict] = useState('');
+  const [homeCity, setHomeCity] = useState('');
+  const [homePincode, setHomePincode] = useState('');
+  const [homeLatitude, setHomeLatitude] = useState<number | null>(null);
+  const [homeLongitude, setHomeLongitude] = useState<number | null>(null);
+  const [locationVerified, setLocationVerified] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
+
+  // Leaflet states
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const [L, setL] = useState<any>(null);
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [markerInstance, setMarkerInstance] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('leaflet').then((leaflet) => {
+        setL(leaflet);
+        setLeafletLoaded(true);
+      });
+      // Load leaflet CSS
+      if (!document.getElementById('leaflet-css-signup')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css-signup';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+    }
+  }, []);
+
+  // Clear location data on tab change to prevent leakage
+  useEffect(() => {
+    setHomeAddress('');
+    setHomeState('');
+    setHomeDistrict('');
+    setHomeCity('');
+    setHomePincode('');
+    setHomeLatitude(null);
+    setHomeLongitude(null);
+    setLocationVerified(false);
+    setConsentChecked(false);
+  }, [signupType]);
+
+  // Leaflet Map Initialization
+  useEffect(() => {
+    if (!leafletLoaded || !L) return;
+
+    const mapId = signupType === 'manager' ? 'map-manager' : 'map-employee';
+    const mapEl = document.getElementById(mapId);
+    if (!mapEl) return;
+
+    // Reset default icon path
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
+
+    const initialLat = homeLatitude || 20.5937; // Default to India center
+    const initialLng = homeLongitude || 78.9629;
+    const initialZoom = homeLatitude ? 15 : 5;
+
+    const map = L.map(mapId).setView([initialLat, initialLng], initialZoom);
+    setMapInstance(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker: any = null;
+    if (homeLatitude && homeLongitude) {
+      marker = L.marker([homeLatitude, homeLongitude]).addTo(map);
+      setMarkerInstance(marker);
+    }
+
+    // Click on map to select location (Method B)
+    map.on('click', async (e: any) => {
+      const { lat, lng } = e.latlng;
+      setHomeLatitude(lat);
+      setHomeLongitude(lng);
+
+      if (marker) {
+        marker.setLatLng(e.latlng);
+      } else {
+        const newMarker = L.marker(e.latlng).addTo(map);
+        marker = newMarker;
+        setMarkerInstance(newMarker);
+      }
+      map.setView(e.latlng, 15);
+
+      // Call Reverse Geocoding
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        if (data && data.address) {
+          const addr = data.address;
+          setHomeAddress(data.display_name || '');
+          setHomeState(addr.state || '');
+          setHomeDistrict(addr.county || addr.district || addr.state_district || '');
+          setHomeCity(addr.city || addr.town || addr.village || addr.suburb || '');
+          setHomePincode(addr.postcode || '');
+          setLocationVerified(true);
+        }
+      } catch (err) {
+        console.error('Reverse geocoding error:', err);
+      }
+    });
+
+    return () => {
+      map.remove();
+      setMapInstance(null);
+      setMarkerInstance(null);
+    };
+  }, [leafletLoaded, L, signupType]);
+
+  const handleGeocodeAddress = async () => {
+    if (!homeAddress && !homeCity && !homeState) {
+      alert('Please fill at least the Address, City, and State fields to search.');
+      return;
+    }
+    const queryStr = `${homeAddress} ${homeCity} ${homeState} ${homePincode}`.trim();
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(queryStr)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const first = data[0];
+        const lat = parseFloat(first.lat);
+        const lng = parseFloat(first.lon);
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
+
+        const addr = first.address || {};
+        setHomeState(addr.state || homeState || '');
+        setHomeDistrict(addr.county || addr.district || addr.state_district || homeDistrict || '');
+        setHomeCity(addr.city || addr.town || addr.village || addr.suburb || homeCity || '');
+        setHomePincode(addr.postcode || homePincode || '');
+        if (first.display_name) {
+          setHomeAddress(first.display_name);
+        }
+
+        setLocationVerified(true);
+
+        if (mapInstance) {
+          mapInstance.setView([lat, lng], 15);
+          if (markerInstance) {
+            markerInstance.setLatLng([lat, lng]);
+          } else {
+            const newMarker = L.marker([lat, lng]).addTo(mapInstance);
+            setMarkerInstance(newMarker);
+          }
+        }
+      } else {
+        alert('Could not find location. Please check the address details.');
+      }
+    } catch (err) {
+      console.error('Geocoding error:', err);
+      alert('Failed to search address. Please try again.');
+    }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setHomeLatitude(latitude);
+        setHomeLongitude(longitude);
+
+        if (mapInstance) {
+          mapInstance.setView([latitude, longitude], 15);
+          if (markerInstance) {
+            markerInstance.setLatLng([latitude, longitude]);
+          } else {
+            const newMarker = L.marker([latitude, longitude]).addTo(mapInstance);
+            setMarkerInstance(newMarker);
+          }
+        }
+
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await res.json();
+          if (data && data.address) {
+            const addr = data.address;
+            setHomeAddress(data.display_name || '');
+            setHomeState(addr.state || '');
+            setHomeDistrict(addr.county || addr.district || addr.state_district || '');
+            setHomeCity(addr.city || addr.town || addr.village || addr.suburb || '');
+            setHomePincode(addr.postcode || '');
+            setLocationVerified(true);
+          }
+        } catch (err) {
+          console.error('Reverse geocoding error:', err);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        alert('Permission denied or failed to retrieve GPS coordinates.');
+      }
+    );
+  };
+
   // Fetch properties only when SignUpForms is mounted (lazy loaded!)
   useEffect(() => {
     const fetchProperties = async () => {
@@ -369,6 +584,18 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     setValue: setValueSignup,
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    defaultValues: {
+      fullName: '',
+      phone: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      property: '',
+      department: '',
+      category: '',
+      designation: '',
+      role: '',
+    },
   });
 
   // Employee Sign Up Form Hook
@@ -381,15 +608,41 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     setValue: setValueEmpSignup,
   } = useForm<any>({
     resolver: zodResolver(employeeRegisterSchema),
+    defaultValues: {
+      fullName: '',
+      phone: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      property: '',
+      department: '',
+      category: '',
+      designation: '',
+      role: 'EMPLOYEE',
+      employeeId: '',
+      reportingManager: '',
+      employmentType: '',
+      salary: '',
+      address: '',
+      aadhaarNumber: '',
+      panNumber: '',
+      bankName: '',
+      accountNo: '',
+      ifsc: '',
+      emergencyContactName: '',
+      emergencyContactRelation: '',
+      emergencyContactPhone: '',
+      joiningDate: '',
+    },
   });
   const empSignupErrors = empSignupErrorsRaw as any;
 
-  // Watchers for dynamic dropdown logic
-  const selectedDeptSignup = watchSignup('department');
-  const selectedCategorySignup = watchSignup('category');
+  // Watchers for dynamic dropdown logic — default to '' to prevent undefined flowing into helpers
+  const selectedDeptSignup = watchSignup('department') ?? '';
+  const selectedCategorySignup = watchSignup('category') ?? '';
 
-  const selectedDeptEmpSignup = watchEmpSignup('department');
-  const selectedCategoryEmpSignup = watchEmpSignup('category');
+  const selectedDeptEmpSignup = watchEmpSignup('department') ?? '';
+  const selectedCategoryEmpSignup = watchEmpSignup('category') ?? '';
 
   // Clear dependent fields when department changes
   useEffect(() => {
@@ -434,9 +687,72 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
   const onRegisterSubmit = async (values: RegisterFormValues) => {
     setLoading(true);
     setErrorMsg(null);
+
+    if (!homeAddress || !homeState || !homeDistrict || !homeCity || !homePincode) {
+      setErrorMsg('Please fill in all home location address fields (Address, State, District, City, Pincode).');
+      setLoading(false);
+      return;
+    }
+    if (!homeLatitude || !homeLongitude || !locationVerified) {
+      setErrorMsg('Please pin/verify your location on the map.');
+      setLoading(false);
+      return;
+    }
+    if (!consentChecked) {
+      setErrorMsg('You must check the consent box to proceed with registration.');
+      setLoading(false);
+      return;
+    }
+
+    // Construct documents payload
+    const documents = [];
+    if (mgrAadhaarFile) {
+      documents.push({ name: 'Aadhaar Card', fileUrl: mgrAadhaarFile, uploadedAt: new Date().toISOString() });
+    }
+    if (mgrPanFile) {
+      documents.push({ name: 'PAN Card', fileUrl: mgrPanFile, uploadedAt: new Date().toISOString() });
+    }
+    if (mgrBankFile) {
+      documents.push({ name: 'Bank Document', fileUrl: mgrBankFile, uploadedAt: new Date().toISOString() });
+    }
+    if (mgrResumeFile) {
+      documents.push({ name: 'Resume', fileUrl: mgrResumeFile, uploadedAt: new Date().toISOString() });
+    }
+
+    const homeLocation = {
+      address: homeAddress,
+      latitude: homeLatitude,
+      longitude: homeLongitude,
+      state: homeState,
+      district: homeDistrict,
+      city: homeCity,
+      pincode: homePincode,
+      locationVerified: locationVerified,
+      verifiedAt: new Date().toISOString()
+    };
+
+    const payload = {
+      ...values,
+      documents,
+      homeLocation
+    };
+
     try {
-      await api.post('/auth/register', values);
+      await api.post('/auth/register', payload);
       resetSignup();
+      setMgrAadhaarFile(null);
+      setMgrPanFile(null);
+      setMgrBankFile(null);
+      setMgrResumeFile(null);
+      setHomeAddress('');
+      setHomeState('');
+      setHomeDistrict('');
+      setHomeCity('');
+      setHomePincode('');
+      setHomeLatitude(null);
+      setHomeLongitude(null);
+      setLocationVerified(false);
+      setConsentChecked(false);
       onRegisterSuccess();
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
@@ -448,6 +764,22 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
   const onEmployeeRegisterSubmit = async (values: any) => {
     setLoading(true);
     setErrorMsg(null);
+
+    if (!homeAddress || !homeState || !homeDistrict || !homeCity || !homePincode) {
+      setErrorMsg('Please fill in all home location address fields (Address, State, District, City, Pincode).');
+      setLoading(false);
+      return;
+    }
+    if (!homeLatitude || !homeLongitude || !locationVerified) {
+      setErrorMsg('Please pin/verify your location on the map.');
+      setLoading(false);
+      return;
+    }
+    if (!consentChecked) {
+      setErrorMsg('You must check the consent box to proceed with registration.');
+      setLoading(false);
+      return;
+    }
     
     // Construct documents payload
     const documents = [];
@@ -464,10 +796,23 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       documents.push({ name: 'Resume', fileUrl: empResumeFile, uploadedAt: new Date().toISOString() });
     }
 
+    const homeLocation = {
+      address: homeAddress,
+      latitude: homeLatitude,
+      longitude: homeLongitude,
+      state: homeState,
+      district: homeDistrict,
+      city: homeCity,
+      pincode: homePincode,
+      locationVerified: locationVerified,
+      verifiedAt: new Date().toISOString()
+    };
+
     const payload = {
       ...values,
       role: 'EMPLOYEE', // Hardcoded for self-signing employees
-      documents
+      documents,
+      homeLocation
     };
 
     try {
@@ -477,6 +822,15 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       setEmpPanFile(null);
       setEmpBankFile(null);
       setEmpResumeFile(null);
+      setHomeAddress('');
+      setHomeState('');
+      setHomeDistrict('');
+      setHomeCity('');
+      setHomePincode('');
+      setHomeLatitude(null);
+      setHomeLongitude(null);
+      setLocationVerified(false);
+      setConsentChecked(false);
       onRegisterSuccess();
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
@@ -522,7 +876,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       )}
 
       {signupType === 'manager' ? (
-        <form onSubmit={handleSubmitSignup(onRegisterSubmit)} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmitSignup(onRegisterSubmit)} className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-400 font-semibold mb-1">Full Name *</label>
@@ -533,7 +887,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type="text"
                   placeholder="John Doe"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold"
+                  style={{ paddingLeft: '40px' }}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold input-with-icon-left"
                   {...registerSignup('fullName')}
                 />
               </div>
@@ -548,7 +903,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type="text"
                   placeholder="9876543210"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold"
+                  style={{ paddingLeft: '40px' }}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold input-with-icon-left"
                   {...registerSignup('phone')}
                 />
               </div>
@@ -565,7 +921,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
               <input
                 type="email"
                 placeholder="john@hotel.com"
-                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold"
+                style={{ paddingLeft: '40px' }}
+                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold input-with-icon-left"
                 {...registerSignup('email')}
               />
             </div>
@@ -582,7 +939,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type={showRegisterPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-10 text-white focus:outline-none focus:border-gold"
+                  style={{ paddingLeft: '40px' }}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-10 text-white focus:outline-none focus:border-gold input-with-icon-left"
                   {...registerSignup('password')}
                 />
                 <button
@@ -604,7 +962,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-10 text-white focus:outline-none focus:border-gold"
+                  style={{ paddingLeft: '40px' }}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-10 text-white focus:outline-none focus:border-gold input-with-icon-left"
                   {...registerSignup('confirmPassword')}
                 />
                 <button
@@ -628,7 +987,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                     <GoogleIcon name="work" size={14} />
                   </span>
                   <select
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    style={{ paddingLeft: '40px' }}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                     {...registerSignup('department')}
                   >
                     <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
@@ -651,7 +1011,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                       <GoogleIcon name="corporate_fare" size={14} />
                     </span>
                     <select
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                      style={{ paddingLeft: '40px' }}
+                      className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                       {...registerSignup('property')}
                     >
                       <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
@@ -679,7 +1040,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                         <GoogleIcon name="category" size={14} />
                       </span>
                       <select
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                        style={{ paddingLeft: '40px' }}
+                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                         {...registerSignup('category')}
                       >
                         <option value="" className="bg-slate-950 text-slate-400">
@@ -702,7 +1064,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                         <GoogleIcon name="badge" size={14} />
                       </span>
                       <select
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                        style={{ paddingLeft: '40px' }}
+                        className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                         {...registerSignup('designation')}
                       >
                         <option value="" className="bg-slate-950 text-slate-400">Select Designation</option>
@@ -725,7 +1088,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                     <GoogleIcon name="person" size={14} />
                   </span>
                   <select
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    style={{ paddingLeft: '40px' }}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                     {...registerSignup('role')}
                   >
                     <option value="" className="bg-slate-950 text-slate-400">Select Role</option>
@@ -737,6 +1101,169 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 </div>
                 {signupErrors.role && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.role.message}</p>}
               </div>
+            </div>
+          </div>
+
+          {/* Documents Repository */}
+          <div className="space-y-3 pt-2 border-t border-slate-800/60 mt-4">
+            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Documents Repository</h5>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 text-[10px]">Aadhaar Card Document</label>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => handleFileChange(e, setMgrAadhaarFile)}
+                  className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
+                />
+                {mgrAadhaarFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Aadhaar Loaded</div>}
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 text-[10px]">PAN Card Document</label>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => handleFileChange(e, setMgrPanFile)}
+                  className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
+                />
+                {mgrPanFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ PAN Loaded</div>}
+              </div>
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-1 text-[10px]">Cancelled Cheque / Bank Doc</label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => handleFileChange(e, setMgrBankFile)}
+                className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
+              />
+              {mgrBankFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Document Loaded</div>}
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-1 text-[10px]">Resume (PDF format only, optional)</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => handleFileChange(e, setMgrResumeFile)}
+                className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
+              />
+              {mgrResumeFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Resume Loaded</div>}
+            </div>
+          </div>
+
+          {/* Home Location Registration */}
+          <div className="space-y-4 pt-4 border-t border-slate-800/60 mt-4">
+            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
+                <textarea
+                  rows={2}
+                  placeholder="House No, Street Name, Locality"
+                  value={homeAddress}
+                  onChange={(e) => setHomeAddress(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">State *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jharkhand"
+                  value={homeState}
+                  onChange={(e) => setHomeState(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">District *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ranchi"
+                  value={homeDistrict}
+                  onChange={(e) => setHomeDistrict(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">City *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ranchi"
+                  value={homeCity}
+                  onChange={(e) => setHomeCity(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Pincode *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 834001"
+                  value={homePincode}
+                  onChange={(e) => setHomePincode(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleGeocodeAddress}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-gold font-semibold rounded text-[10px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="search" size={12} />
+                Search Location on Map
+              </button>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-gold font-semibold rounded text-[10px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="my_location" size={12} />
+                Use Current Location
+              </button>
+            </div>
+
+            {/* Leaflet Map Preview Container */}
+            <div className="space-y-2">
+              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview *</label>
+              <div 
+                id="map-manager" 
+                className="w-full h-[180px] rounded-lg border border-slate-800 z-10 bg-slate-950/40" 
+              />
+              <p className="text-[9px] text-slate-500 italic">
+                * You can type address details and click "Search Location on Map", click directly on map to pin, or use your GPS location.
+              </p>
+            </div>
+
+            {/* Coordinates & Verification Banner */}
+            {homeLatitude && homeLongitude && (
+              <div className="flex items-center justify-between bg-slate-950/40 border border-slate-800 rounded p-2 text-[10px] text-slate-350">
+                <span className="font-mono">Coordinates: {homeLatitude.toFixed(6)}, {homeLongitude.toFixed(6)}</span>
+                {locationVerified && (
+                  <span className="text-green-400 font-bold flex items-center gap-0.5 animate-pulse">
+                    <GoogleIcon name="check_circle" size={12} />
+                    ✔ Location Verified
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Consent Checkbox */}
+            <div className="flex items-start gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="consent-manager"
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                className="mt-0.5 cursor-pointer accent-gold h-4 w-4"
+              />
+              <label htmlFor="consent-manager" className="text-[10px] text-slate-400 cursor-pointer select-none leading-normal">
+                I consent to storing my home address and location for HR and employment records.
+              </label>
             </div>
           </div>
 
@@ -868,7 +1395,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                     <GoogleIcon name="corporate_fare" size={14} />
                   </span>
                   <select
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                    style={{ paddingLeft: '40px' }}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
                     {...registerEmpSignup('property')}
                   >
                     <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
@@ -1119,6 +1647,122 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-gold hover:file:bg-slate-700 cursor-pointer"
               />
               {empResumeFile && <div className="text-green-400 text-[9px] mt-1 font-semibold">✓ Resume Loaded</div>}
+            </div>
+          </div>
+
+          {/* Home Location Registration */}
+          <div className="space-y-4 pt-4 border-t border-slate-800/60 mt-4">
+            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
+                <textarea
+                  rows={2}
+                  placeholder="House No, Street Name, Locality"
+                  value={homeAddress}
+                  onChange={(e) => setHomeAddress(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">State *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jharkhand"
+                  value={homeState}
+                  onChange={(e) => setHomeState(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">District *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ranchi"
+                  value={homeDistrict}
+                  onChange={(e) => setHomeDistrict(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">City *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Ranchi"
+                  value={homeCity}
+                  onChange={(e) => setHomeCity(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Pincode *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 834001"
+                  value={homePincode}
+                  onChange={(e) => setHomePincode(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleGeocodeAddress}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-gold font-semibold rounded text-[10px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="search" size={12} />
+                Search Location on Map
+              </button>
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-gold font-semibold rounded text-[10px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="my_location" size={12} />
+                Use Current Location
+              </button>
+            </div>
+
+            {/* Leaflet Map Preview Container */}
+            <div className="space-y-2">
+              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview *</label>
+              <div 
+                id="map-employee" 
+                className="w-full h-[180px] rounded-lg border border-slate-800 z-10 bg-slate-950/40" 
+              />
+              <p className="text-[9px] text-slate-500 italic">
+                * You can type address details and click "Search Location on Map", click directly on map to pin, or use your GPS location.
+              </p>
+            </div>
+
+            {/* Coordinates & Verification Banner */}
+            {homeLatitude && homeLongitude && (
+              <div className="flex items-center justify-between bg-slate-950/40 border border-slate-800 rounded p-2 text-[10px] text-slate-350">
+                <span className="font-mono">Coordinates: {homeLatitude.toFixed(6)}, {homeLongitude.toFixed(6)}</span>
+                {locationVerified && (
+                  <span className="text-green-400 font-bold flex items-center gap-0.5 animate-pulse">
+                    <GoogleIcon name="check_circle" size={12} />
+                    ✔ Location Verified
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Consent Checkbox */}
+            <div className="flex items-start gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="consent-employee"
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                className="mt-0.5 cursor-pointer accent-gold h-4 w-4"
+              />
+              <label htmlFor="consent-employee" className="text-[10px] text-slate-400 cursor-pointer select-none leading-normal">
+                I consent to storing my home address and location for HR and employment records.
+              </label>
             </div>
           </div>
 

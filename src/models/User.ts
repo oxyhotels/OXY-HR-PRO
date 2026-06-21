@@ -53,6 +53,17 @@ export interface IUser extends Document {
     fileUrl: string;
     uploadedAt: Date;
   }[];
+  homeLocation?: {
+    address: string;
+    latitude: number;
+    longitude: number;
+    state: string;
+    district: string;
+    city: string;
+    pincode: string;
+    locationVerified: boolean;
+    verifiedAt?: Date;
+  };
   // Gamification & Operational Tracking
   xp?: number;
   level?: number;
@@ -134,6 +145,17 @@ const UserSchema = new Schema<IUser>(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
+    homeLocation: {
+      address: { type: String },
+      latitude: { type: Number },
+      longitude: { type: Number },
+      state: { type: String },
+      district: { type: String },
+      city: { type: String },
+      pincode: { type: String },
+      locationVerified: { type: Boolean, default: false },
+      verifiedAt: { type: Date }
+    },
     // Advanced Execution Metrics
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },

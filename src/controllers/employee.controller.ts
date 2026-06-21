@@ -32,7 +32,8 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       panNumber,
       emergencyContact,
       documents,
-      shift
+      shift,
+      homeLocation
     } = req.body;
 
     // Check if email taken
@@ -75,6 +76,7 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       status,
       documents: documents || [],
       shift,
+      homeLocation,
     });
 
     if (req.user) {
@@ -131,6 +133,10 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
     }
+    // Only ROOT_ADMIN and HR_MANAGER can see homeLocation
+    if (req.user?.role !== 'ROOT_ADMIN' && req.user?.role !== 'HR_MANAGER') {
+      query = query.select('-homeLocation');
+    }
     const employees = await query;
 
     res.status(200).json({
@@ -148,6 +154,10 @@ export const getEmployeeById = async (req: Request, res: Response, next: NextFun
     let query = User.findById(req.params.id).populate('hotel', 'name hotelCode');
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
+    }
+    // Only ROOT_ADMIN and HR_MANAGER can see homeLocation
+    if (req.user?.role !== 'ROOT_ADMIN' && req.user?.role !== 'HR_MANAGER') {
+      query = query.select('-homeLocation');
     }
     const employee = await query;
     if (!employee) {

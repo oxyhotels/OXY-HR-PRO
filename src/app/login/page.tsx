@@ -49,6 +49,10 @@ export default function LoginPage() {
     formState: { errors: loginErrors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
   });
 
   const onLoginSubmit = async (values: LoginFormValues) => {
@@ -144,7 +148,8 @@ export default function LoginPage() {
                 <input
                   type="email"
                   placeholder="name@hotel.com"
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-gold transition-all text-xs"
+                  style={{ paddingLeft: '48px' }}
+                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-gold transition-all text-xs input-with-icon-left-large"
                   {...registerLogin('email')}
                 />
               </div>
@@ -166,7 +171,8 @@ export default function LoginPage() {
                 <input
                   type={showLoginPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-10 text-white focus:outline-none focus:border-gold transition-all text-xs"
+                  style={{ paddingLeft: '48px' }}
+                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-10 text-white focus:outline-none focus:border-gold transition-all text-xs input-with-icon-left-large"
                   {...registerLogin('password')}
                 />
                 <button

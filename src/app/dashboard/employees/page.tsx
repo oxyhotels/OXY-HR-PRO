@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
 import { formatRole } from '../../../lib/utils';
@@ -40,6 +40,22 @@ interface EmployeeProfile {
   };
   documents: { name: string; fileUrl: string; uploadedAt: string }[];
   shift?: string;
+  homeLocation?: {
+    address: string;
+    latitude: number;
+    longitude: number;
+    state: string;
+    district: string;
+    city: string;
+    pincode: string;
+    locationVerified: boolean;
+    verifiedAt?: string;
+  };
+  hotel?: {
+    _id: string;
+    name: string;
+    hotelCode: string;
+  } | string;
 }
 
 export default function EmployeesPage() {
@@ -52,6 +68,31 @@ export default function EmployeesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
+
+  // Home Location Search & Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDept, setSelectedDept] = useState('');
+  const [selectedHotel, setSelectedHotel] = useState('');
+  const [hotels, setHotels] = useState<any[]>([]);
+
+  // Home Location Modal states
+  const [homeLocationModalOpen, setHomeLocationModalOpen] = useState(false);
+  const [homeLocationEmployee, setHomeLocationEmployee] = useState<EmployeeProfile | null>(null);
+
+  // Fetch hotels for Root Admin
+  useEffect(() => {
+    if (user?.role === 'ROOT_ADMIN') {
+      const fetchHotelsList = async () => {
+        try {
+          const res = await api.get('/hotels/public');
+          setHotels(res.data.hotels || []);
+        } catch (err) {
+          console.error('Failed to fetch hotels list', err);
+        }
+      };
+      fetchHotelsList();
+    }
+  }, [user]);
 
   // States for onboarding uploaded documents (Base64 data URLs)
   const [aadhaarFile, setAadhaarFile] = useState<string | null>(null);
@@ -276,6 +317,19 @@ export default function EmployeesPage() {
 
   const canManage = user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER';
 
+  const filteredEmployees = employees.filter((emp) => {
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    const email = emp.email.toLowerCase();
+    const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
+    const matchesDept = selectedDept ? emp.department === selectedDept : true;
+    
+    // Scoping check for hotel
+    const empHotelId = typeof emp.hotel === 'object' ? (emp.hotel as any)?._id : emp.hotel;
+    const matchesHotel = selectedHotel ? empHotelId === selectedHotel : true;
+    
+    return matchesSearch && matchesDept && matchesHotel;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -292,6 +346,57 @@ export default function EmployeesPage() {
             Onboard Employee
           </button>
         )}
+      </div>
+
+      {/* Search & Filter Bar */}
+      <div className="bg-[#0a1631]/75 backdrop-blur-xl border border-slate-700/50 rounded-xl p-4 shadow-md space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div>
+            <label className="block text-slate-400 font-bold uppercase tracking-wider mb-2 text-[9px]">Text Search</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                <GoogleIcon name="search" size={14} />
+              </span>
+              <input
+                type="text"
+                placeholder="Search name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#050c21]/90 border border-slate-800 rounded-lg py-2 pl-9 pr-3 text-white focus:outline-none focus:border-gold placeholder-slate-500 text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-400 font-bold uppercase tracking-wider mb-2 text-[9px]">Department</label>
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              className="w-full bg-[#050c21]/90 border border-slate-800 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-gold cursor-pointer text-xs"
+            >
+              <option value="">All Departments</option>
+              {departmentsList.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          {user?.role === 'ROOT_ADMIN' && (
+            <div>
+              <label className="block text-slate-400 font-bold uppercase tracking-wider mb-2 text-[9px]">Hotel Property</label>
+              <select
+                value={selectedHotel}
+                onChange={(e) => setSelectedHotel(e.target.value)}
+                className="w-full bg-[#050c21]/90 border border-slate-800 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-gold cursor-pointer text-xs"
+              >
+                <option value="">All Properties</option>
+                {hotels.map((h) => (
+                  <option key={h._id} value={h._id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -314,7 +419,7 @@ export default function EmployeesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {employees.map((emp) => (
+                {filteredEmployees.map((emp) => (
                   <tr key={emp._id} className="hover:bg-slate-900/20 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -356,7 +461,7 @@ export default function EmployeesPage() {
                     </td>
                     <td className="p-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                        emp.status === 'Active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                        emp.status === 'Active' ? 'bg-green-50/10 text-green-400' : 'bg-red-50/10 text-red-400'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${emp.status === 'Active' ? 'bg-green-400' : 'bg-red-400'}`} />
                         {emp.status}
@@ -381,6 +486,18 @@ export default function EmployeesPage() {
                     </td>
                     {(canManage || emp._id === user?.id) && (
                       <td className="p-4 text-right space-x-2">
+                        {(user?.role === 'ROOT_ADMIN' || user?.role === 'HR_MANAGER') && emp.homeLocation && (
+                          <button
+                            onClick={() => {
+                              setHomeLocationEmployee(emp);
+                              setHomeLocationModalOpen(true);
+                            }}
+                            className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-gold transition-colors cursor-pointer"
+                            title="View Home Location"
+                          >
+                            <GoogleIcon name="home_pin" size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEdit(emp)}
                           className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
@@ -402,7 +519,7 @@ export default function EmployeesPage() {
                   </tr>
                 ))}
 
-                {employees.length === 0 && (
+                {filteredEmployees.length === 0 && (
                   <tr>
                     <td colSpan={canManage ? 7 : 6} className="text-center p-8 text-slate-500">
                       No staff records found in this tenant directory.
@@ -730,6 +847,150 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {/* Home Location Map Modal */}
+      {homeLocationModalOpen && homeLocationEmployee && (
+        <HomeLocationModal
+          employee={homeLocationEmployee}
+          onClose={() => {
+            setHomeLocationModalOpen(false);
+            setHomeLocationEmployee(null);
+          }}
+        />
+      )}
     </div>
   );
 }
+
+// Sub-component to load Leaflet dynamically on the client side only for Home Location View
+const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; onClose: () => void }) => {
+  const mapRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let mapInstance: any = null;
+
+    if (!employee || !employee.homeLocation) return;
+
+    // Load leaflet CSS if not already loaded
+    if (typeof window !== 'undefined' && !document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    import('leaflet').then((L) => {
+      if (!isMounted) return;
+
+      // Leaflet default icon asset fix in Next.js/Webpack environment
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      const { latitude, longitude, address } = employee.homeLocation!;
+
+      // Initialize Map
+      mapInstance = L.map('home-location-map').setView([latitude, longitude], 15);
+      mapRef.current = mapInstance;
+
+      // Add OpenStreetMap tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapInstance);
+
+      const fullName = `${employee.firstName} ${employee.lastName}`;
+
+      L.marker([latitude, longitude])
+        .addTo(mapInstance)
+        .bindPopup(`
+          <div style="font-family: sans-serif; color: #1e293b; min-width: 200px;">
+            <strong style="color: #0a1f5c; font-size: 13px;">🏠 Home Location</strong><br/>
+            <strong>Employee:</strong> ${fullName}<br/>
+            <strong>Coordinates:</strong> ${latitude.toFixed(5)}, ${longitude.toFixed(5)}<br/>
+            <strong>Address:</strong> ${address}
+          </div>
+        `)
+        .openPopup();
+    });
+
+    return () => {
+      isMounted = false;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [employee]);
+
+  if (!employee || !employee.homeLocation) return null;
+
+  const { address, latitude, longitude, state, district, city, pincode, locationVerified, verifiedAt } = employee.homeLocation;
+
+  return (
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="bg-[#0a1631]/95 border border-slate-700/50 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col h-[80vh] gold-glow">
+        <div className="flex justify-between items-center p-5 border-b border-slate-800/80">
+          <div>
+            <h3 className="font-extrabold text-white text-sm flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-gold animate-pulse" />
+              🏠 Home Location Map — {employee.firstName} {employee.lastName}
+            </h3>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Secure home address record verification on OpenStreetMap
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+          >
+            <GoogleIcon name="close" size={16} />
+          </button>
+        </div>
+        <div className="flex-1 relative bg-slate-900">
+          <div id="home-location-map" className="w-full h-full min-h-100 z-10" />
+        </div>
+        <div className="p-5 bg-[#0a1631] border-t border-slate-800/80 text-xs text-slate-300 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <span className="font-bold text-gold text-[10px] uppercase tracking-wider block">Home Address details</span>
+            <p className="text-slate-200 text-sm leading-relaxed">{address}</p>
+            <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-450">
+              <div><strong className="text-slate-300">City:</strong> {city}</div>
+              <div><strong className="text-slate-300">District:</strong> {district}</div>
+              <div><strong className="text-slate-300">State:</strong> {state}</div>
+              <div><strong className="text-slate-300">Pincode:</strong> {pincode}</div>
+            </div>
+          </div>
+          <div className="flex flex-col justify-between items-start md:items-end">
+            <div className="text-right space-y-1">
+              <span className="font-mono text-slate-200 font-bold block">GPS: {latitude.toFixed(6)}°, {longitude.toFixed(6)}°</span>
+              {locationVerified && (
+                <span className="inline-flex items-center gap-1 bg-green-950/40 border border-green-800/40 text-green-400 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  ✔ Location Verified
+                </span>
+              )}
+              {verifiedAt && (
+                <div className="text-[9px] text-slate-500 font-mono mt-1">Verified on: {new Date(verifiedAt).toLocaleString()}</div>
+              )}
+            </div>
+            <a
+              href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 px-4 py-2 bg-gold hover:bg-gold-light text-[#0a1f5c] font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer self-start md:self-auto"
+            >
+              <GoogleIcon name="open_in_new" size={14} />
+              Open in Google Maps
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+

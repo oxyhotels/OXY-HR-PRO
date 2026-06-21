@@ -358,7 +358,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       emergencyContactRelation,
       emergencyContactPhone,
       joiningDate,
-      documents
+      documents,
+      homeLocation
     } = req.body;
 
     // Check if email taken
@@ -449,7 +450,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
         relation: emergencyContactRelation,
         phone: emergencyContactPhone
       } : undefined,
-      documents: documents || []
+      documents: documents || [],
+      homeLocation
     });
 
     await logAudit(user._id.toString(), hotel._id, 'REGISTER_PENDING', `New signup request submitted for role ${role} by ${email}`);

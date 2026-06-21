@@ -264,7 +264,7 @@ h1, h2, h3, h4, h5, h6 {
   h2 { font-size: 1.55rem !important; }
   h3 { font-size: 1.35rem !important; }
 
-  p, span, td, th, input, select, textarea, label {
+  p, span:not(.material-symbols-outlined), td, th, input, select, textarea, label {
     font-size: 16px !important;
   }
 
@@ -368,4 +368,14 @@ h1, h2, h3, h4, h5, h6 {
   .hover\:bg-slate-800:hover {
     background-color: #f1f5f9 !important;
   }
+}
+
+/* Custom left padding for inputs/selects with icons to prevent overlapping */
+.input-with-icon-left, input.input-with-icon-left, select.input-with-icon-left, textarea.input-with-icon-left,
+input.pl-8, select.pl-8, textarea.pl-8 {
+  padding-left: 2.5rem !important; /* 40px */
+}
+.input-with-icon-left-large, input.input-with-icon-left-large, select.input-with-icon-left-large, textarea.input-with-icon-left-large,
+input.pl-12, select.pl-12, textarea.pl-12 {
+  padding-left: 3.25rem !important; /* 52px */
 }
