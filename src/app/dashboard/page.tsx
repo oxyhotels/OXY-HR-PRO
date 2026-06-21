@@ -1097,7 +1097,7 @@ export default function DashboardPage() {
                         <GoogleIcon name="person_off" className="text-slate-400" size={24} />
                       </div>
                       <p className="text-slate-600 font-bold text-sm">Not Checked In</p>
-                      <p className="text-slate-400 text-[10px] mt-1">Use Work In button below to start your shift</p>
+                      <p className="text-slate-400 text-[10px] mt-1">Use Shift Status Tracker to start your shift</p>
                     </div>
                   )}
 
@@ -1111,50 +1111,6 @@ export default function DashboardPage() {
                       <p className="text-slate-400 text-[10px] mt-1">You have completed your duty for today</p>
                     </div>
                   )}
-
-                  {/* Duty Action Triggers */}
-                  <div className="space-y-3">
-                    {/* Work In - Primary Green */}
-                    <button
-                      onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
-                      disabled={actionLoading || !!todayAttendance}
-                      className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer border-0"
-                    >
-                      <GoogleIcon name="play_arrow" size={20} />
-                      Work In
-                    </button>
-
-                    {/* Work Out - Large Red - Full Width */}
-                    <button
-                      onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-                      disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
-                      className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer border-0"
-                    >
-                      <GoogleIcon name="logout" size={20} />
-                      Work Out
-                    </button>
-
-                    {/* Break Buttons - Secondary, Side by Side */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-                        disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
-                        className="bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-700 text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <GoogleIcon name="coffee" size={16} />
-                        Break Start
-                      </button>
-
-                      <button
-                        onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-                        disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
-                        className="bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed border-2 border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 text-xs font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <GoogleIcon name="play_arrow" size={16} />
-                        Break End
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}

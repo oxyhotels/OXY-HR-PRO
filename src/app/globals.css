@@ -93,8 +93,8 @@
   --color-card-dark: #0d1117;        /* Dark card surface — bg-card-dark */
   --color-border-dark: #1e2d45;      /* Dark border — border-dark */
   
-  --font-sans: 'Poppins', 'Inter', sans-serif;
-  --font-heading: 'Poppins', 'Inter', sans-serif;
+  --font-sans: var(--font-plus-jakarta), 'Poppins', 'Inter', sans-serif;
+  --font-heading: var(--font-outfit), 'Poppins', 'Inter', sans-serif;
 }
 
 html {

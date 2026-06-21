@@ -10,6 +10,7 @@ import { api } from '../../lib/api';
 import GoogleIcon from '../../components/GoogleIcon';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import AnimatedSkyBackground from '../../components/AnimatedSkyBackground';
 
 const SignUpForms = dynamic(() => import('../../components/SignUpForms'), {
   loading: () => <div className="text-center py-8 text-xs text-slate-400 animate-pulse">Loading registration forms...</div>,
@@ -72,13 +73,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-[#060e26] via-[#0a1f5c] to-[#050c21] overflow-hidden py-12 px-4 font-sans">
-      {/* Background Gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-brand-secondary/20 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] bg-gold/10 rounded-full blur-[140px] pointer-events-none" />
+    <AnimatedSkyBackground>
+      {/* Floating glow behind forms */}
+      <div className="absolute w-[360px] h-[360px] rounded-full bg-[radial-gradient(circle,_rgba(212,175,55,0.05)_0%,_transparent_75%)] blur-[40px] pointer-events-none z-0" />
 
-      {/* Main Container */}
-      <div className="relative w-full max-w-md bg-[#0a1631]/75 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-2xl gold-glow">
+      {/* Main Container with premium glassmorphism card effect */}
+      <div className="relative w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-[0_0_50px_rgba(255,255,255,0.1)] z-10 my-12">
         
         {/* Branding header */}
         <div className="flex flex-col items-center mb-8">
@@ -90,8 +90,8 @@ export default function LoginPage() {
             className="h-12 w-auto mb-3 object-contain rounded" 
             priority
           />
-          <h2 className="text-xl font-bold text-white tracking-wide gold-text-glow">Welcome Back!</h2>
-          <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-semibold">Login to your account</p>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight font-heading gold-text-glow">Welcome Back!</h2>
+          <p className="text-[10.5px] text-slate-400 mt-1.5 uppercase tracking-widest font-bold font-sans">Login to your account</p>
         </div>
 
         {/* Tab Controls */}
@@ -102,8 +102,8 @@ export default function LoginPage() {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 pb-3 text-center border-b-2 transition-all cursor-pointer ${
-              activeTab === 'signin' ? 'border-gold text-gold font-bold' : 'border-transparent text-slate-500 hover:text-slate-350'
+            className={`flex-1 pb-3 text-center border-b-2 transition-all cursor-pointer text-sm font-sans ${
+              activeTab === 'signin' ? 'border-gold text-gold font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-350'
             }`}
           >
             Sign In
@@ -114,8 +114,8 @@ export default function LoginPage() {
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 pb-3 text-center border-b-2 transition-all cursor-pointer ${
-              activeTab === 'signup' ? 'border-gold text-gold font-bold' : 'border-transparent text-slate-500 hover:text-slate-350'
+            className={`flex-1 pb-3 text-center border-b-2 transition-all cursor-pointer text-sm font-sans ${
+              activeTab === 'signup' ? 'border-gold text-gold font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-350'
             }`}
           >
             Sign Up
@@ -123,13 +123,13 @@ export default function LoginPage() {
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300">
+          <div className="mb-4 p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300 font-sans">
             ⚠️ {errorMsg}
           </div>
         )}
 
         {successMsg && (
-          <div className="mb-4 p-3 bg-green-950/40 border border-green-500/30 rounded-xl text-xs text-green-300">
+          <div className="mb-4 p-3 bg-green-950/40 border border-green-500/30 rounded-xl text-xs text-green-300 font-sans">
             ✓ {successMsg}
           </div>
         )}
@@ -138,60 +138,60 @@ export default function LoginPage() {
         {activeTab === 'signin' && (
           <form onSubmit={handleSubmitLogin(onLoginSubmit)} className="space-y-5 text-xs">
             <div>
-              <label className="block font-bold text-slate-400 uppercase tracking-wider mb-2 text-[9px]">
+              <label className="block font-bold text-slate-400 uppercase tracking-widest mb-2 text-[10px] font-sans">
                 Admin / Staff Email
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gold">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gold">
                   <GoogleIcon name="mail" size={16} />
                 </span>
                 <input
                   type="email"
                   placeholder="name@hotel.com"
                   style={{ paddingLeft: '48px' }}
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-gold transition-all text-xs input-with-icon-left-large"
+                  className="w-full bg-[#050c21]/90 border border-slate-800/80 hover:border-slate-700/80 focus:border-gold rounded-xl py-3.5 pl-12 pr-4 text-white focus:outline-none transition-all text-sm input-with-icon-left-large focus:ring-1 focus:ring-gold/30 font-sans"
                   {...registerLogin('email')}
                 />
               </div>
               {loginErrors.email && (
-                <p className="text-red-400 text-[10px] mt-1">{loginErrors.email.message}</p>
+                <p className="text-red-400 text-[10px] mt-1 font-sans">{loginErrors.email.message}</p>
               )}
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block font-bold text-slate-400 uppercase tracking-wider text-[9px]">
+                <label className="block font-bold text-slate-400 uppercase tracking-widest text-[10px] font-sans">
                   Password
                 </label>
               </div>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gold">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gold">
                   <GoogleIcon name="lock" size={16} />
                 </span>
                 <input
                   type={showLoginPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   style={{ paddingLeft: '48px' }}
-                  className="w-full bg-[#050c21]/90 border border-slate-800 rounded-xl py-3 pl-12 pr-10 text-white focus:outline-none focus:border-gold transition-all text-xs input-with-icon-left-large"
+                  className="w-full bg-[#050c21]/90 border border-slate-800/80 hover:border-slate-700/80 focus:border-gold rounded-xl py-3.5 pl-12 pr-10 text-white focus:outline-none transition-all text-sm input-with-icon-left-large focus:ring-1 focus:ring-gold/30 font-sans"
                   {...registerLogin('password')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-white cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-white cursor-pointer"
                 >
                   {showLoginPassword ? <GoogleIcon name="visibility_off" size={16} /> : <GoogleIcon name="visibility" size={16} />}
                 </button>
               </div>
               {loginErrors.password && (
-                <p className="text-red-400 text-[10px] mt-1">{loginErrors.password.message}</p>
+                <p className="text-red-400 text-[10px] mt-1 font-sans">{loginErrors.password.message}</p>
               )}
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-6 bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-xs uppercase tracking-wider shadow-lg active:scale-95"
+              className="w-full mt-6 bg-gradient-to-r from-gold via-gold-light to-gold-dark text-[#0a1f5c] font-extrabold py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 hover:shadow-[0_0_20px_rgba(212,175,55,0.3)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-[13px] uppercase tracking-widest shadow-lg active:scale-95 font-heading"
             >
               {loading ? (
                 <>
@@ -252,6 +252,6 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-    </div>
+    </AnimatedSkyBackground>
   );
 }

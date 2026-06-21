@@ -370,19 +370,6 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     }
   }, []);
 
-  // Clear location data on tab change to prevent leakage
-  useEffect(() => {
-    setHomeAddress('');
-    setHomeState('');
-    setHomeDistrict('');
-    setHomeCity('');
-    setHomePincode('');
-    setHomeLatitude(null);
-    setHomeLongitude(null);
-    setLocationVerified(false);
-    setConsentChecked(false);
-  }, [signupType]);
-
   // Leaflet Map Initialization
   useEffect(() => {
     if (!leafletLoaded || !L) return;
@@ -876,7 +863,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       )}
 
       {signupType === 'manager' ? (
-        <form onSubmit={handleSubmitSignup(onRegisterSubmit)} className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
+        <form key="manager-form" onSubmit={handleSubmitSignup(onRegisterSubmit)} className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-400 font-semibold mb-1">Full Name *</label>
@@ -1286,7 +1273,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
           </button>
         </form>
       ) : (
-        <form onSubmit={handleSubmitEmpSignup(onEmployeeRegisterSubmit)} className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
+        <form key="employee-form" onSubmit={handleSubmitEmpSignup(onEmployeeRegisterSubmit)} className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
           <div className="border-b border-slate-800 pb-2 mb-2">
             <h4 className="text-[10px] font-bold text-gold uppercase tracking-widest font-sans">Employee Master</h4>
             <p className="text-[9px] text-slate-400 mt-0.5">Please provide complete details to register employee record.</p>
@@ -1297,48 +1284,43 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Basic & Account Info</h5>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Employee ID *</label>
+                <label className="block text-slate-400 mb-1">Full Name *</label>
                 <input
                   type="text"
-                  placeholder="EMP101"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                  {...registerEmpSignup('employeeId')}
-                />
-                {empSignupErrors.employeeId?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.employeeId.message}</p>}
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1">Name *</label>
-                <input
-                  type="text"
-                  placeholder="John Doe"
+                  placeholder="Enter your full name (e.g., Dinesh Prajapati)"
+                  defaultValue=""
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                   {...registerEmpSignup('fullName')}
                 />
-                {empSignupErrors.fullName?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.fullName.message}</p>}
+                {empSignupErrors.fullName?.message && (
+                  <p className="text-red-400 text-[9px] mt-0.5">
+                    {empSignupErrors.fullName.message}
+                  </p>
+                )}
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1">Mobile Number *</label>
                 <input
                   type="text"
                   placeholder="9876543210"
+                  defaultValue=""
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                   {...registerEmpSignup('phone')}
                 />
                 {empSignupErrors.phone?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.phone.message}</p>}
               </div>
-              <div>
-                <label className="block text-slate-400 mb-1">Email *</label>
-                <input
-                  type="email"
-                  placeholder="john@hotel.com"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                  {...registerEmpSignup('email')}
-                />
-                {empSignupErrors.email?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.email.message}</p>}
-              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1">Email *</label>
+              <input
+                type="email"
+                placeholder="john@hotel.com"
+                defaultValue=""
+                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                {...registerEmpSignup('email')}
+              />
+              {empSignupErrors.email?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.email.message}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1347,6 +1329,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type="password"
                   placeholder="••••••••"
+                  defaultValue=""
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                   {...registerEmpSignup('password')}
                 />
@@ -1357,6 +1340,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <input
                   type="password"
                   placeholder="••••••••"
+                  defaultValue=""
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                   {...registerEmpSignup('confirmPassword')}
                 />
