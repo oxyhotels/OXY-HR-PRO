@@ -346,6 +346,10 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
   const [homeLongitude, setHomeLongitude] = useState<number | null>(null);
   const [locationVerified, setLocationVerified] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+  const [homeGoogleMapLink, setHomeGoogleMapLink] = useState('');
+  const [homePlaceId, setHomePlaceId] = useState('');
+  const [resolvingLink, setResolvingLink] = useState(false);
+  const [locationDetected, setLocationDetected] = useState(false);
 
   // Leaflet states
   const [leafletLoaded, setLeafletLoaded] = useState(false);
@@ -430,6 +434,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
           setHomeCity(addr.city || addr.town || addr.village || addr.suburb || '');
           setHomePincode(addr.postcode || '');
           setLocationVerified(true);
+          setHomeGoogleMapLink(`https://www.google.com/maps?q=${lat},${lng}`);
         }
       } catch (err) {
         console.error('Reverse geocoding error:', err);
@@ -443,48 +448,129 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     };
   }, [leafletLoaded, L, signupType]);
 
+  const handleParseAndSetGoogleMapLink = async () => {
+    const rawLink = homeGoogleMapLink.trim();
+    if (!rawLink) {
+      alert('Please paste a Google Maps link first.');
+      return;
+    }
+    if (resolvingLink) return; // Prevent duplicate requests
+
+    setResolvingLink(true);
+    setLocationDetected(false);
+    try {
+      // Always delegate to our server-side route which handles ALL Google Maps URL formats
+      // and uses the Google Maps Geocoding + Places API for accurate address extraction
+      const res = await fetch(`/api/auth/resolve-map-link?url=${encodeURIComponent(rawLink)}`);
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to resolve Google Maps link.');
+      }
+
+      const { lat, lng, placeId, address, city, district, state, pincode, finalUrl } = data;
+
+      // Fill all address fields
+      if (address) setHomeAddress(address);
+      if (state)   setHomeState(state);
+      if (district) setHomeDistrict(district);
+      if (city)    setHomeCity(city);
+      if (pincode) setHomePincode(pincode);
+      if (placeId) setHomePlaceId(placeId);
+
+      setHomeLatitude(lat);
+      setHomeLongitude(lng);
+      setHomeGoogleMapLink(finalUrl || `https://www.google.com/maps?q=${lat},${lng}`);
+      setLocationVerified(true);
+      setLocationDetected(true);
+
+      // Update map marker
+      if (mapInstance) {
+        mapInstance.setView([lat, lng], 16);
+        if (markerInstance) {
+          markerInstance.setLatLng([lat, lng]);
+        } else {
+          const newMarker = L.marker([lat, lng]).addTo(mapInstance);
+          setMarkerInstance(newMarker);
+        }
+      }
+    } catch (err: any) {
+      console.error('Google Maps link error:', err);
+      alert(err.message || 'Could not resolve the Google Maps link. Please check the URL and try again.');
+    } finally {
+      setResolvingLink(false);
+    }
+  };
+
   const handleGeocodeAddress = async () => {
     if (!homeAddress && !homeCity && !homeState) {
       alert('Please fill at least the Address, City, and State fields to search.');
       return;
     }
-    const queryStr = `${homeAddress} ${homeCity} ${homeState} ${homePincode}`.trim();
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(queryStr)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const first = data[0];
-        const lat = parseFloat(first.lat);
-        const lng = parseFloat(first.lon);
-        setHomeLatitude(lat);
-        setHomeLongitude(lng);
+    const queries = [
+      `${homeAddress} ${homeCity} ${homeState} ${homePincode}`,
+      `${homeCity} ${homeState} ${homePincode}`,
+      `${homeDistrict} ${homeState} ${homePincode}`,
+      `${homePincode}`,
+      `${homeCity} ${homeState}`,
+      `${homeState}`
+    ].map(q => q.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const uniqueQueries = Array.from(new Set(queries));
 
-        const addr = first.address || {};
-        setHomeState(addr.state || homeState || '');
-        setHomeDistrict(addr.county || addr.district || addr.state_district || homeDistrict || '');
-        setHomeCity(addr.city || addr.town || addr.village || addr.suburb || homeCity || '');
-        setHomePincode(addr.postcode || homePincode || '');
-        if (first.display_name) {
-          setHomeAddress(first.display_name);
+    let data = [];
+    for (const query of uniqueQueries) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}`);
+        const result = await res.json();
+        if (result && result.length > 0) {
+          data = result;
+          break;
         }
-
-        setLocationVerified(true);
-
-        if (mapInstance) {
-          mapInstance.setView([lat, lng], 15);
-          if (markerInstance) {
-            markerInstance.setLatLng([lat, lng]);
-          } else {
-            const newMarker = L.marker([lat, lng]).addTo(mapInstance);
-            setMarkerInstance(newMarker);
-          }
-        }
-      } else {
-        alert('Could not find location. Please check the address details.');
+      } catch (err) {
+        console.error(`Error searching query "${query}":`, err);
       }
-    } catch (err) {
-      console.error('Geocoding error:', err);
-      alert('Failed to search address. Please try again.');
+    }
+
+    let lat = 20.5937;
+    let lng = 78.9629;
+    let resolved = false;
+
+    if (data && data.length > 0) {
+      const first = data[0];
+      lat = parseFloat(first.lat);
+      lng = parseFloat(first.lon);
+      resolved = true;
+
+      const addr = first.address || {};
+      setHomeState(addr.state || homeState || '');
+      setHomeDistrict(addr.county || addr.district || addr.state_district || homeDistrict || '');
+      setHomeCity(addr.city || addr.town || addr.village || addr.suburb || homeCity || '');
+      setHomePincode(addr.postcode || homePincode || '');
+      if (first.display_name) {
+        setHomeAddress(first.display_name);
+      }
+    } else {
+      if (mapInstance) {
+        const center = mapInstance.getCenter();
+        lat = center.lat;
+        lng = center.lng;
+      }
+      resolved = true;
+    }
+
+    setHomeLatitude(lat);
+    setHomeLongitude(lng);
+    setLocationVerified(true);
+    setHomeGoogleMapLink(`https://www.google.com/maps?q=${lat},${lng}`);
+
+    if (mapInstance) {
+      mapInstance.setView([lat, lng], resolved ? 15 : 5);
+      if (markerInstance) {
+        markerInstance.setLatLng([lat, lng]);
+      } else {
+        const newMarker = L.marker([lat, lng]).addTo(mapInstance);
+        setMarkerInstance(newMarker);
+      }
     }
   };
 
@@ -520,6 +606,7 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             setHomeCity(addr.city || addr.town || addr.village || addr.suburb || '');
             setHomePincode(addr.postcode || '');
             setLocationVerified(true);
+            setHomeGoogleMapLink(`https://www.google.com/maps?q=${latitude},${longitude}`);
           }
         } catch (err) {
           console.error('Reverse geocoding error:', err);
@@ -715,6 +802,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       city: homeCity,
       pincode: homePincode,
       locationVerified: locationVerified,
+      googleMapLink: homeGoogleMapLink || (homeLatitude && homeLongitude ? `https://www.google.com/maps?q=${homeLatitude},${homeLongitude}` : undefined),
+      placeId: homePlaceId || undefined,
+      verified: locationDetected,
       verifiedAt: new Date().toISOString()
     };
 
@@ -740,6 +830,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       setHomeLongitude(null);
       setLocationVerified(false);
       setConsentChecked(false);
+      setHomeGoogleMapLink('');
+      setHomePlaceId('');
+      setLocationDetected(false);
       onRegisterSuccess();
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
@@ -792,6 +885,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       city: homeCity,
       pincode: homePincode,
       locationVerified: locationVerified,
+      googleMapLink: homeGoogleMapLink || (homeLatitude && homeLongitude ? `https://www.google.com/maps?q=${homeLatitude},${homeLongitude}` : undefined),
+      placeId: homePlaceId || undefined,
+      verified: locationDetected,
       verifiedAt: new Date().toISOString()
     };
 
@@ -818,6 +914,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       setHomeLongitude(null);
       setLocationVerified(false);
       setConsentChecked(false);
+      setHomeGoogleMapLink('');
+      setHomePlaceId('');
+      setLocationDetected(false);
       onRegisterSuccess();
     } catch (err: any) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
@@ -1143,6 +1242,43 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
             
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-slate-400 font-semibold mb-1 flex justify-between items-center">
+                  <span>🗺 Home Google Map Location Link</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Paste any Google Maps URL to auto-fill</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="https://maps.app.goo.gl/... or maps.google.com/..."
+                    value={homeGoogleMapLink}
+                    onChange={(e) => { setHomeGoogleMapLink(e.target.value); setLocationDetected(false); }}
+                    className="flex-1 bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold text-[11px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleParseAndSetGoogleMapLink}
+                    disabled={resolvingLink || !homeGoogleMapLink.trim()}
+                    className="px-4 py-1.5 bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer min-w-[70px] justify-center"
+                  >
+                    {resolvingLink ? (
+                      <><GoogleIcon name="progress_activity" size={12} className="animate-spin-icon" /> Fetching...</>
+                    ) : 'Apply'}
+                  </button>
+                </div>
+                {locationDetected && (
+                  <div className="mt-2 p-2.5 rounded-lg border border-green-800/50 bg-green-950/30 space-y-1">
+                    <p className="text-green-400 font-bold text-[10px] flex items-center gap-1"><GoogleIcon name="check_circle" size={12} /> Location detected successfully.</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[9px]">
+                      {homeCity    && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> City Detected</span>}
+                      {homeState   && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> State Detected</span>}
+                      {homePincode && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> Pincode Detected</span>}
+                      {homeLatitude && homeLongitude && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> Coordinates Verified</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="col-span-2">
                 <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
                 <textarea
@@ -1639,6 +1775,42 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
             
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-slate-400 font-semibold mb-1 flex justify-between items-center">
+                  <span>🗺 Home Google Map Location Link</span>
+                  <span className="text-[9px] text-slate-500 font-normal">Paste any Google Maps URL to auto-fill</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="https://maps.app.goo.gl/... or maps.google.com/..."
+                    value={homeGoogleMapLink}
+                    onChange={(e) => { setHomeGoogleMapLink(e.target.value); setLocationDetected(false); }}
+                    className="flex-1 bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold text-[11px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleParseAndSetGoogleMapLink}
+                    disabled={resolvingLink || !homeGoogleMapLink.trim()}
+                    className="px-4 py-1.5 bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer min-w-[70px] justify-center"
+                  >
+                    {resolvingLink ? (
+                      <><GoogleIcon name="progress_activity" size={12} className="animate-spin-icon" /> Fetching...</>
+                    ) : 'Apply'}
+                  </button>
+                </div>
+                {locationDetected && (
+                  <div className="mt-2 p-2.5 rounded-lg border border-green-800/50 bg-green-950/30 space-y-1">
+                    <p className="text-green-400 font-bold text-[10px] flex items-center gap-1"><GoogleIcon name="check_circle" size={12} /> Location detected successfully.</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[9px]">
+                      {homeCity    && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> City Detected</span>}
+                      {homeState   && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> State Detected</span>}
+                      {homePincode && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> Pincode Detected</span>}
+                      {homeLatitude && homeLongitude && <span className="text-green-300 flex items-center gap-1"><GoogleIcon name="check" size={10} /> Coordinates Verified</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="col-span-2">
                 <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
                 <textarea

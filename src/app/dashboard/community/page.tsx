@@ -88,6 +88,18 @@ export default function CommunityHubPage() {
   // Call Dialog Stub
   const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; channel: string } | null>(null);
 
+  // Enhanced Group Creation Selections
+  const [groupSelectionMode, setGroupSelectionMode] = useState<'department' | 'manager' | 'employee'>('employee');
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [autoSyncDept, setAutoSyncDept] = useState(false);
+  const [groupIcon, setGroupIcon] = useState('');
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
+  const [cameraOff, setCameraOff] = useState(false);
+
   // Record Modals
   const [audioRecording, setAudioRecording] = useState(false);
   const [audioTimer, setAudioTimer] = useState(0);
@@ -271,12 +283,22 @@ export default function CommunityHubPage() {
       name: newGroupName,
       type: newGroupType,
       description: newGroupDesc,
-      department: newGroupType === 'DepartmentGroup' ? newGroupDept : undefined
+      department: newGroupType === 'DepartmentGroup' ? newGroupDept : undefined,
+      selectionMode: groupSelectionMode,
+      selectionValues: groupSelectionMode === 'department' ? selectedDepts : groupSelectionMode === 'manager' ? selectedManagers : [],
+      memberIds: groupSelectionMode === 'employee' ? selectedEmployees : [],
+      autoSyncDept: newGroupType === 'DepartmentGroup' ? autoSyncDept : false,
+      groupIcon: groupIcon || undefined
     });
 
     setNewGroupName('');
     setNewGroupDesc('');
     setNewGroupDept('');
+    setSelectedDepts([]);
+    setSelectedManagers([]);
+    setSelectedEmployees([]);
+    setGroupIcon('');
+    setAutoSyncDept(false);
     setShowCreateGroup(false);
   };
 
@@ -664,21 +686,32 @@ export default function CommunityHubPage() {
                       </div>
                     </div>
 
-                    {/* Stubs: Calls Buttons */}
+                    {/* Calls and Info Buttons */}
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setActiveCall({ type: 'audio', channel: store.activeGroup!.name })}
+                        onClick={() => store.startCall(store.activeGroup!._id, 'voice')}
                         className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-gold transition-colors"
                         title="Voice Call"
                       >
                         <PhoneCall size={15} />
                       </button>
                       <button
-                        onClick={() => setActiveCall({ type: 'video', channel: store.activeGroup!.name })}
+                        onClick={() => store.startCall(store.activeGroup!._id, 'video')}
                         className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-gold transition-colors"
-                        title="Circular Video Stream"
+                        title="Video Call"
                       >
                         <Video size={15} />
+                      </button>
+                      <button
+                        onClick={() => setShowRightSidebar(!showRightSidebar)}
+                        className={`p-2 rounded-lg transition-all ${
+                          showRightSidebar 
+                            ? 'bg-gold text-slate-dark shadow-md' 
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-gold'
+                        }`}
+                        title="Group Info & Media"
+                      >
+                        <Users size={15} />
                       </button>
                     </div>
                   </div>
@@ -1001,6 +1034,118 @@ export default function CommunityHubPage() {
                 </div>
               )}
             </div>
+
+            {showRightSidebar && store.activeGroup && (
+              <div className="w-80 bg-card-dark border border-slate-800/80 rounded-xl overflow-y-auto hidden lg:flex flex-col p-5 space-y-5 flex-shrink-0 animate-in slide-in-from-right duration-300">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3 flex-shrink-0">
+                  <h3 className="text-xs font-bold text-gold uppercase tracking-wider">Group Profile</h3>
+                  <button
+                    onClick={() => setShowRightSidebar(false)}
+                    className="text-slate-400 hover:text-white text-xs bg-slate-900 border border-slate-850 p-1 px-2.5 rounded-lg"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {/* Group details */}
+                <div className="flex flex-col items-center text-center space-y-3 flex-shrink-0">
+                  <div className="w-20 h-20 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-gold font-bold text-2xl overflow-hidden">
+                    {store.activeGroup.groupIcon ? (
+                      <img src={store.activeGroup.groupIcon} alt="Icon" className="w-full h-full object-cover" />
+                    ) : (
+                      store.activeGroup.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase">{store.activeGroup.name}</h4>
+                    <span className="text-[9px] bg-slate-900 border border-slate-800 text-gold px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider mt-1.5 inline-block">
+                      {store.activeGroup.type}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                    {store.activeGroup.description || 'No description provided.'}
+                  </p>
+                </div>
+
+                {/* Members list */}
+                <div className="border-t border-slate-800/85 pt-4 space-y-3 flex-shrink-0">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase">
+                    <span>Members ({store.activeGroup.members?.length || 0})</span>
+                  </div>
+                  <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                    {store.activeGroup.members?.map((m: any) => {
+                      const isOnline = store.onlineUsers.includes(m.user?._id?.toString() || m.user?.toString());
+                      return (
+                        <div key={m.user?._id || m.user} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="relative flex-shrink-0">
+                              <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-750 flex items-center justify-center text-[10px] font-bold text-gold overflow-hidden">
+                                {m.user?.photoUrl ? (
+                                  <img src={m.user.photoUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  m.user?.firstName?.charAt(0) || 'U'
+                                )}
+                              </div>
+                              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card-dark ${
+                                isOnline ? 'bg-green-500' : 'bg-slate-500'
+                              }`} />
+                            </div>
+                            <div className="truncate">
+                              <p className="font-semibold text-slate-200 truncate">
+                                {m.user?.firstName ? `${m.user.firstName} ${m.user.lastName}` : 'System User'}
+                              </p>
+                              <p className="text-[8px] text-slate-500 uppercase truncate">
+                                {m.user?.designation || m.user?.role || 'Member'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-mono uppercase font-bold ${
+                            m.role === 'admin' ? 'bg-gold/15 text-gold border border-gold/25' : 'bg-slate-900 text-slate-400'
+                          }`}>
+                            {m.role}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Media & Shared Files */}
+                <div className="border-t border-slate-800/85 pt-4 flex-grow flex flex-col min-h-0">
+                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 flex-shrink-0">Shared Files</h4>
+                  <div className="flex-grow overflow-y-auto space-y-2 pr-1">
+                    {(() => {
+                      const sharedAttachments = store.messages
+                        .flatMap(msg => msg.attachments || [])
+                        .filter(Boolean);
+
+                      if (sharedAttachments.length === 0) {
+                        return <p className="text-[10px] text-slate-500 italic">No media shared in this group.</p>;
+                      }
+
+                      return sharedAttachments.map((file, idx) => (
+                        <a
+                          key={idx}
+                          href={file.fileUrl}
+                          download
+                          className="flex items-center gap-2 p-2 bg-slate-900/40 border border-slate-800 rounded-lg hover:border-gold/30 hover:bg-slate-900/60 transition-all text-left text-[10px]"
+                        >
+                          <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-gold flex-shrink-0">
+                            {file.fileType === 'image' ? <ImageIcon size={12} /> : <FileText size={12} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-200 truncate">{file.name}</p>
+                            <p className="text-[8px] text-slate-500 font-mono">
+                              {file.fileSize ? `${Math.round(file.fileSize / 1024)} KB` : file.fileType}
+                            </p>
+                          </div>
+                        </a>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1396,63 +1541,216 @@ export default function CommunityHubPage() {
       
       {/* 1. Create Group Modal */}
       {showCreateGroup && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card-dark border border-slate-800/80 rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-xs font-bold text-gold uppercase tracking-wider">Create Group Chat / Channel</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card-dark border border-slate-800/80 rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200 text-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-extrabold text-gold uppercase tracking-wider">Create Group Chat / Channel</h3>
+              <button onClick={() => setShowCreateGroup(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
             
-            <div className="space-y-3 text-left">
-              <div>
-                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Group Name</label>
-                <input
-                  type="text"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="e.g. Housekeeping Team"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Group Type</label>
-                <select
-                  value={newGroupType}
-                  onChange={(e) => setNewGroupType(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none"
-                >
-                  <option value="PublicGroup">Public Group</option>
-                  <option value="PrivateGroup">Private Group</option>
-                  <option value="DepartmentGroup">Department Group</option>
-                  <option value="HotelGroup">Hotel Group</option>
-                  <option value="ProjectGroup">Project Group</option>
-                  <option value="AnnouncementChannel">Announcement Channel</option>
-                </select>
-              </div>
-
-              {newGroupType === 'DepartmentGroup' && (
+            <div className="space-y-4 text-left text-xs">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Department</label>
+                  <label className="block text-[10px] text-slate-455 font-bold uppercase mb-1">Group Name</label>
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="e.g. Housekeeping Team"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:border-gold outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-455 font-bold uppercase mb-1">Group Type</label>
                   <select
-                    value={newGroupDept}
-                    onChange={(e) => setNewGroupDept(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none cursor-pointer"
+                    value={newGroupType}
+                    onChange={(e) => setNewGroupType(e.target.value)}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:border-gold outline-none"
                   >
-                    <option value="">Select Department...</option>
-                    {departmentsList.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
+                    <option value="DepartmentGroup">Department Group</option>
+                    <option value="TeamGroup">Team Group</option>
+                    <option value="CustomGroup">Custom Group</option>
+                    <option value="PublicGroup">Public Group</option>
+                    <option value="PrivateGroup">Private Group</option>
+                    <option value="AnnouncementChannel">Announcement Channel</option>
                   </select>
                 </div>
-              )}
+              </div>
 
-              <div>
-                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Description</label>
-                <input
-                  type="text"
-                  value={newGroupDesc}
-                  onChange={(e) => setNewGroupDesc(e.target.value)}
-                  placeholder="e.g. Operations sync"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-gold outline-none"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-455 font-bold uppercase mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={newGroupDesc}
+                    onChange={(e) => setNewGroupDesc(e.target.value)}
+                    placeholder="e.g. Daily shift notes"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:border-gold outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-455 font-bold uppercase mb-1">Group Icon URL (Optional)</label>
+                  <input
+                    type="text"
+                    value={groupIcon}
+                    onChange={(e) => setGroupIcon(e.target.value)}
+                    placeholder="https://icon-url.png"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:border-gold outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Selection Mode Selector */}
+              <div className="border-t border-slate-800/80 pt-3">
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-2">Member Selection Strategy</label>
+                <div className="flex bg-slate-950/80 p-1 rounded-xl border border-slate-800/60">
+                  {(['department', 'manager', 'employee'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setGroupSelectionMode(mode)}
+                      className={`flex-1 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all ${
+                        groupSelectionMode === mode
+                          ? 'bg-gold text-slate-dark shadow font-extrabold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {mode} Wise
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Selection content */}
+              <div className="bg-slate-950/40 border border-slate-800/60 rounded-xl p-3.5 min-h-[140px] max-h-[220px] overflow-y-auto">
+                {groupSelectionMode === 'department' && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-500 font-semibold mb-1">Select departments to fetch active employees:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {departmentsList.map((dept) => {
+                        const checked = selectedDepts.includes(dept);
+                        return (
+                          <label key={dept} className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                if (checked) {
+                                  setSelectedDepts(selectedDepts.filter((d) => d !== dept));
+                                } else {
+                                  setSelectedDepts([...selectedDepts, dept]);
+                                }
+                              }}
+                              className="accent-gold"
+                            />
+                            <span className="truncate">{dept}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {newGroupType === 'DepartmentGroup' && (
+                      <div className="border-t border-slate-800/60 pt-3 mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="autoSyncDept"
+                          checked={autoSyncDept}
+                          onChange={(e) => setAutoSyncDept(e.target.checked)}
+                          className="accent-gold"
+                        />
+                        <label htmlFor="autoSyncDept" className="text-[10px] text-slate-400 font-bold uppercase cursor-pointer">
+                          Auto-sync future employees added to these departments
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {groupSelectionMode === 'manager' && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-500 font-semibold mb-1">Select managers to fetch reporting employees:</p>
+                    {(() => {
+                      const uniqueManagers = Array.from(
+                        new Set(
+                          recipientList
+                            .map((emp) => emp.reportingManager)
+                            .filter((mgr) => mgr && mgr.trim() !== '')
+                        )
+                      );
+                      if (uniqueManagers.length === 0) {
+                        return <p className="text-[10px] text-slate-650 italic">No reporting managers found in active employees list.</p>;
+                      }
+                      return (
+                        <div className="grid grid-cols-2 gap-2">
+                          {uniqueManagers.map((mgrName: any) => {
+                            const checked = selectedManagers.includes(mgrName);
+                            return (
+                              <label key={mgrName} className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    if (checked) {
+                                      setSelectedManagers(selectedManagers.filter((m) => m !== mgrName));
+                                    } else {
+                                      setSelectedManagers([...selectedManagers, mgrName]);
+                                    }
+                                  }}
+                                  className="accent-gold"
+                                />
+                                <span className="truncate">{mgrName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {groupSelectionMode === 'employee' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-850 mb-2">
+                      <Search size={12} className="text-slate-500 ml-1" />
+                      <input
+                        type="text"
+                        value={employeeSearchTerm}
+                        onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                        placeholder="Search employees by name..."
+                        className="bg-transparent border-none outline-none text-[11px] w-full text-slate-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      {recipientList
+                        .filter((emp) => {
+                          const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+                          return fullName.includes(employeeSearchTerm.toLowerCase());
+                        })
+                        .map((emp) => {
+                          const checked = selectedEmployees.includes(emp._id);
+                          return (
+                            <label key={emp._id} className="flex items-center justify-between p-1.5 bg-slate-900/30 rounded border border-slate-800 hover:bg-slate-900/60 cursor-pointer text-slate-350 hover:text-white">
+                              <div className="flex items-center gap-2.5 overflow-hidden">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    if (checked) {
+                                      setSelectedEmployees(selectedEmployees.filter((id) => id !== emp._id));
+                                    } else {
+                                      setSelectedEmployees([...selectedEmployees, emp._id]);
+                                    }
+                                  }}
+                                  className="accent-gold"
+                                />
+                                <span className="truncate font-semibold">{emp.firstName} {emp.lastName}</span>
+                                <span className="text-[8px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 uppercase">{emp.department} • {emp.designation}</span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1787,31 +2085,97 @@ export default function CommunityHubPage() {
         </div>
       )}
 
-      {/* 6. Realtime Call Dialing Overlay Modal Stub */}
-      {activeCall && (
-        <div className="fixed top-8 right-8 bg-slate-900 border-2 border-gold rounded-2xl p-5 shadow-2xl z-50 w-72 space-y-4 gold-glow">
-          <div className="flex justify-between items-center border-b border-slate-850 pb-2">
-            <span className="text-[10px] uppercase font-bold text-gold tracking-wider font-mono">Live Call Connected</span>
-            <button onClick={() => setActiveCall(null)} className="text-slate-500 hover:text-white">✕</button>
+      {/* 6. Premium Realtime Call Session Overlay */}
+      {store.activeCall && (
+        <div className="fixed bottom-6 right-6 bg-[#09112a] border-2 border-gold rounded-2xl p-5 shadow-2xl z-50 w-80 space-y-4 gold-glow text-slate-100 animate-in slide-in-from-bottom duration-300">
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2 flex-shrink-0">
+            <span className="text-[9px] uppercase font-bold text-gold tracking-widest font-mono flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+              Live Group Call ({store.activeCall.callType})
+            </span>
+            <button
+              onClick={() => store.leaveCall(store.activeCall._id)}
+              className="text-slate-500 hover:text-white text-xs bg-slate-900 border border-slate-800 p-0.5 px-2 rounded"
+            >
+              ✕ Leave
+            </button>
           </div>
 
-          <div className="flex flex-col items-center py-4 space-y-3">
-            <div className="w-16 h-16 rounded-full bg-gold/15 border-2 border-gold text-gold flex items-center justify-center animate-pulse">
-              {activeCall.type === 'video' ? <Video size={24} /> : <PhoneCall size={24} />}
+          <div className="flex flex-col space-y-3">
+            {/* Caller details */}
+            <div className="flex items-center gap-3 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+              <div className="w-9 h-9 rounded-full bg-slate-800 border border-gold/30 flex items-center justify-center font-bold text-gold overflow-hidden">
+                {store.activeCall.caller?.photoUrl ? (
+                  <img src={store.activeCall.caller.photoUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  store.activeCall.caller?.firstName?.charAt(0) || 'U'
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Host</p>
+                <p className="text-xs font-bold text-slate-200 truncate">
+                  {store.activeCall.caller?.firstName} {store.activeCall.caller?.lastName}
+                </p>
+              </div>
             </div>
-            <div className="text-center">
-              <h4 className="text-xs font-bold text-white uppercase">{activeCall.channel}</h4>
-              <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Multi-User Agora WebRTC Tunnel</p>
+
+            {/* Participants list */}
+            <div className="space-y-1.5">
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider font-semibold">Participants ({store.activeCall.participants?.length || 0})</p>
+              <div className="grid grid-cols-4 gap-2 max-h-24 overflow-y-auto pr-1">
+                {store.activeCall.participants?.map((p: any) => (
+                  <div key={p._id} className="flex flex-col items-center text-center relative group" title={`${p.firstName} ${p.lastName}`}>
+                    <div className="w-9 h-9 rounded-full bg-slate-805 border border-slate-700 flex items-center justify-center font-bold text-slate-300 overflow-hidden relative">
+                      {p.photoUrl ? (
+                        <img src={p.photoUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        p.firstName?.charAt(0) || 'U'
+                      )}
+                      <span className="absolute inset-0 rounded-full border border-gold/40 animate-pulse" />
+                    </div>
+                    <span className="text-[8px] text-slate-400 truncate w-full mt-0.5">{p.firstName}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          <button
-            onClick={() => setActiveCall(null)}
-            className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2"
-          >
-            <VideoOff size={14} />
-            End Call Channel
-          </button>
+          {/* Control Buttons */}
+          <div className="flex gap-2.5 pt-2 border-t border-slate-800/80">
+            <button
+              onClick={() => setMicMuted(!micMuted)}
+              className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${
+                micMuted
+                  ? 'bg-red-500/15 border-red-500/30 text-red-400 font-bold'
+                  : 'bg-slate-900 border-slate-800 text-slate-350 hover:bg-slate-800'
+              }`}
+            >
+              <Mic size={12} />
+              {micMuted ? 'Muted' : 'Mute'}
+            </button>
+            
+            {store.activeCall.callType === 'video' && (
+              <button
+                onClick={() => setCameraOff(!cameraOff)}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-1.5 ${
+                  cameraOff
+                    ? 'bg-red-500/15 border-red-500/30 text-red-400 font-bold'
+                    : 'bg-slate-900 border-slate-800 text-slate-350 hover:bg-slate-800'
+                }`}
+              >
+                <VideoOff size={12} />
+                {cameraOff ? 'Video Off' : 'Video'}
+              </button>
+            )}
+
+            <button
+              onClick={() => store.leaveCall(store.activeCall._id)}
+              className="py-2 px-3 bg-red-650 hover:bg-red-550 border border-red-600 rounded-xl text-white flex items-center justify-center"
+              title="Hang up"
+            >
+              <PhoneCall size={12} className="rotate-[135deg]" />
+            </button>
+          </div>
         </div>
       )}
 

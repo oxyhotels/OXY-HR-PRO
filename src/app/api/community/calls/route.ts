@@ -1,5 +1,6 @@
 import { adaptRoute } from '@/lib/adaptRoute';
-import { createCallToken } from '@/controllers/community.controller';
+import { startCallSession, getActiveCalls } from '@/controllers/community.controller';
 import { authMiddleware } from '@/middlewares/auth.middleware';
 
-export const POST = adaptRoute(createCallToken, { middlewares: [authMiddleware] });
+export const POST = adaptRoute(startCallSession, { middlewares: [authMiddleware] });
+export const GET = adaptRoute(getActiveCalls, { middlewares: [authMiddleware] });

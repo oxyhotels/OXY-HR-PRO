@@ -110,3 +110,51 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Background push notification listener
+self.addEventListener('push', (event) => {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (e) {
+      payload = { title: 'New Notification', body: event.data.text() };
+    }
+  }
+
+  const title = payload.title || 'OXY-HR PRO Community';
+  const options = {
+    body: payload.body || payload.message || 'You received a new message.',
+    icon: '/logo.png',
+    badge: '/favicon.ico',
+    data: {
+      link: (payload.data && payload.data.link) || '/dashboard/community'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+// Handle notification click to open community chat
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = event.notification.data ? event.notification.data.link : '/dashboard/community';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+      // If a window is already open at the dashboard, focus it and redirect
+      for (const client of clientList) {
+        if (client.url.includes('/dashboard') && 'focus' in client) {
+          client.postMessage({ type: 'NAVIGATE', url: link });
+          return client.focus();
+        }
+      }
+      // Otherwise, open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(link);
+      }
+    })
+  );
+});

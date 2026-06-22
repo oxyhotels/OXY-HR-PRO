@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 import { io } from 'socket.io-client';
 import TaskNotificationPopup from '@/components/TaskNotificationPopup';
 import TaskDeadlineAlert from '@/components/TaskDeadlineAlert';
+import { useCommunityStore } from '../../store/communityStore';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,10 +22,91 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const hydrationDone = useRef(false);
 
+  // Call session states
+  const { incomingCall, setIncomingCall, joinCall, setCallUpdated, setCallEnded } = useCommunityStore();
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
   // Notifications states
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [showPermissionBanner, setShowPermissionBanner] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const isDismissed = localStorage.getItem('notification_prompt_dismissed');
+      if (Notification.permission === 'default' && !isDismissed) {
+        setShowPermissionBanner(true);
+      }
+    }
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const handleServiceWorkerMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'NAVIGATE' && event.data?.url) {
+          router.push(event.data.url);
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      };
+    }
+  }, [router]);
+
+  const handleRequestPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          const token = `mock_fcm_token_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
+          await api.post('/community/push-tokens', {
+            token,
+            deviceType: window.innerWidth < 768 ? 'mobile' : 'web'
+          });
+          localStorage.setItem('fcm_push_token', token);
+        }
+      }
+    } catch (err) {
+      console.error('Error requesting notification permission:', err);
+    } finally {
+      setShowPermissionBanner(false);
+    }
+  };
+
+  const handleDismissPermission = () => {
+    localStorage.setItem('notification_prompt_dismissed', 'true');
+    setShowPermissionBanner(false);
+  };
+
+  const handleAcceptCall = async () => {
+    if (ringtoneRef.current) {
+      try {
+        ringtoneRef.current.pause();
+        ringtoneRef.current.currentTime = 0;
+      } catch (e) {}
+    }
+    if (incomingCall) {
+      await joinCall(incomingCall.callId);
+      const gid = incomingCall.groupId;
+      setIncomingCall(null);
+      router.push(`/dashboard/community?groupId=${gid}&callId=${incomingCall.callId}`);
+    }
+  };
+
+  const handleDeclineCall = () => {
+    if (ringtoneRef.current) {
+      try {
+        ringtoneRef.current.pause();
+        ringtoneRef.current.currentTime = 0;
+      } catch (e) {}
+    }
+    setIncomingCall(null);
+  };
 
   // ═══ 1. FAST AUTH HYDRATION ═══
   useEffect(() => {
@@ -100,6 +182,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     socketConn.on('new_notification', (notification: any) => {
       setNotifications(prev => [notification, ...prev]);
       window.dispatchEvent(new CustomEvent('new_notification', { detail: notification }));
+      try {
+        const audio = new Audio('/alerm sound.mp3');
+        audio.play().catch(e => console.log('Error playing notification sound:', e));
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    socketConn.on('incoming_call', (call: any) => {
+      setIncomingCall(call);
+      try {
+        if (!ringtoneRef.current) {
+          ringtoneRef.current = new Audio('/alerm sound.mp3');
+          ringtoneRef.current.loop = true;
+        }
+        ringtoneRef.current.play().catch(err => console.log('[Ringtone Play Error]:', err));
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    socketConn.on('call_updated', (call: any) => {
+      setCallUpdated(call);
+    });
+
+    socketConn.on('call_ended', (callId: string) => {
+      setCallEnded(callId);
+      setIncomingCall(null);
+      try {
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause();
+          ringtoneRef.current.currentTime = 0;
+        }
+      } catch (err) {
+        console.error(err);
+      }
     });
 
     socketConn.on('disconnect', (reason) => {
@@ -318,6 +436,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleLogout = async () => {
+    const savedToken = localStorage.getItem('fcm_push_token');
+    if (savedToken) {
+      try {
+        await api.delete('/community/push-tokens', { body: JSON.stringify({ token: savedToken }) });
+      } catch (err) {
+        console.error('Failed to deregister push token:', err);
+      }
+      localStorage.removeItem('fcm_push_token');
+    }
     try {
       await api.post('/auth/logout', {});
     } catch (err) {
@@ -487,7 +614,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Workspace Frame */}
-      <div className="md:ml-64 flex-1 flex flex-col">
+      <div className="md:ml-64 flex-1 flex flex-col font-sans">
+        {/* Notification Permission Banner */}
+        {showPermissionBanner && (
+          <div className="bg-[#0b1739] border-b border-gold/20 p-3 text-slate-200 text-xs flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-2">
+              <GoogleIcon name="notifications_active" className="text-gold animate-bounce" size={18} />
+              <span>Enable push notifications to receive real-time messages and calls even when the tab is closed.</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleDismissPermission} className="text-slate-400 hover:text-slate-200 px-3 py-1 font-bold">Dismiss</button>
+              <button onClick={handleRequestPermission} className="bg-gold hover:bg-gold-light text-[#0a1f5c] px-3.5 py-1 rounded-lg font-bold shadow-md gold-glow cursor-pointer">Enable Alerts</button>
+            </div>
+          </div>
+        )}
         {/* Top Mobile Header Bar */}
         <header className="md:hidden flex items-center justify-between p-4 bg-[#0a1f5c] border-b border-[#112d8a]/30 sticky top-0 z-20">
           <button onClick={() => setMobileMenuOpen(true)} className="text-slate-300 hover:text-white p-1">
@@ -644,6 +784,70 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Save Profile
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {incomingCall && incomingCall.callType === 'voice' && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-4 duration-300 max-w-sm w-full bg-[#0b1739]/95 backdrop-blur-md border border-gold/30 rounded-2xl p-4 shadow-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center text-gold shrink-0 animate-pulse">
+              <GoogleIcon name="call" size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[9px] text-gold font-bold uppercase tracking-wider">Incoming Voice Call</span>
+              <h4 className="text-xs font-bold text-slate-100 truncate">{incomingCall.groupName}</h4>
+              <p className="text-[10px] text-slate-400 truncate">{incomingCall.callerName} is inviting you</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeclineCall}
+                className="bg-red-650/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+              >
+                Decline
+              </button>
+              <button
+                onClick={handleAcceptCall}
+                className="bg-gold hover:bg-gold-light text-[#0a1f5c] px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-md gold-glow cursor-pointer"
+              >
+                Join
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {incomingCall && incomingCall.callType === 'video' && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-lg z-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="max-w-md w-full text-center space-y-6">
+            <div className="relative mx-auto w-32 h-32 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-gold/10 border border-gold/20 animate-ping opacity-75" />
+              <div className="absolute inset-2 rounded-full bg-gold/5 border border-gold/30 animate-pulse" />
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-slate-950 shadow-2xl relative">
+                <GoogleIcon name="video_call" size={48} />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <span className="text-[10px] bg-gold/10 border border-gold/30 text-gold px-3 py-1 rounded-full font-bold uppercase tracking-widest font-mono">Incoming Video Call</span>
+              <h2 className="text-xl font-extrabold text-white uppercase tracking-wider pt-2">{incomingCall.groupName}</h2>
+              <p className="text-xs text-slate-400">Caller: <span className="text-white font-semibold">{incomingCall.callerName}</span> is inviting you to join...</p>
+            </div>
+
+            <div className="flex gap-4 max-w-sm mx-auto pt-6">
+              <button
+                onClick={handleDeclineCall}
+                className="flex-1 bg-red-650 hover:bg-red-500 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-lg shadow-red-950/20 active:scale-95 cursor-pointer uppercase tracking-wider"
+              >
+                Decline Call
+              </button>
+              <button
+                onClick={handleAcceptCall}
+                className="flex-1 bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] text-xs font-extrabold py-3 rounded-xl transition-all shadow-xl gold-glow active:scale-95 cursor-pointer uppercase tracking-wider"
+              >
+                Accept & Join
+              </button>
+            </div>
           </div>
         </div>
       )}

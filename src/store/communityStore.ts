@@ -7,6 +7,8 @@ export interface ZustandGroup {
   type: string;
   description?: string;
   department?: string;
+  groupIcon?: string;
+  autoSyncDept?: boolean;
   createdBy?: any;
   members: { user: any; role: string; joinedAt: string }[];
   pinMessages: string[];
@@ -99,6 +101,9 @@ interface CommunityState {
   typingUsers: Record<string, Record<string, string>>; // groupId -> { userId -> displayName }
   socialPosts: ZustandSocialPost[];
   knowledgeItems: ZustandKnowledgeItem[];
+  activeCall: any | null;
+  incomingCall: any | null;
+  activeCalls: any[];
   loading: boolean;
   error: string | null;
 
@@ -126,6 +131,15 @@ interface CommunityState {
   fetchKnowledgeItems: (params?: Record<string, string>) => Promise<void>;
   createKnowledgeItem: (payload: any) => Promise<void>;
 
+  // Call actions
+  fetchActiveCalls: () => Promise<void>;
+  startCall: (groupId: string, callType: 'voice' | 'video') => Promise<any>;
+  joinCall: (callId: string) => Promise<void>;
+  leaveCall: (callId: string) => Promise<void>;
+  setIncomingCall: (call: any | null) => void;
+  setCallUpdated: (call: any) => void;
+  setCallEnded: (callId: string) => void;
+
   // Socket triggers
   setOnlineUsers: (userIds: string[]) => void;
   setUserOnline: (userId: string, isOnline: boolean) => void;
@@ -141,6 +155,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   typingUsers: {},
   socialPosts: [],
   knowledgeItems: [],
+  activeCall: null,
+  incomingCall: null,
+  activeCalls: [],
   loading: false,
   error: null,
 
@@ -315,6 +332,73 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch (err: any) {
       alert(err.message || 'Failed to create group');
     }
+  },
+
+  fetchActiveCalls: async () => {
+    try {
+      const res = await api.get('/community/calls/active');
+      set({ activeCalls: res.data.activeCalls });
+    } catch (err: any) {
+      console.error('Failed to fetch active calls:', err);
+    }
+  },
+
+  startCall: async (groupId, callType) => {
+    try {
+      const res = await api.post('/community/calls', { groupId, callType });
+      set({ activeCall: res.data.data.callSession });
+      return res.data.data;
+    } catch (err: any) {
+      alert(err.message || 'Failed to start call');
+      throw err;
+    }
+  },
+
+  joinCall: async (callId) => {
+    try {
+      const res = await api.post(`/community/calls/${callId}/join`, {});
+      set({ activeCall: res.data.data.callSession });
+    } catch (err: any) {
+      alert(err.message || 'Failed to join call');
+    }
+  },
+
+  leaveCall: async (callId) => {
+    try {
+      await api.post(`/community/calls/${callId}/leave`, {});
+      set({ activeCall: null });
+    } catch (err: any) {
+      console.error('Failed to leave call:', err);
+      set({ activeCall: null });
+    }
+  },
+
+  setIncomingCall: (call) => set({ incomingCall: call }),
+
+  setCallUpdated: (call) => {
+    set((state) => {
+      const isMyCall = state.activeCall?._id === call._id;
+      let updatedActiveCalls = state.activeCalls.map((c) =>
+        c._id === call._id ? call : c
+      );
+      if (!state.activeCalls.some((c) => c._id === call._id) && call.status === 'ongoing') {
+        updatedActiveCalls.push(call);
+      }
+      return {
+        activeCall: isMyCall ? call : state.activeCall,
+        activeCalls: updatedActiveCalls.filter((c) => c.status === 'ongoing')
+      };
+    });
+  },
+
+  setCallEnded: (callId) => {
+    set((state) => {
+      const isMyCall = state.activeCall?._id === callId;
+      return {
+        activeCall: isMyCall ? null : state.activeCall,
+        activeCalls: state.activeCalls.filter((c) => c._id !== callId)
+      };
+    });
   },
 
   setOnlineUsers: (userIds) => set({ onlineUsers: userIds }),

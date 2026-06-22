@@ -8,7 +8,9 @@ export type GroupType =
   | 'DepartmentGroup' 
   | 'HotelGroup' 
   | 'ProjectGroup' 
-  | 'AnnouncementChannel';
+  | 'AnnouncementChannel'
+  | 'TeamGroup'
+  | 'CustomGroup';
 
 export interface IGroupMember {
   user: Schema.Types.ObjectId;
@@ -20,6 +22,8 @@ export interface ICommunityGroup extends Document {
   name: string;
   type: GroupType;
   description?: string;
+  groupIcon?: string;
+  autoSyncDept?: boolean;
   hotel?: Schema.Types.ObjectId; // Empty for Root Admin global group, required for hotel tenants
   department?: string; // e.g. "Housekeeping"
   createdBy?: Schema.Types.ObjectId;
@@ -47,11 +51,15 @@ const CommunityGroupSchema = new Schema<ICommunityGroup>(
         'DepartmentGroup', 
         'HotelGroup', 
         'ProjectGroup', 
-        'AnnouncementChannel'
+        'AnnouncementChannel',
+        'TeamGroup',
+        'CustomGroup'
       ], 
       required: true 
     },
     description: { type: String, trim: true },
+    groupIcon: { type: String, trim: true },
+    autoSyncDept: { type: Boolean, default: false },
     hotel: { type: Schema.Types.ObjectId, ref: 'Hotel' },
     department: { type: String, trim: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },

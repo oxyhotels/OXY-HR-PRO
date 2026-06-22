@@ -177,6 +177,57 @@ nextApp.prepare().then(async () => {
             status: 'offline', 
             lastSeen: new Date().toISOString() 
           });
+
+          // Call session cleanup on disconnect
+          (async () => {
+            try {
+              const { CallSession } = await import('./models/CallSession');
+              const activeSessions = await CallSession.find({
+                participants: userId,
+                status: 'ongoing'
+              });
+
+              for (const session of activeSessions) {
+                session.participants = session.participants.filter(
+                  (pId: any) => pId.toString() !== userId
+                );
+                if (session.participants.length === 0) {
+                  session.status = 'ended';
+                  session.endedAt = new Date();
+
+                  const duration = Math.round((session.endedAt.getTime() - session.startedAt.getTime()) / 1000);
+                  const logPayload = {
+                    group: session.group,
+                    caller: session.caller,
+                    participants: [userId],
+                    startedAt: session.startedAt,
+                    endedAt: session.endedAt,
+                    duration
+                  };
+
+                  if (session.callType === 'video') {
+                    const { VideoCallLog } = await import('./models/VideoCallLog');
+                    await VideoCallLog.create(logPayload);
+                  } else {
+                    const { CallLog } = await import('./models/CallLog');
+                    await CallLog.create(logPayload);
+                  }
+                }
+                await session.save();
+
+                const populatedCall = await CallSession.findById(session._id)
+                  .populate('caller', 'firstName lastName photoUrl')
+                  .populate('participants', 'firstName lastName photoUrl role department');
+
+                io.to(`group_${session.group.toString()}`).emit('call_updated', populatedCall);
+                if (session.status === 'ended') {
+                  io.to(`group_${session.group.toString()}`).emit('call_ended', session._id.toString());
+                }
+              }
+            } catch (err) {
+              console.error('[Socket Call Cleanup Error]:', err);
+            }
+          })();
         }
       }
     });

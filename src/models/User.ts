@@ -62,7 +62,11 @@ export interface IUser extends Document {
     city: string;
     pincode: string;
     locationVerified: boolean;
+    googleMapLink?: string;
+    placeId?: string;
+    verified?: boolean;
     verifiedAt?: Date;
+
   };
   // Gamification & Operational Tracking
   xp?: number;
@@ -154,7 +158,11 @@ const UserSchema = new Schema<IUser>(
       city: { type: String },
       pincode: { type: String },
       locationVerified: { type: Boolean, default: false },
+      googleMapLink: { type: String },
+      placeId: { type: String },
+      verified: { type: Boolean },
       verifiedAt: { type: Date }
+
     },
     // Advanced Execution Metrics
     xp: { type: Number, default: 0 },

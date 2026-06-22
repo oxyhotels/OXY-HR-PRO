@@ -19,7 +19,7 @@ const NotificationSchema = new Schema<INotification>(
     read: { type: Boolean, default: false },
     type: {
       type: String,
-      enum: ['info', 'success', 'warning', 'alert', 'ticket', 'compliance', 'performance'],
+      enum: ['info', 'success', 'warning', 'alert', 'ticket', 'compliance', 'performance', 'chat', 'call', 'mention'],
       default: 'info',
     },
     link: { type: String },

@@ -49,7 +49,9 @@ interface EmployeeProfile {
     city: string;
     pincode: string;
     locationVerified: boolean;
+    googleMapLink?: string;
     verifiedAt?: string;
+
   };
   hotel?: {
     _id: string;
@@ -929,7 +931,8 @@ const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; o
 
   if (!employee || !employee.homeLocation) return null;
 
-  const { address, latitude, longitude, state, district, city, pincode, locationVerified, verifiedAt } = employee.homeLocation;
+  const { address, latitude, longitude, state, district, city, pincode, locationVerified, verifiedAt, googleMapLink } = employee.homeLocation;
+
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -979,7 +982,8 @@ const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; o
               )}
             </div>
             <a
-              href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+              href={googleMapLink || `https://www.google.com/maps?q=${latitude},${longitude}`}
+
               target="_blank"
               rel="noreferrer"
               className="mt-4 px-4 py-2 bg-gold hover:bg-gold-light text-[#0a1f5c] font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer self-start md:self-auto"

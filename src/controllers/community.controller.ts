@@ -4,7 +4,16 @@ import { CommunityMessage } from '@/models/CommunityMessage';
 import { User } from '@/models/User';
 import { AuditLog } from '@/models/AuditLog';
 import { ApiError } from '@/utils/ApiError';
+import { CallSession } from '@/models/CallSession';
+import { Notification } from '@/models/Notification';
+import { getIO } from '@/lib/socket';
 import mongoose from 'mongoose';
+import { PushToken } from '@/models/PushToken';
+import { CallLog } from '@/models/CallLog';
+import { VideoCallLog } from '@/models/VideoCallLog';
+import { ReadStatus } from '@/models/ReadStatus';
+import { DeliveryStatus } from '@/models/DeliveryStatus';
+import { sendPushNotification } from '@/services/fcm.service';
 
 // Sync Global Group so everyone is a member
 const ensureGlobalGroup = async (): Promise<any> => {
@@ -61,9 +70,7 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
           hotel: userHotel,
           $or: [
             { type: 'PublicGroup' },
-            { type: 'AnnouncementChannel' },
-            { 'members.user': userId },
-            { type: 'DepartmentGroup', department: req.user?.department }
+            { 'members.user': userId }
           ]
         }
       ];
@@ -86,10 +93,10 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
 // POST /api/community/groups
 export const createGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, type, description, department, memberIds } = req.body;
+    const { name, type, description, department, memberIds, selectionMode, selectionValues, autoSyncDept, groupIcon } = req.body;
     
-    // RBAC: Only Root Admin, Hotel Admin or HR Manager can create groups/channels
-    const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'];
+    // RBAC: Root Admin, Hotel Admin, HR Manager, or Dept Manager can create groups
+    const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'];
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       throw new ApiError(403, 'Access denied: Insufficient privileges to create groups');
     }
@@ -99,23 +106,59 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       hotelId = req.body.hotelId;
     }
 
-    const membersList = (memberIds || []).map((mId: string) => ({
+    let finalMemberIds = new Set<string>();
+
+    // 1. Add explicitly passed memberIds
+    if (Array.isArray(memberIds)) {
+      memberIds.forEach((id: string) => finalMemberIds.add(id));
+    }
+
+    // 2. Department-based query
+    if (selectionMode === 'department' && Array.isArray(selectionValues)) {
+      const usersInDepts = await User.find({
+        status: { $ne: 'Terminated' },
+        department: { $in: selectionValues },
+        ...(hotelId ? { hotel: hotelId } : {})
+      }, '_id');
+      usersInDepts.forEach((u) => finalMemberIds.add(u._id.toString()));
+    }
+
+    // 3. Manager-based query
+    if (selectionMode === 'manager' && Array.isArray(selectionValues)) {
+      const usersUnderManagers = await User.find({
+        status: { $ne: 'Terminated' },
+        reportingManager: { $in: selectionValues },
+        ...(hotelId ? { hotel: hotelId } : {})
+      }, '_id');
+      usersUnderManagers.forEach((u) => finalMemberIds.add(u._id.toString()));
+    }
+
+    const membersList = Array.from(finalMemberIds).map((mId) => ({
       user: new mongoose.Types.ObjectId(mId),
-      role: 'member' as const,
+      role: 'member' as 'admin' | 'moderator' | 'member',
       joinedAt: new Date()
     }));
 
     // Creator is Admin member
-    membersList.push({
-      user: req.user._id,
-      role: 'admin' as const,
-      joinedAt: new Date()
-    });
+    const creatorId = req.user!._id.toString();
+    const hasCreator = membersList.some(m => m.user.toString() === creatorId);
+    if (!hasCreator) {
+      membersList.push({
+        user: req.user!._id,
+        role: 'admin',
+        joinedAt: new Date()
+      });
+    } else {
+      const creatorIndex = membersList.findIndex(m => m.user.toString() === creatorId);
+      membersList[creatorIndex].role = 'admin';
+    }
 
     const group = await CommunityGroup.create({
       name,
       type,
       description,
+      groupIcon,
+      autoSyncDept: !!autoSyncDept,
       hotel: hotelId,
       department: type === 'DepartmentGroup' ? department : undefined,
       createdBy: req.user._id,
@@ -131,9 +174,13 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       details: `Created community group "${name}" of type ${type}`
     });
 
+    const populatedGroup = await CommunityGroup.findById(group._id)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
     res.status(201).json({
       status: 'success',
-      data: { group }
+      data: { group: populatedGroup }
     });
   } catch (error) {
     next(error);
@@ -147,6 +194,15 @@ export const getGroupMessages = async (req: Request, res: Response, next: NextFu
     const page = parseInt(req.query.page as string || '1', 10);
     const limit = parseInt(req.query.limit as string || '50', 10);
     const skip = (page - 1) * limit;
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isMember = group.members.some((m: any) => m.user.toString() === req.user?._id.toString());
+    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
+    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: You are not a member of this group');
+    }
 
     const messages = await CommunityMessage.find({ group: groupId })
       .populate('sender', 'firstName lastName photoUrl role department')
@@ -185,6 +241,12 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     const group = await CommunityGroup.findById(groupId);
     if (!group) throw new ApiError(404, 'Community group not found');
 
+    const isMember = group.members.some((m: any) => m.user.toString() === req.user?._id.toString());
+    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
+    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: You are not a member of this group');
+    }
+
     // Announcement Check: Only Admin, Director, or Manager can post
     if (group.type === 'AnnouncementChannel') {
       const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'];
@@ -215,6 +277,78 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
     // Update group timestamp
     await CommunityGroup.findByIdAndUpdate(groupId, { updatedAt: new Date() });
+
+    // Handle Mentions Scan & Notifications
+    let mentionedUserIds = new Set<string>();
+    if (content && typeof content === 'string') {
+      const mentionRegex = /@(\w+)/g;
+      let match;
+      const mentionedUsernames = new Set<string>();
+      while ((match = mentionRegex.exec(content)) !== null) {
+        mentionedUsernames.add(match[1].toLowerCase());
+      }
+
+      if (mentionedUsernames.size > 0) {
+        const users = await User.find({
+          _id: { $in: group.members.map((m: any) => m.user) },
+          status: { $ne: 'Terminated' }
+        });
+        for (const user of users) {
+          if (mentionedUsernames.has(user.firstName.toLowerCase())) {
+            mentionedUserIds.add(user._id.toString());
+          }
+        }
+      }
+    }
+
+    const groupMembers = group.members.filter((m: any) => m.user.toString() !== req.user?._id.toString());
+    const senderName = `${req.user?.firstName} ${req.user?.lastName}`;
+    const messagePreview = content ? content.substring(0, 60) : 'Sent an attachment';
+
+    for (const member of groupMembers) {
+      const memberIdStr = member.user.toString();
+      const isMentioned = mentionedUserIds.has(memberIdStr);
+      
+      const type = isMentioned ? 'mention' : 'chat';
+      const title = isMentioned ? '💬 Mentioned in Chat' : `💬 New Message in ${group.name}`;
+      const messageText = isMentioned 
+        ? `${senderName} mentioned you in "${group.name}": "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
+        : `${senderName}: ${messagePreview}`;
+
+      const notif = await Notification.create({
+        recipient: member.user,
+        title,
+        message: messageText,
+        type,
+        link: `/dashboard/community?groupId=${groupId}`
+      });
+
+      // Check online status via Socket.IO adapter
+      const io = getIO();
+      const userRoom = io?.sockets.adapter.rooms.get(`user_${memberIdStr}`);
+      const isOnline = userRoom && userRoom.size > 0;
+
+      await DeliveryStatus.create({
+        message: message._id,
+        user: member.user,
+        status: isOnline ? 'delivered' : 'sent',
+        deliveredAt: isOnline ? new Date() : undefined
+      });
+
+      if (isOnline) {
+        if (io) {
+          io.to(`user_${memberIdStr}`).emit('new_notification', notif);
+        }
+      } else {
+        await sendPushNotification(memberIdStr, {
+          title,
+          body: messageText,
+          data: {
+            link: `/dashboard/community?groupId=${groupId}`
+          }
+        });
+      }
+    }
 
     // Realtime Socket Broadcast
     if ((global as any).io) {
@@ -439,19 +573,313 @@ export const getCommunityAnalytics = async (req: Request, res: Response, next: N
   }
 };
 
-// POST /api/community/calls/audio / video / meeting (Calls Stubs)
-export const createCallToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+// POST /api/community/calls
+export const startCallSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { channelName, callType } = req.body;
-    res.status(200).json({
+    const { groupId, callType } = req.body;
+    const userId = req.user?._id;
+    if (!userId) throw new ApiError(401, 'Unauthorized');
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    // Access control: must be member of group
+    const isMember = group.members.some((m: any) => m.user.toString() === userId.toString());
+    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
+    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: You are not a member of this group');
+    }
+
+    // End any existing ongoing call in this group by this caller to avoid duplicates
+    await CallSession.updateMany(
+      { group: groupId, caller: userId, status: 'ongoing' },
+      { status: 'ended', endedAt: new Date() }
+    );
+
+    const callSession = await CallSession.create({
+      group: groupId,
+      caller: userId,
+      callType,
+      status: 'ongoing',
+      participants: [userId]
+    });
+
+    const populatedCall = await CallSession.findById(callSession._id)
+      .populate('caller', 'firstName lastName photoUrl')
+      .populate('participants', 'firstName lastName photoUrl role department');
+
+    // Create notifications for all other group members
+    const otherMembers = group.members
+      .map((m: any) => m.user.toString())
+      .filter((mId: string) => mId !== userId.toString());
+
+    const callerName = `${req.user!.firstName} ${req.user!.lastName}`;
+
+    for (const mId of otherMembers) {
+      const notif = await Notification.create({
+        recipient: mId,
+        title: callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call',
+        message: `${callerName} started a group ${callType} call in "${group.name}"`,
+        type: 'call',
+        link: `/dashboard/community?groupId=${groupId}&callId=${callSession._id}`
+      });
+
+      // Emit notification/call to user
+      const io = getIO();
+      const userRoom = io?.sockets.adapter.rooms.get(`user_${mId}`);
+      const isOnline = userRoom && userRoom.size > 0;
+
+      if (isOnline) {
+        if (io) {
+          io.to(`user_${mId}`).emit('new_notification', notif);
+          io.to(`user_${mId}`).emit('incoming_call', {
+            callId: callSession._id,
+            groupId: group._id,
+            groupName: group.name,
+            callType,
+            callerName
+          });
+        }
+      } else {
+        await sendPushNotification(mId, {
+          title: callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call',
+          body: `${callerName} started a group ${callType} call in "${group.name}"`,
+          data: {
+            link: `/dashboard/community?groupId=${groupId}&callId=${callSession._id}`
+          }
+        });
+      }
+    }
+
+    // Log call in AuditLog
+    await AuditLog.create({
+      user: userId,
+      hotel: req.user!.hotel || group.hotel,
+      action: `START_${callType.toUpperCase()}_CALL`,
+      module: 'COMMUNITY',
+      details: `Started a group ${callType} call in "${group.name}"`
+    });
+
+    res.status(201).json({
       status: 'success',
       data: {
-        channelName,
-        callType,
+        callSession: populatedCall,
         token: `rtc_token_mock_${Math.random().toString(36).substring(7)}`,
         appId: 'mock_app_id_value_for_future_ready_agora',
         uid: Math.floor(Math.random() * 100000)
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/community/calls/:callId/join
+export const joinCallSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user?._id;
+    if (!userId) throw new ApiError(401, 'Unauthorized');
+
+    const callSession = await CallSession.findById(callId);
+    if (!callSession) throw new ApiError(404, 'Call session not found');
+
+    if (callSession.status === 'ended') {
+      throw new ApiError(400, 'Call session has already ended');
+    }
+
+    // Verify membership
+    const group = await CommunityGroup.findById(callSession.group);
+    if (!group) throw new ApiError(404, 'Group not found');
+    const isMember = group.members.some((m: any) => m.user.toString() === userId.toString());
+    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
+    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: You are not a member of this group');
+    }
+
+    // Add to participants if not already joined
+    if (!callSession.participants.includes(userId)) {
+      callSession.participants.push(userId);
+      await callSession.save();
+    }
+
+    const populatedCall = await CallSession.findById(callId)
+      .populate('caller', 'firstName lastName photoUrl')
+      .populate('participants', 'firstName lastName photoUrl role department');
+
+    // Notify other participants via Socket
+    const io = getIO();
+    if (io) {
+      io.to(`group_${callSession.group.toString()}`).emit('call_updated', populatedCall);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { callSession: populatedCall }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/community/calls/:callId/leave
+export const leaveCallSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user?._id;
+    if (!userId) throw new ApiError(401, 'Unauthorized');
+
+    const callSession = await CallSession.findById(callId);
+    if (!callSession) throw new ApiError(404, 'Call session not found');
+
+    // Remove from participants
+    callSession.participants = callSession.participants.filter(
+      (pId: any) => pId.toString() !== userId.toString()
+    );
+
+    // If no participants left, end call
+    if (callSession.participants.length === 0) {
+      callSession.status = 'ended';
+      callSession.endedAt = new Date();
+
+      const duration = Math.round((callSession.endedAt.getTime() - callSession.startedAt.getTime()) / 1000);
+      const logPayload = {
+        group: callSession.group,
+        caller: callSession.caller,
+        participants: [userId],
+        startedAt: callSession.startedAt,
+        endedAt: callSession.endedAt,
+        duration
+      };
+
+      if (callSession.callType === 'video') {
+        await VideoCallLog.create(logPayload);
+      } else {
+        await CallLog.create(logPayload);
+      }
+    }
+
+    await callSession.save();
+
+    const populatedCall = await CallSession.findById(callId)
+      .populate('caller', 'firstName lastName photoUrl')
+      .populate('participants', 'firstName lastName photoUrl role department');
+
+    const io = getIO();
+    if (io) {
+      io.to(`group_${callSession.group.toString()}`).emit('call_updated', populatedCall);
+      if (callSession.status === 'ended') {
+        io.to(`group_${callSession.group.toString()}`).emit('call_ended', callId);
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { callSession: populatedCall }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/community/calls/active
+export const getActiveCalls = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) throw new ApiError(401, 'Unauthorized');
+
+    // Find all groups user belongs to (or are global/public)
+    const userGroups = await CommunityGroup.find({
+      $or: [
+        { type: 'GlobalGroup' },
+        { type: 'PublicGroup' },
+        { 'members.user': userId }
+      ]
+    }, '_id');
+
+    const groupIds = userGroups.map(g => g._id);
+
+    const activeCalls = await CallSession.find({
+      group: { $in: groupIds },
+      status: 'ongoing'
+    })
+      .populate('caller', 'firstName lastName photoUrl')
+      .populate('participants', 'firstName lastName photoUrl role department')
+      .populate('group', 'name type');
+
+    res.status(200).json({
+      status: 'success',
+      data: { activeCalls }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Helper: Auto-sync user to department groups with autoSyncDept toggled on
+export const syncUserDepartmentGroups = async (user: any): Promise<void> => {
+  try {
+    if (!user.department || user.status === 'Terminated') return;
+
+    // Find all department groups matching this department and has autoSyncDept: true
+    const groups = await CommunityGroup.find({
+      type: 'DepartmentGroup',
+      department: user.department,
+      autoSyncDept: true
+    });
+
+    for (const group of groups) {
+      const isMember = group.members.some((m: any) => m.user.toString() === user._id.toString());
+      if (!isMember) {
+        group.members.push({
+          user: user._id,
+          role: 'member',
+          joinedAt: new Date()
+        });
+        await group.save();
+        console.log(`[Community] Auto-added user ${user.firstName} ${user.lastName} to group ${group.name}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in syncUserDepartmentGroups:', error);
+  }
+};
+
+// POST /api/community/push-tokens
+export const savePushToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) throw new ApiError(401, 'Unauthorized');
+
+    const { token, deviceType } = req.body;
+    if (!token) throw new ApiError(400, 'Push token is required');
+
+    await PushToken.findOneAndUpdate(
+      { token },
+      { user: userId, deviceType, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Push token saved successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/community/push-tokens
+export const deletePushToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { token } = req.body;
+    if (!token) throw new ApiError(400, 'Push token is required');
+
+    await PushToken.deleteOne({ token });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Push token deleted successfully'
     });
   } catch (error) {
     next(error);

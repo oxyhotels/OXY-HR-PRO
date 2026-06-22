@@ -3,6 +3,7 @@ import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
+import { syncUserDepartmentGroups } from './community.controller';
 
 // Helper to log audit actions
 const logAudit = async (userId: string, hotelId: any, action: string, details: string) => {
@@ -78,6 +79,8 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       shift,
       homeLocation,
     });
+
+    await syncUserDepartmentGroups(employee);
 
     if (req.user) {
       await logAudit(
@@ -231,6 +234,8 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
     }
 
     await employee.save();
+
+    await syncUserDepartmentGroups(employee);
 
     if (req.user) {
       await logAudit(
@@ -398,6 +403,8 @@ export const approveSignup = async (req: Request, res: Response, next: NextFunct
 
     employee.status = 'Active';
     await employee.save();
+
+    await syncUserDepartmentGroups(employee);
 
     // Activate the associated hotel
     if (employee.hotel) {
