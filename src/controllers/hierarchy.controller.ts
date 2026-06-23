@@ -10,8 +10,10 @@ import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { createNotification } from '@/services/notification.service';
+import { sendPushNotification } from '@/services/fcm.service';
 import { addUserToGlobalGroup } from './community.controller';
 import mongoose from 'mongoose';
+import { diffFields, logAuditTrail } from '@/utils/audit';
 
 // Ensure all Mongoose models are loaded to avoid tree-shaking and MissingSchemaErrors on populate
 const registerModels = () => {
@@ -83,6 +85,17 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
       code: finalCode,
       description: description || undefined,
       status: status || 'Active',
+    });
+
+    await logAuditTrail({
+      userId: req.user._id,
+      action: 'Department Created',
+      module: 'Department',
+      oldValue: 'None',
+      newValue: `Name: ${dept.name} | Code: ${finalCode} | Description: ${description || 'N/A'}`,
+      details: `Department ${dept.name} created`,
+      targetId: dept._id.toString(),
+      req,
     });
 
     await HierarchyAuditLog.create({
@@ -318,10 +331,8 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
     registerModels();
     if (!req.user) {
       throw new ApiError(401, 'Please authenticate');
-    }
-
-    // Managers or admins can generate
-    const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'];
+    }    // Managers, admins or approved employees can generate
+    const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'];
     if (!allowedRoles.includes(req.user.role)) {
       throw new ApiError(403, 'Permission denied to generate invite QR links');
     }
@@ -353,6 +364,14 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 7));
 
+    // Find inviter's hierarchy node
+    const userNode = await HierarchyNode.findOne({ userId: req.user._id });
+
+    // Generate unique qrId
+    const qrId = `QR-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    const targetRole = inviteType === 'manager' ? 'DEPT_MANAGER' : 'EMPLOYEE';
+
     const invite = await InviteLink.create({
       inviteCode,
       inviteLink,
@@ -362,10 +381,19 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       managerId: req.user._id,
       createdBy: req.user._id,
       expiresAt,
-      status: 'Active',
+      status: 'ACTIVE',
       inviteType: inviteType || 'employee',
+      
+      // New hierarchy properties
+      qrId,
+      createdByRole: req.user.role,
+      parentNodeId: userNode ? userNode._id : undefined,
+      parentManagerId: req.user._id,
+      department: dept.name,
+      role: targetRole,
+      token: inviteCode,
+      expiryDate: expiresAt
     });
-
     await HierarchyAuditLog.create({
       userId: req.user._id,
       action: 'INVITE_GENERATED',
@@ -394,11 +422,16 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
       throw new ApiError(404, 'Invite link not found');
     }
 
-    if (invite.status === 'Disabled') {
+    const statusUpper = (invite.status || '').toUpperCase();
+    if (statusUpper === 'DISABLED' || statusUpper === 'DISABLE') {
       throw new ApiError(400, 'This invite link has been disabled');
     }
 
     if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+      if (invite.status !== 'EXPIRED') {
+        invite.status = 'EXPIRED';
+        await invite.save();
+      }
       throw new ApiError(400, 'This invite link has expired');
     }
 
@@ -424,12 +457,16 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
       throw new ApiError(400, 'All fields (Invite Code, Name, Email, Mobile, Employee ID, Designation, Password, State, District) are required');
     }
 
-    const invite = await InviteLink.findOne({ inviteCode, status: 'Active' });
+    const invite = await InviteLink.findOne({ inviteCode, status: { $in: ['Active', 'ACTIVE'] } });
     if (!invite) {
       throw new ApiError(400, 'Invalid or disabled invite link');
     }
 
     if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+      if (invite.status !== 'EXPIRED') {
+        invite.status = 'EXPIRED';
+        await invite.save();
+      }
       throw new ApiError(400, 'Invite link has expired');
     }
 
@@ -481,15 +518,36 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
       hierarchyLevel,
       state,
       district,
+      homeLocation: req.body.homeLocation,
+      documents: req.body.documents,
+      aadhaarNumber: req.body.aadhaarNumber,
+      panNumber: req.body.panNumber,
+      bankName: req.body.bankName,
+      accountNo: req.body.accountNo,
+      ifsc: req.body.ifsc,
+      emergencyContactName: req.body.emergencyContactName,
+      emergencyContactRelation: req.body.emergencyContactRelation,
+      emergencyContactPhone: req.body.emergencyContactPhone,
+      joiningDate: req.body.joiningDate,
+      employmentType: req.body.employmentType,
+      salary: req.body.salary,
+      reportingManager: req.body.reportingManager,
     });
 
     // Notify manager of pending request
     await createNotification({
-      title: 'New Join Request Pending',
-      message: `${name} has requested to join your department (${dept.name}) as ${designation}. Please review and approve.`,
+      title: 'New hierarchy join request received',
+      message: 'New hierarchy join request received',
       type: 'warning',
       recipientId: invite.managerId.toString(),
       link: '/dashboard/hierarchy',
+    });
+
+    // Send PWA / Mobile Community Push Notification
+    await sendPushNotification(invite.managerId.toString(), {
+      title: 'New hierarchy join request received',
+      body: 'New hierarchy join request received',
+      data: { link: '/dashboard/hierarchy' }
     });
 
     res.status(200).json({
@@ -572,6 +630,9 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     const newUserId = new mongoose.Types.ObjectId();
     const currentPath = `${parentPath}/${newUserId}`;
 
+    // Fetch Root Admin to link their ID
+    const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN' });
+
     // Create active user
     const newUser = await User.create({
       _id: newUserId,
@@ -586,7 +647,7 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
       department: dept.name,
       hotel: req.user.hotel || undefined, // inherit manager's hotel
       status: 'Active',
-      joinedDate: new Date(),
+      joinedDate: joinReq.joiningDate ? new Date(joinReq.joiningDate) : new Date(),
       reportingManager: `${req.user.firstName} ${req.user.lastName}`,
       hierarchyLevel: newUserLevel,
       hierarchyPath: currentPath,
@@ -596,6 +657,30 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
       approvedAt: new Date(),
       state: joinReq.state,
       district: joinReq.district,
+      parentId: req.user._id,
+      rootAdminId: rootAdmin ? rootAdmin._id : undefined,
+      employeeCode: joinReq.employeeId,
+      managerCode: finalRole !== 'EMPLOYEE' ? joinReq.employeeId : undefined,
+      homeLocation: joinReq.homeLocation,
+      documents: joinReq.documents || [],
+      aadhaarNumber: joinReq.aadhaarNumber,
+      panNumber: joinReq.panNumber,
+      bankDetails: {
+        bankName: joinReq.bankName,
+        accountNo: joinReq.accountNo,
+        ifsc: joinReq.ifsc
+      },
+      emergencyContact: {
+        name: joinReq.emergencyContactName,
+        relation: joinReq.emergencyContactRelation,
+        phone: joinReq.emergencyContactPhone
+      },
+      employmentType: joinReq.employmentType,
+      salaryDetails: {
+        baseSalary: parseFloat(joinReq.salary || '0') || 0,
+        allowances: [],
+        deductions: []
+      }
     });
 
     // Auto-join to global community chat group
@@ -933,6 +1018,17 @@ export const transferEmployee = async (req: Request, res: Response, next: NextFu
       link: '/dashboard/profile',
     });
 
+    await logAuditTrail({
+      userId: req.user._id,
+      action: 'Hierarchy Updated',
+      module: 'Hierarchy',
+      oldValue: `Department: ${oldDeptName} | Manager: ${oldManager || 'None'}`,
+      newValue: `Department: ${newDept.name} | Manager: ${managerName || 'None'}`,
+      details: `Employee ${emp.firstName} ${emp.lastName} transferred: moved department and manager`,
+      targetUserId: employeeId,
+      req,
+    });
+
     await HierarchyAuditLog.create({
       userId: req.user._id,
       action: 'EMPLOYEE_TRANSFERRED',
@@ -1111,6 +1207,8 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
       throw new ApiError(404, 'Target user not found');
     }
 
+    const originalUser = targetUser.toObject();
+
     // Tenancy/Hierarchy Check: Is the logged-in user the Root Admin, or a parent manager of targetUserId?
     if (req.user.role !== 'ROOT_ADMIN') {
       const targetStruct = await ReportingStructure.findOne({ userId: targetUserId });
@@ -1169,6 +1267,95 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
       );
     }
 
+    if (req.user && originalUser) {
+      const isEmployee = originalUser.role === 'EMPLOYEE';
+      const fieldsToTrack = isEmployee
+        ? [
+            'firstName',
+            'lastName',
+            'phone',
+            'department',
+            'salaryDetails.baseSalary',
+            'employeeCode',
+            'employeeId',
+            'reportingManager',
+            'shift',
+            'designation',
+            'personalDetails.address',
+            'homeLocation.address',
+            'documents',
+          ]
+        : [
+            'department',
+            'salaryDetails.baseSalary',
+            'managerCode',
+            'hotel',
+            'reportingManager',
+            'shift',
+            'enabledFeatures',
+            'designation',
+          ];
+
+      const { oldValue, newValue, hasChanged, changedFields } = diffFields(
+        originalUser,
+        targetUser,
+        fieldsToTrack
+      );
+
+      if (hasChanged) {
+        const module = isEmployee ? 'Employee' : 'Manager';
+        const action = isEmployee ? 'Employee Updated' : 'Manager Updated';
+        const details = `${module} profile for ${targetUser.firstName} ${targetUser.lastName} updated via Hierarchy: ${changedFields.join(', ')}`;
+        
+        await logAuditTrail({
+          userId: req.user._id,
+          action,
+          module,
+          oldValue,
+          newValue,
+          details,
+          targetUserId: targetUser._id,
+          req,
+        });
+
+        // Track Hierarchy changes if department, hotel, or reportingManager changed
+        const hierarchyFields = ['department', 'hotel', 'reportingManager'];
+        const changedHierarchy = changedFields.filter(f => hierarchyFields.includes(f));
+        if (changedHierarchy.length > 0) {
+          let oldProperty = originalUser.hotel;
+          let newProperty = targetUser.hotel;
+          if (changedFields.includes('hotel')) {
+            const oldH = oldProperty ? await Hotel.findById(oldProperty) : null;
+            const newH = newProperty ? await Hotel.findById(newProperty) : null;
+            oldProperty = oldH ? oldH.name : 'None';
+            newProperty = newH ? newH.name : 'None';
+          }
+          
+          const oldHierarchyParts = [];
+          const newHierarchyParts = [];
+          
+          if (originalUser.department) oldHierarchyParts.push(`Department: ${originalUser.department}`);
+          if (originalUser.reportingManager) oldHierarchyParts.push(`Manager: ${originalUser.reportingManager}`);
+          if (originalUser.hotel) oldHierarchyParts.push(`Property: ${oldProperty}`);
+          
+          if (targetUser.department) newHierarchyParts.push(`Department: ${targetUser.department}`);
+          if (targetUser.reportingManager) newHierarchyParts.push(`Manager: ${targetUser.reportingManager}`);
+          if (targetUser.hotel) newHierarchyParts.push(`Property: ${newProperty}`);
+
+          await logAuditTrail({
+            userId: req.user._id,
+            action: 'Hierarchy Updated',
+            module: 'Hierarchy',
+            oldValue: oldHierarchyParts.join(' | ') || 'None',
+            newValue: newHierarchyParts.join(' | ') || 'None',
+            details: `Hierarchy moved for user ${targetUser.firstName} ${targetUser.lastName} via Hierarchy Editor`,
+            targetUserId: targetUser._id,
+            req,
+          });
+        }
+      }
+    }
+
     await HierarchyAuditLog.create({
       userId: req.user._id,
       action: 'SUBORDINATE_UPDATED',
@@ -1184,4 +1371,448 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
     next(error);
   }
 };
+
+export const regenerateInvite = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    if (!req.user) {
+      throw new ApiError(401, 'Please authenticate');
+    }
+
+    const { inviteCode } = req.body;
+    if (!inviteCode) {
+      throw new ApiError(400, 'Invite code is required');
+    }
+
+    const oldInvite = await InviteLink.findOne({ inviteCode });
+    if (!oldInvite) {
+      throw new ApiError(404, 'Invite link not found');
+    }
+
+    // Authorization check
+    if (req.user.role !== 'ROOT_ADMIN' && oldInvite.managerId.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, 'Permission denied: You do not have permission to manage this invite');
+    }
+
+    // Disable old invite
+    oldInvite.status = 'DISABLED';
+    await oldInvite.save();
+
+    // Create new invite link
+    const newInviteCode = `INV-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const newInviteLink = `${proto}://${host}/join/${newInviteCode}`;
+    const newQrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(newInviteLink)}`;
+
+    // Set new expiry date (default 7 days, or carry over duration)
+    const originalDurationMs = oldInvite.expiresAt && oldInvite.createdAt 
+      ? oldInvite.expiresAt.getTime() - oldInvite.createdAt.getTime() 
+      : 7 * 24 * 60 * 60 * 1000;
+    const newExpiresAt = new Date(Date.now() + originalDurationMs);
+
+    const newQrId = `QR-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    // Find inviter's hierarchy node
+    const userNode = await HierarchyNode.findOne({ userId: req.user._id });
+
+    const newInvite = await InviteLink.create({
+      inviteCode: newInviteCode,
+      inviteLink: newInviteLink,
+      qrCode: newQrCode,
+      organizationId: oldInvite.organizationId,
+      departmentId: oldInvite.departmentId,
+      managerId: oldInvite.managerId,
+      createdBy: req.user._id,
+      expiresAt: newExpiresAt,
+      status: 'ACTIVE',
+      inviteType: oldInvite.inviteType || 'employee',
+      
+      // New hierarchy properties
+      qrId: newQrId,
+      createdByRole: req.user.role,
+      parentNodeId: userNode ? userNode._id : undefined,
+      parentManagerId: req.user._id,
+      department: oldInvite.department,
+      role: oldInvite.role,
+      token: newInviteCode,
+      expiryDate: newExpiresAt
+    });
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: 'INVITE_REGENERATED',
+      details: JSON.stringify({ 
+        oldInviteCode: inviteCode, 
+        newInviteCode, 
+        newQrId, 
+        managerId: req.user._id 
+      }),
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Invite QR regenerated successfully. Old QR disabled.',
+      data: { invite: newInvite },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    if (!req.user || !['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(req.user.role)) {
+      throw new ApiError(403, 'Only Root Administrators and authorized Managers can update departments');
+    }
+
+    const { id } = req.params;
+    const { name, description, status } = req.body;
+
+    const dept = await Department.findById(id);
+    if (!dept) {
+      throw new ApiError(404, 'Department not found');
+    }
+
+    const oldName = dept.name;
+    const originalDept = dept.toObject();
+
+    if (name && name.trim().toLowerCase() !== oldName.toLowerCase()) {
+      const existing = await Department.findOne({
+        organization: dept.organization,
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+        _id: { $ne: dept._id }
+      });
+      if (existing) {
+        throw new ApiError(400, 'A department with this name already exists in this organization');
+      }
+      dept.name = name.trim();
+    }
+
+    if (description !== undefined) {
+      dept.description = description;
+    }
+
+    if (status !== undefined) {
+      if (status !== 'Active' && status !== 'Inactive') {
+        throw new ApiError(400, 'Invalid status value');
+      }
+      dept.status = status;
+    }
+
+    await dept.save();
+
+    // Cascade name change to all users assigned to this department
+    if (name && name.trim() !== oldName) {
+      await User.updateMany({ department: oldName }, { department: name.trim() });
+    }
+
+    if (req.user && originalDept) {
+      const { oldValue, newValue, hasChanged, changedFields } = diffFields(
+        originalDept,
+        dept,
+        ['name', 'description', 'status']
+      );
+
+      if (hasChanged) {
+        await logAuditTrail({
+          userId: req.user._id,
+          action: 'Department Updated',
+          module: 'Department',
+          oldValue,
+          newValue,
+          details: `Department ${dept.name} updated: ${changedFields.join(', ')}`,
+          targetId: dept._id.toString(),
+          req,
+        });
+      }
+    }
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: 'DEPARTMENT_UPDATED',
+      details: JSON.stringify({ departmentId: dept._id, oldName, newName: dept.name, description, status }),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Department updated successfully',
+      data: { department: dept },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    if (!req.user || req.user.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Only Root Administrators can delete departments');
+    }
+
+    const { id } = req.params;
+
+    const dept = await Department.findById(id);
+    if (!dept) {
+      throw new ApiError(404, 'Department not found');
+    }
+
+    // Check references
+    const userLinked = await User.findOne({ department: dept.name });
+    if (userLinked) {
+      throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
+    }
+
+    const nodeLinked = await HierarchyNode.findOne({ departmentId: dept._id });
+    if (nodeLinked) {
+      throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
+    }
+
+    const structLinked = await ReportingStructure.findOne({ departmentId: dept._id });
+    if (structLinked) {
+      throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
+    }
+
+    const requestLinked = await JoinRequest.findOne({ departmentId: dept._id });
+    if (requestLinked) {
+      throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
+    }
+
+    const inviteLinked = await InviteLink.findOne({ departmentId: dept._id });
+    if (inviteLinked) {
+      throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
+    }
+
+    await Department.findByIdAndDelete(dept._id);
+
+    await logAuditTrail({
+      userId: req.user._id,
+      action: 'Department Deleted',
+      module: 'Department',
+      oldValue: `Name: ${dept.name} | Code: ${dept.code}`,
+      newValue: 'None',
+      details: `Department ${dept.name} deleted`,
+      targetId: dept._id.toString(),
+      req,
+    });
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: 'DEPARTMENT_DELETED',
+      details: JSON.stringify({ departmentId: dept._id, name: dept.name }),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Department deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getHierarchyAuditLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    if (!req.user) {
+      throw new ApiError(401, 'Please authenticate');
+    }
+
+    const { page = 1, limit = 20, module: filterMod, action: filterAct, startDate, endDate, search, exportCsv } = req.query;
+
+    const filter: any = {};
+
+    // 1. Role-based scoping: Managers can only see self and descendants
+    if (req.user.role !== 'ROOT_ADMIN') {
+      const subordinates = await ReportingStructure.find({
+        path: new RegExp(`/${req.user._id}(/|$)`)
+      });
+      const subordinateUserIds = subordinates.map(s => s.userId);
+      const hierarchyUserIds = [req.user._id, ...subordinateUserIds];
+
+      filter.$or = [
+        { userId: { $in: hierarchyUserIds } },
+        { targetUserId: { $in: hierarchyUserIds } }
+      ];
+    }
+
+    // 2. Module filter
+    if (filterMod) {
+      filter.module = filterMod;
+    }
+
+    // 3. Action filter
+    if (filterAct) {
+      filter.action = filterAct;
+    }
+
+    // 4. Date range filter
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate as string);
+      }
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    // 5. Search filter (joins users or searches in fields)
+    if (search) {
+      const searchRegex = new RegExp(search as string, 'i');
+      const matchedUsers = await User.find({
+        $or: [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { email: searchRegex },
+        ]
+      }).select('_id');
+      const matchedUserIds = matchedUsers.map(u => u._id);
+
+      const searchConditions = [
+        { userId: { $in: matchedUserIds } },
+        { targetUserId: { $in: matchedUserIds } },
+        { details: searchRegex },
+        { oldValue: searchRegex },
+        { newValue: searchRegex },
+        { editedByRole: searchRegex }
+      ];
+
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: searchConditions }
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
+    }
+
+    // If exportCsv is true, return all matching logs without pagination limit
+    if (exportCsv === 'true') {
+      if (req.user.role !== 'ROOT_ADMIN') {
+        throw new ApiError(403, 'Permission denied: Only Root Administrators can export logs');
+      }
+
+      const logs = await HierarchyAuditLog.find(filter)
+        .populate('userId', 'firstName lastName email role')
+        .populate('targetUserId', 'firstName lastName email role')
+        .sort({ createdAt: -1 });
+
+      let csv = 'Date,Time,Module,Action,Old Value,New Value,Edited By,Role,IP Address\r\n';
+      logs.forEach(log => {
+        const date = new Date(log.createdAt).toLocaleDateString();
+        const time = new Date(log.createdAt).toLocaleTimeString();
+        const mod = log.module || 'N/A';
+        const act = log.action || 'N/A';
+        
+        const escapeCsv = (str: string) => `"${(str || '').replace(/"/g, '""')}"`;
+        const oldVal = escapeCsv(log.oldValue);
+        const newVal = escapeCsv(log.newValue);
+        
+        const editorUser: any = log.userId;
+        const editorName = editorUser ? `${editorUser.firstName} ${editorUser.lastName}` : 'System';
+        const editorRole = log.editedByRole || 'System';
+        
+        csv += `${date},${time},${mod},${act},${oldVal},${newVal},${escapeCsv(editorName)},${escapeCsv(editorRole)},${log.ipAddress || '127.0.0.1'}\r\n`;
+      });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=hierarchy_audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+      res.status(200).send(csv);
+      return;
+    }
+
+    // Pagination query
+    const p = Math.max(1, Number(page));
+    const l = Math.max(1, Number(limit));
+    const skip = (p - 1) * l;
+
+    const total = await HierarchyAuditLog.countDocuments(filter);
+    const logs = await HierarchyAuditLog.find(filter)
+      .populate('userId', 'firstName lastName email role')
+      .populate('targetUserId', 'firstName lastName email role')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(l);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        logs,
+        pagination: {
+          total,
+          pages: Math.ceil(total / l),
+          page: p,
+          limit: l,
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLatestUpdates = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    
+    const userUpdates = await HierarchyAuditLog.aggregate([
+      { $match: { targetUserId: { $ne: null } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$targetUserId',
+          editedByRole: { $first: '$editedByRole' },
+          createdAt: { $first: '$createdAt' }
+        }
+      }
+    ]);
+
+    const entityUpdates = await HierarchyAuditLog.aggregate([
+      { $match: { targetId: { $ne: null } } },
+      { $sort: { targetId: 1, createdAt: -1 } },
+      {
+        $group: {
+          _id: '$targetId',
+          editedByRole: { $first: '$editedByRole' },
+          createdAt: { $first: '$createdAt' }
+        }
+      }
+    ]);
+
+    const updatesMap: Record<string, { editedBy: string; updatedAt: Date }> = {};
+
+    userUpdates.forEach(u => {
+      if (u._id) {
+        updatesMap[u._id.toString()] = {
+          editedBy: u.editedByRole || 'System',
+          updatedAt: u.createdAt
+        };
+      }
+    });
+
+    entityUpdates.forEach(e => {
+      if (e._id) {
+        updatesMap[e._id.toString()] = {
+          editedBy: e.editedByRole || 'System',
+          updatedAt: e.createdAt
+        };
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { latestUpdates: updatesMap }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

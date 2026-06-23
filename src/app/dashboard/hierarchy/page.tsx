@@ -25,6 +25,12 @@ import {
   Clock,
   Compass,
   Edit,
+  Eye,
+  Share2,
+  Download,
+  RefreshCw,
+  Ban,
+  Mail,
 } from 'lucide-react';
 import { DEPARTMENTS } from '@/constants/departments';
 
@@ -53,6 +59,10 @@ interface Department {
   organization: string;
   hotel?: any;
   manager?: any;
+  code?: string;
+  description?: string;
+  status?: 'Active' | 'Inactive';
+  createdAt?: string | Date;
 }
 
 interface InviteDetails {
@@ -80,8 +90,42 @@ const HIERARCHY_FEATURES = [
   { key: 'googleCalendarSettings', label: 'Google Calendar Settings', Icon: Clock },
 ];
 
+const downloadQRCode = async (url: string, filename: string, format: 'png' | 'svg') => {
+  try {
+    const qrUrl = new URL(url);
+    qrUrl.searchParams.set('format', format);
+    
+    const response = await fetch(qrUrl.toString());
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error('Failed to download QR code:', error);
+    window.open(url, '_blank');
+  }
+};
+
 export default function HierarchyPage() {
   const [user, setUser] = useState<any>(null);
+  
+  // Audit Logs & Latest Updates States
+  const [latestUpdates, setLatestUpdates] = useState<Record<string, any>>({});
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsTotalPages, setLogsTotalPages] = useState(1);
+  const [logsFilterModule, setLogsFilterModule] = useState('');
+  const [logsFilterStartDate, setLogsFilterStartDate] = useState('');
+  const [logsFilterEndDate, setLogsFilterEndDate] = useState('');
+  const [logsSearchQuery, setLogsSearchQuery] = useState('');
+
   const [activeTab, setActiveTab] = useState('invites');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -129,6 +173,7 @@ export default function HierarchyPage() {
   const [createDeptModalOpen, setCreateDeptModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [qrDirectView, setQrDirectView] = useState<any>(null);
+  const [shareQrData, setShareQrData] = useState<any>(null);
   const [memberEditForm, setMemberEditForm] = useState<any>(null);
 
   // Subordinate edit fields
@@ -184,8 +229,110 @@ export default function HierarchyPage() {
   const [transferManagerId, setTransferManagerId] = useState('');
   const [transferDeptId, setTransferDeptId] = useState('');
 
+  // Edit Department Modal State
+  const [editDeptModalOpen, setEditDeptModalOpen] = useState(false);
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editDeptDesc, setEditDeptDesc] = useState('');
+  const [editDeptStatus, setEditDeptStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [deptModalError, setDeptModalError] = useState<string | null>(null);
+  const [deptModalSuccess, setDeptModalSuccess] = useState<string | null>(null);
+
+  const startEditingDept = (dept: Department) => {
+    setEditingDeptId(dept._id);
+    setEditDeptName(dept.name || '');
+    setEditDeptDesc(dept.description || '');
+    setEditDeptStatus(dept.status || 'Active');
+    setDeptModalError(null);
+    setDeptModalSuccess(null);
+  };
+
+  const handleUpdateDept = async (deptId: string) => {
+    if (!editDeptName.trim()) {
+      setDeptModalError('Department name is required');
+      return;
+    }
+    setActionLoading(true);
+    setDeptModalError(null);
+    setDeptModalSuccess(null);
+    try {
+      await api.patch(`/organization/department/${deptId}`, {
+        name: editDeptName.trim(),
+        description: editDeptDesc.trim(),
+        status: editDeptStatus,
+      });
+      setDeptModalSuccess('Department updated successfully');
+      setEditingDeptId(null);
+      fetchOrganizationsAndDepartments();
+    } catch (err: any) {
+      setDeptModalError(err.message || 'Failed to update department');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteDept = async (deptId: string) => {
+    if (!confirm('Are you sure you want to delete this department?')) return;
+    setActionLoading(true);
+    setDeptModalError(null);
+    setDeptModalSuccess(null);
+    try {
+      await api.delete(`/organization/department/${deptId}`);
+      setDeptModalSuccess('Department deleted successfully');
+      fetchOrganizationsAndDepartments();
+    } catch (err: any) {
+      setDeptModalError(err.message || 'Failed to delete department');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const [localSuccess, setLocalSuccess] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const fetchLatestUpdates = async () => {
+    try {
+      const res = await api.get('/hierarchy/audit-logs/latest');
+      if (res.data && res.data.latestUpdates) {
+        setLatestUpdates(res.data.latestUpdates);
+      }
+    } catch (err) {
+      console.error('Error fetching latest updates:', err);
+    }
+  };
+
+  const fetchHierarchyAuditLogs = async (page = 1) => {
+    setLogsLoading(true);
+    try {
+      const query = new URLSearchParams();
+      query.set('page', page.toString());
+      query.set('limit', '20');
+      if (logsFilterModule) query.set('module', logsFilterModule);
+      if (logsFilterStartDate) query.set('startDate', logsFilterStartDate);
+      if (logsFilterEndDate) query.set('endDate', logsFilterEndDate);
+      if (logsSearchQuery) query.set('search', logsSearchQuery);
+
+      const res = await api.get(`/hierarchy/audit-logs?${query.toString()}`);
+      setAuditLogs(res.data.logs || []);
+      setLogsPage(res.data.pagination?.page || page);
+      setLogsTotalPages(res.data.pagination?.pages || 1);
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const handleExportLogs = () => {
+    const params = new URLSearchParams();
+    params.set('exportCsv', 'true');
+    if (logsFilterModule) params.set('module', logsFilterModule);
+    if (logsFilterStartDate) params.set('startDate', logsFilterStartDate);
+    if (logsFilterEndDate) params.set('endDate', logsFilterEndDate);
+    if (logsSearchQuery) params.set('search', logsSearchQuery);
+
+    window.open(`/api/hierarchy/audit-logs?${params.toString()}`, '_blank');
+  };
 
   // Fetch functions defined before use
   const fetchOrganizationsAndDepartments = async () => {
@@ -193,6 +340,7 @@ export default function HierarchyPage() {
       const res = await api.get('/organization/list');
       setOrganizations(res.data.organizations || []);
       setDepartments(res.data.departments || []);
+      fetchLatestUpdates();
     } catch (err) {
       console.error('Error fetching orgs/depts:', err);
     }
@@ -326,8 +474,27 @@ export default function HierarchyPage() {
       } else {
         fetchTeamStructure();
       }
+    } else if (activeTab === 'activity-logs') {
+      fetchHierarchyAuditLogs(logsPage);
     }
-  }, [activeTab, filterDept, filterHotel, filterManager, searchQuery]);
+  }, [
+    activeTab,
+    filterDept,
+    filterHotel,
+    filterManager,
+    searchQuery,
+    logsPage,
+    logsFilterModule,
+    logsFilterStartDate,
+    logsFilterEndDate,
+    logsSearchQuery,
+  ]);
+
+  useEffect(() => {
+    if (activeTab === 'activity-logs') {
+      setLogsPage(1);
+    }
+  }, [logsFilterModule, logsFilterStartDate, logsFilterEndDate, logsSearchQuery]);
 
   const showSuccess = (msg: string) => {
     setLocalSuccess(msg);
@@ -519,6 +686,7 @@ export default function HierarchyPage() {
       });
       setMemberEditForm(null);
       showSuccess('Subordinate details and rights updated successfully.');
+      fetchLatestUpdates();
       
       // Refresh tree
       fetchHierarchyTree({
@@ -548,6 +716,7 @@ export default function HierarchyPage() {
       setTransferDeptId('');
       setTransferModalOpen(false);
       showSuccess('Employee transferred successfully and hierarchy updated.');
+      fetchLatestUpdates();
       if (activeTab === 'tree') {
         fetchHierarchyTree({});
       }
@@ -560,6 +729,72 @@ export default function HierarchyPage() {
     navigator.clipboard.writeText(link);
     setCopiedLink(link);
     setTimeout(() => setCopiedLink(null), 2000);
+  };
+
+  const handleOpenViewModal = (inv: any) => {
+    setQrDirectView(inv);
+  };
+
+  const handleOpenShareModal = (inv: any) => {
+    handleShareQR(inv);
+  };
+
+  const handleShareQR = async (inv: any) => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join OXY-HR ${inv.department || inv.departmentId?.name || ''} Department`,
+          text: `You have been invited to join the team on OXY-HR PRO as a ${inv.role || 'member'}. Register here:`,
+          url: inv.inviteLink,
+        });
+        showSuccess('Link shared successfully');
+      } catch (err) {
+        console.error('Error sharing:', err);
+        setShareQrData(inv);
+      }
+    } else {
+      setShareQrData(inv);
+    }
+  };
+
+  const handleDownloadQR = async (inv: any) => {
+    try {
+      const deptName = (inv.department || inv.departmentId?.name || 'Staff').replace(/\s+/g, '-');
+      const dateStr = new Date(inv.createdAt).toISOString().split('T')[0];
+      const filename = `OXY-HR-${deptName}-${dateStr}`;
+
+      await downloadQRCode(inv.qrCode, `${filename}.png`, 'png');
+      await downloadQRCode(inv.qrCode, `${filename}.svg`, 'svg');
+      showSuccess('QR Code downloaded in PNG and SVG formats');
+    } catch (err) {
+      showError('Failed to download QR code');
+    }
+  };
+
+  const handleRegenerateQR = async (inviteCode: string) => {
+    if (!confirm('Are you sure you want to regenerate this QR code? The old QR code will be disabled automatically.')) return;
+    setActionLoading(true);
+    try {
+      const res = await api.post('/hierarchy/invite/regenerate', { inviteCode });
+      showSuccess('QR code regenerated successfully');
+      fetchActiveInvites();
+      setQrDirectView(res.data.invite);
+    } catch (err: any) {
+      showError(err.message || 'Failed to regenerate invite QR');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisableQR = async (inviteCode: string) => {
+    if (!confirm('Are you sure you want to disable this QR invitation link?')) return;
+    try {
+      await api.post('/hierarchy/invite/disable', { inviteCode });
+      showSuccess('Invite link successfully disabled');
+      fetchActiveInvites();
+    } catch (err: any) {
+      showError(err.message || 'Failed to disable invite');
+    }
   };
 
   const toggleNode = (nodeId: string) => {
@@ -643,6 +878,206 @@ export default function HierarchyPage() {
           </div>
         </div>
 
+        {/* TAB 5: ACTIVITY LOGS */}
+            {activeTab === 'activity-logs' && user?.role !== 'EMPLOYEE' && (
+              <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 space-y-4 animate-fadeIn">
+                {/* Header & Controls */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-850 pb-4">
+                  <div>
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">Hierarchy Operational Activity Logs</h2>
+                    <p className="text-[10px] text-slate-500 mt-1">Track all modifications made to departments, hierarchy connections, properties, and user profiles.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {user?.role === 'ROOT_ADMIN' && (
+                      <button
+                        onClick={handleExportLogs}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 text-slate-200 hover:text-white rounded-lg text-xs font-semibold hover:bg-slate-850 transition-colors cursor-pointer"
+                      >
+                        <Download size={14} />
+                        Export Logs (CSV)
+                      </button>
+                    )}
+                    <button
+                      onClick={() => fetchHierarchyAuditLogs(logsPage)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 text-slate-200 hover:text-white rounded-lg text-xs font-semibold hover:bg-slate-850 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw size={14} className={logsLoading ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filters Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 bg-slate-950/20 p-3 rounded-lg border border-slate-850">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-450 uppercase tracking-wider mb-1">Module</label>
+                    <select
+                      value={logsFilterModule}
+                      onChange={(e) => setLogsFilterModule(e.target.value)}
+                      className="w-full bg-slate-900 text-white text-xs border border-slate-800 rounded-lg px-2.5 py-1.5 outline-none focus:border-gold"
+                    >
+                      <option value="">All Modules</option>
+                      <option value="Department">Department</option>
+                      <option value="Employee">Employee</option>
+                      <option value="Manager">Manager</option>
+                      <option value="Property">Property</option>
+                      <option value="Hierarchy">Hierarchy</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-450 uppercase tracking-wider mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={logsFilterStartDate}
+                      onChange={(e) => setLogsFilterStartDate(e.target.value)}
+                      className="w-full bg-slate-900 text-white text-xs border border-slate-800 rounded-lg px-2.5 py-1.5 outline-none focus:border-gold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-450 uppercase tracking-wider mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={logsFilterEndDate}
+                      onChange={(e) => setLogsFilterEndDate(e.target.value)}
+                      className="w-full bg-slate-900 text-white text-xs border border-slate-800 rounded-lg px-2.5 py-1.5 outline-none focus:border-gold"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[9px] font-bold text-slate-450 uppercase tracking-wider mb-1">Search Logs</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={logsSearchQuery}
+                        onChange={(e) => setLogsSearchQuery(e.target.value)}
+                        placeholder="Search action, details, edited by..."
+                        className="w-full bg-slate-900 text-white text-xs border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 outline-none focus:border-gold"
+                      />
+                      <Search size={12} className="absolute left-2.5 top-2.5 text-slate-500" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table View */}
+                {logsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-gold animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto border border-slate-850 rounded-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-900/60 border-b border-slate-850 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
+                            <th className="p-3">Date & Time</th>
+                            <th className="p-3">Module</th>
+                            <th className="p-3">Action</th>
+                            <th className="p-3 w-1/4">Old Value</th>
+                            <th className="p-3 w-1/4">New Value</th>
+                            <th className="p-3">Edited By</th>
+                            <th className="p-3">Role</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {auditLogs.map((log: any) => {
+                            const dateObj = new Date(log.createdAt);
+                            const formattedDate = dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+                            const formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            
+                            const editor = log.userId;
+                            const editorName = editor ? `${editor.firstName} ${editor.lastName}` : 'System';
+                            
+                            let roleDisplay = log.editedByRole || 'System';
+                            let formattedEditor = editorName;
+                            
+                            if (roleDisplay.includes('(')) {
+                              const startIdx = roleDisplay.indexOf('(');
+                              const endIdx = roleDisplay.indexOf(')');
+                              const roleStr = roleDisplay.substring(0, startIdx).trim();
+                              const nameStr = roleDisplay.substring(startIdx + 1, endIdx).trim();
+                              
+                              roleDisplay = roleStr;
+                              formattedEditor = nameStr;
+                            } else if (log.editedByRole === 'Root Admin') {
+                              formattedEditor = 'Root Admin';
+                              roleDisplay = 'Root Admin';
+                            }
+
+                            return (
+                              <tr key={log._id} className="border-b border-slate-850 hover:bg-slate-900/10 text-slate-300">
+                                <td className="p-3 font-mono text-[10px]">
+                                  <div>{formattedDate}</div>
+                                  <div className="text-slate-500 mt-0.5">{formattedTime}</div>
+                                </td>
+                                <td className="p-3">
+                                  <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded text-[10px]">
+                                    {log.module || 'System'}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-semibold text-white">
+                                  {log.action}
+                                </td>
+                                <td className="p-3 font-mono text-[10px] whitespace-pre-line leading-relaxed text-slate-400">
+                                  {log.oldValue || <span className="text-slate-650">None</span>}
+                                </td>
+                                <td className="p-3 font-mono text-[10px] whitespace-pre-line leading-relaxed text-slate-200">
+                                  {log.newValue || <span className="text-slate-650">None</span>}
+                                </td>
+                                <td className="p-3 font-semibold text-slate-200">
+                                  {formattedEditor}
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-semibold text-white">{roleDisplay}</div>
+                                  {log.ipAddress && (
+                                    <div className="text-[9px] text-slate-500 font-mono mt-0.5">IP: {log.ipAddress}</div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                          {auditLogs.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="text-center py-10 text-slate-500">
+                                No activity logs found matching the filter criteria.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {logsTotalPages > 1 && (
+                      <div className="flex justify-between items-center text-xs text-slate-400 pt-2">
+                        <div>
+                          Showing page {logsPage} of {logsTotalPages}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            disabled={logsPage === 1}
+                            onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                            className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded disabled:opacity-40 hover:text-white transition-colors cursor-pointer"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            disabled={logsPage === logsTotalPages}
+                            onClick={() => setLogsPage(p => Math.min(logsTotalPages, p + 1))}
+                            className="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded disabled:opacity-40 hover:text-white transition-colors cursor-pointer"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
         {hasChildren && !isCollapsed && (
           <div className="mt-1 border-l border-slate-800/80 ml-5.5 space-y-1">
             {node.children.map((child) => renderTreeNode(child, depth + 1))}
@@ -718,6 +1153,12 @@ export default function HierarchyPage() {
                 <span>Hotel:</span>
                 <span className="text-gold uppercase">{node.hotelCode}</span>
               </p>
+            )}
+            {latestUpdates[node.id] && (
+              <div className="border-t border-slate-850/50 pt-1.5 mt-1 text-[8px] text-slate-500 font-normal leading-tight font-sans">
+                <span className="font-bold text-slate-450">Edited By:</span>{' '}
+                <span className="text-slate-350">{latestUpdates[node.id].editedBy}</span>
+              </div>
             )}
           </div>
 
@@ -809,6 +1250,13 @@ export default function HierarchyPage() {
               Add Org
             </button>
             <button
+              onClick={() => setEditDeptModalOpen(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Edit size={14} />
+              Edit Department
+            </button>
+            <button
               onClick={() => setDeptModalOpen(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-lg shadow-blue-500/20"
             >
@@ -867,6 +1315,16 @@ export default function HierarchyPage() {
             }`}
           >
             Analytics & Audits
+          </button>
+        )}
+        {user?.role !== 'EMPLOYEE' && (
+          <button
+            onClick={() => setActiveTab('activity-logs')}
+            className={`px-4 py-3.5 border-b-2 font-bold transition-all cursor-pointer ${
+              activeTab === 'activity-logs' ? 'border-gold text-white bg-slate-900/10' : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            Activity Logs
           </button>
         )}
       </div>
@@ -1126,15 +1584,31 @@ export default function HierarchyPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Invite Type *</label>
-                    <select
-                      value={inviteType}
-                      onChange={(e) => setInviteType(e.target.value as 'employee' | 'manager')}
-                      className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
-                    >
-                      <option value="employee">Employee Invite</option>
-                      <option value="manager">Manager / Employee Invite (allows choosing role)</option>
-                    </select>
+                    <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-2">Invite Type *</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-350 hover:text-white select-none">
+                        <input
+                          type="radio"
+                          name="inviteType"
+                          value="employee"
+                          checked={inviteType === 'employee'}
+                          onChange={() => setInviteType('employee')}
+                          className="accent-gold cursor-pointer"
+                        />
+                        <span>Employee</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-355 hover:text-white select-none">
+                        <input
+                          type="radio"
+                          name="inviteType"
+                          value="manager"
+                          checked={inviteType === 'manager'}
+                          onChange={() => setInviteType('manager')}
+                          className="accent-gold cursor-pointer"
+                        />
+                        <span>Manager</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div>
@@ -1226,81 +1700,105 @@ export default function HierarchyPage() {
                   </div>
                 </div>
 
-                {/* Active invites */}
+                {/* Active QR Codes / Requests */}
                 <div className="bg-card-dark border border-slate-800/80 rounded-xl p-5 space-y-4">
                   <div className="border-b border-slate-850 pb-3">
-                    <h2 className="text-xs font-bold text-white uppercase tracking-wider">Active QR Codes / Invites</h2>
+                    <h2 className="text-xs font-bold text-white uppercase tracking-wider">Active QR Codes / Requests</h2>
                   </div>
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-950/30 border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                          <th className="p-3">Invite Code</th>
-                          <th className="p-3">Org / Department</th>
-                          <th className="p-3">Expires At</th>
+                          <th className="p-3">QR Name</th>
+                          <th className="p-3">Role</th>
+                          <th className="p-3">Department</th>
+                          <th className="p-3">Created Date</th>
                           <th className="p-3">Status</th>
                           <th className="p-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-850 text-slate-300">
-                        {invites.map((inv) => (
-                          <tr key={inv._id} className="hover:bg-slate-900/10">
-                            <td className="p-3 font-mono font-bold text-gold">{inv.inviteCode}</td>
-                            <td className="p-3">
-                              <div>{inv.organizationId?.name}</div>
-                              <div className="text-[10px] text-slate-500 mt-0.5">{inv.departmentId?.name}</div>
-                            </td>
-                            <td className="p-3 font-mono text-[10px] text-slate-400">
-                              {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : 'Never'}
-                            </td>
-                            <td className="p-3">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                inv.status === 'Active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
-                              }`}>
-                                {inv.status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right space-x-2.5 flex items-center justify-end">
-                              <button
-                                onClick={() => handleCopyLink(inv.inviteLink)}
-                                className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors cursor-pointer inline-flex items-center gap-1"
-                                title="Copy Invite Link"
-                              >
-                                {copiedLink === inv.inviteLink ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                              </button>
+                        {invites.map((inv) => {
+                          const statusColor = 
+                            ['ACTIVE', 'Active'].includes(inv.status) ? 'bg-green-500/15 text-green-400 border border-green-500/20' :
+                            ['EXPIRED', 'Expired'].includes(inv.status) ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
+                            'bg-red-500/15 text-red-400 border border-red-500/20';
 
-                              {/* Toggle Status Switch */}
-                              <button
-                                onClick={() => handleToggleInviteStatus(inv.inviteCode, inv.status)}
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
-                                  inv.status === 'Active' ? 'bg-green-500' : 'bg-slate-700'
-                                }`}
-                                title={inv.status === 'Active' ? 'Deactivate Invite' : 'Activate Invite'}
-                              >
-                                <span
-                                  className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                                    inv.status === 'Active' ? 'translate-x-5' : 'translate-x-1'
-                                  }`}
-                                />
-                              </button>
+                          return (
+                            <tr key={inv._id} className="hover:bg-slate-900/10">
+                              <td className="p-3 font-mono font-bold text-gold flex flex-col">
+                                <span>{inv.qrId || 'N/A'}</span>
+                                <span className="text-[10px] text-slate-500 font-normal">{inv.inviteCode}</span>
+                              </td>
+                              <td className="p-3">
+                                <span className="font-semibold">{inv.role || inv.inviteType || 'EMPLOYEE'}</span>
+                              </td>
+                              <td className="p-3">
+                                <span>{inv.department || inv.departmentId?.name || 'N/A'}</span>
+                              </td>
+                              <td className="p-3 font-mono text-[10px] text-slate-450">
+                                {new Date(inv.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="p-3">
+                                <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase ${statusColor}`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-right space-x-2 flex items-center justify-end">
+                                {/* View QR */}
+                                <button
+                                  onClick={() => handleOpenViewModal(inv)}
+                                  className="p-1.5 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-colors cursor-pointer inline-flex items-center"
+                                  title="View QR Code"
+                                >
+                                  <Eye size={14} />
+                                </button>
 
-                              {/* Delete Invite (X) Button */}
-                              <button
-                                onClick={() => handleDeleteInvite(inv.inviteCode)}
-                                className="p-1 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center gap-1"
-                                title="Delete Invite Link"
-                              >
-                                <X size={12} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                                {/* Share QR */}
+                                <button
+                                  onClick={() => handleOpenShareModal(inv)}
+                                  className="p-1.5 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-colors cursor-pointer inline-flex items-center"
+                                  title="Share QR"
+                                >
+                                  <Share2 size={14} />
+                                </button>
+
+                                {/* Download QR */}
+                                <button
+                                  onClick={() => handleDownloadQR(inv)}
+                                  className="p-1.5 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-colors cursor-pointer inline-flex items-center"
+                                  title="Download QR"
+                                >
+                                  <Download size={14} />
+                                </button>
+
+                                {/* Regenerate QR */}
+                                <button
+                                  onClick={() => handleRegenerateQR(inv.inviteCode)}
+                                  className="p-1.5 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-colors cursor-pointer inline-flex items-center"
+                                  title="Regenerate QR"
+                                >
+                                  <RefreshCw size={14} />
+                                </button>
+
+                                {/* Disable QR */}
+                                <button
+                                  onClick={() => handleDisableQR(inv.inviteCode)}
+                                  className="p-1.5 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center"
+                                  title="Disable QR"
+                                >
+                                  <Ban size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
 
                         {invites.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="text-center p-6 text-slate-500">
-                              No invite codes generated.
+                            <td colSpan={6} className="text-center p-6 text-slate-500">
+                              No invite QR codes generated.
                             </td>
                           </tr>
                         )}
@@ -1383,7 +1881,17 @@ export default function HierarchyPage() {
                         {team.map((struct) => (
                           <tr key={struct._id} className="hover:bg-slate-900/10">
                             <td className="p-3 font-semibold text-white">
-                              {struct.userId?.firstName} {struct.userId?.lastName}
+                              <div>{struct.userId?.firstName} {struct.userId?.lastName}</div>
+                              {latestUpdates[struct.userId?._id] && (
+                                <div className="text-[9px] text-slate-500 font-normal mt-1 leading-tight">
+                                  <span className="font-bold text-slate-450">Edited By:</span>{' '}
+                                  <span className="text-slate-350">{latestUpdates[struct.userId?._id].editedBy}</span>
+                                  <div className="text-slate-550 mt-0.5">
+                                    <span className="font-bold text-slate-455">Last Updated:</span>{' '}
+                                    <span>{new Date(latestUpdates[struct.userId?._id].updatedAt).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              )}
                             </td>
                             <td className="p-3 font-mono text-slate-400">{struct.userId?.employeeId || '—'}</td>
                             <td className="p-3">{struct.userId?.department || '—'}</td>
@@ -1645,8 +2153,8 @@ export default function HierarchyPage() {
                   className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
                 >
                   <option value="">Choose department name...</option>
-                  {DEPARTMENTS.map((dept) => (
-                    <option key={dept} value={dept}>{dept}</option>
+                  {Array.from(new Set(departments.map((d) => d.name).filter(Boolean))).map((name) => (
+                    <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
               </div>
@@ -1860,7 +2368,7 @@ export default function HierarchyPage() {
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">QR Join Invitation</h2>
               <p className="text-[10px] text-slate-400 mt-1">
-                {qrDirectView.organizationId?.name} • {qrDirectView.departmentId?.name} Department
+                {qrDirectView.organizationId?.name || ''} • {qrDirectView.departmentId?.name || qrDirectView.department || ''} Department
               </p>
             </div>
 
@@ -1871,6 +2379,32 @@ export default function HierarchyPage() {
                 alt={`QR Link Code ${qrDirectView.inviteCode}`}
                 className="w-48 h-48 block"
               />
+            </div>
+
+            {/* Detailed Metadata Table */}
+            <div className="text-left bg-slate-950 border border-slate-850 rounded-xl p-3.5 space-y-2 text-[11px] text-slate-400">
+              <div className="flex justify-between">
+                <span>Inviter Name:</span>
+                <span className="text-white font-semibold">
+                  {qrDirectView.managerId?.firstName ? `${qrDirectView.managerId.firstName} ${qrDirectView.managerId.lastName}` : (user?.firstName ? `${user.firstName} ${user.lastName}` : 'N/A')}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Department:</span>
+                <span className="text-white font-semibold">{qrDirectView.department || qrDirectView.departmentId?.name || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Role:</span>
+                <span className="text-white font-semibold text-gold">{qrDirectView.role || qrDirectView.inviteType || 'EMPLOYEE'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Created Date:</span>
+                <span className="text-white font-mono">{new Date(qrDirectView.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Expiry Date:</span>
+                <span className="text-white font-mono">{new Date(qrDirectView.expiresAt || qrDirectView.expiryDate || qrDirectView.createdAt).toLocaleDateString()}</span>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -1885,9 +2419,80 @@ export default function HierarchyPage() {
                 </button>
               </div>
 
-              <p className="text-[10px] text-slate-500 leading-normal">
-                Candidates can scan the QR code using their mobile devices or use the invite link directly to register.
-              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleDownloadQR(qrDirectView)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-750 text-white border border-slate-700 py-2 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <Download size={12} />
+                  Download
+                </button>
+                <button
+                  onClick={() => handleOpenShareModal(qrDirectView)}
+                  className="flex-1 bg-gold hover:bg-gold-light text-slate-dark py-2 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <Share2 size={12} />
+                  Share Link
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share QR Modal */}
+      {shareQrData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative text-center space-y-4">
+            <button
+              onClick={() => setShareQrData(null)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-850 pb-3">
+              Share QR Link
+            </h2>
+
+            <p className="text-xs text-slate-400">
+              Select sharing option for department: <span className="text-white font-medium">{shareQrData.department || shareQrData.departmentId?.name}</span> ({shareQrData.role})
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 pt-2 text-xs">
+              {/* Copy Link */}
+              <button
+                onClick={() => {
+                  handleCopyLink(shareQrData.inviteLink);
+                  setShareQrData(null);
+                }}
+                className="flex flex-col items-center gap-2 p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <Copy size={16} className="text-gold" />
+                <span className="text-[10px] font-bold">Copy Link</span>
+              </button>
+
+              {/* WhatsApp Share */}
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`You are invited to join OXY-HR: ${shareQrData.inviteLink}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShareQrData(null)}
+                className="flex flex-col items-center gap-2 p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <Share2 size={16} className="text-emerald-500" />
+                <span className="text-[10px] font-bold">WhatsApp</span>
+              </a>
+
+              {/* Email Share */}
+              <a
+                href={`mailto:?subject=${encodeURIComponent('OXY-HR Team Join Invitation')}&body=${encodeURIComponent(`You are invited to join the team on OXY-HR PRO.\n\nRegister here: ${shareQrData.inviteLink}`)}`}
+                onClick={() => setShareQrData(null)}
+                className="flex flex-col items-center gap-2 p-3 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <Mail size={16} className="text-blue-400" />
+                <span className="text-[10px] font-bold">Email</span>
+              </a>
             </div>
           </div>
         </div>
@@ -2078,6 +2683,20 @@ export default function HierarchyPage() {
                 </div>
               </div>
 
+              {/* Edited By Label details */}
+              {latestUpdates[memberEditForm.id] && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-3 text-[10px] text-slate-400 space-y-1 mt-2">
+                  <div className="flex items-center gap-1.5 text-slate-350">
+                    <span className="font-bold">Edited By:</span>
+                    <span className="font-medium text-white">{latestUpdates[memberEditForm.id].editedBy}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <span className="font-bold">Last Updated:</span>
+                    <span>{new Date(latestUpdates[memberEditForm.id].updatedAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-800/80">
                 <button
@@ -2251,6 +2870,188 @@ export default function HierarchyPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2.6: Edit Department */}
+      {editDeptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setEditDeptModalOpen(false);
+                setEditingDeptId(null);
+                setDeptModalError(null);
+                setDeptModalSuccess(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-850 pb-3 mb-4 flex items-center gap-2">
+              <Edit size={16} className="text-gold" />
+              Manage Departments
+            </h2>
+
+            {deptModalError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs py-2.5 px-4 rounded-lg flex items-center gap-2 mb-4 animate-fadeIn">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{deptModalError}</span>
+              </div>
+            )}
+
+            {deptModalSuccess && (
+              <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-xs py-2.5 px-4 rounded-lg flex items-center gap-2 mb-4 animate-fadeIn">
+                <Check size={14} className="shrink-0" />
+                <span>{deptModalSuccess}</span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-950/30 border-b border-slate-800 text-slate-450 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="p-3">Department Name</th>
+                    <th className="p-3">Code / Description</th>
+                    <th className="p-3">Created Date</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-850 text-slate-350">
+                  {departments.map((dept) => {
+                    const isEditing = editingDeptId === dept._id;
+                    return (
+                      <tr key={dept._id} className="hover:bg-slate-900/10 align-top">
+                        <td className="p-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editDeptName}
+                              onChange={(e) => setEditDeptName(e.target.value)}
+                              className="bg-slate-950 text-white text-xs border border-slate-800 rounded px-2.5 py-1.5 outline-none focus:border-gold w-full"
+                            />
+                          ) : (
+                            <span className="font-semibold text-white">{dept.name}</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-slate-500 font-mono block">Code: {dept.code || 'N/A'}</span>
+                              <textarea
+                                value={editDeptDesc}
+                                onChange={(e) => setEditDeptDesc(e.target.value)}
+                                placeholder="Description"
+                                className="bg-slate-950 text-white text-xs border border-slate-800 rounded px-2.5 py-1.5 outline-none focus:border-gold w-full min-h-[40px] placeholder:text-slate-650"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-slate-450 font-mono block">Code: {dept.code || 'N/A'}</span>
+                              <p className="text-slate-500 text-[10px] leading-relaxed max-w-sm truncate" title={dept.description}>
+                                {dept.description || 'No description provided.'}
+                              </p>
+                              {latestUpdates[dept._id] && (
+                                <div className="text-[9px] text-slate-500 font-normal mt-2 leading-tight pt-1.5 border-t border-slate-800/20">
+                                  <span className="font-bold text-slate-450">Edited By:</span>{' '}
+                                  <span className="text-slate-350">{latestUpdates[dept._id].editedBy}</span>
+                                  <div className="text-slate-550 mt-0.5">
+                                    <span className="font-bold text-slate-455">Last Updated:</span>{' '}
+                                    <span>{new Date(latestUpdates[dept._id].updatedAt).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 font-mono text-[10px] text-slate-500">
+                          {dept.createdAt ? new Date(dept.createdAt).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="p-3">
+                          {isEditing ? (
+                            <select
+                              value={editDeptStatus}
+                              onChange={(e) => setEditDeptStatus(e.target.value as 'Active' | 'Inactive')}
+                              className="bg-slate-950 text-white text-xs border border-slate-800 rounded px-2 py-1.5 outline-none focus:border-gold cursor-pointer"
+                            >
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                            </select>
+                          ) : (
+                            <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              dept.status === 'Active' ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'
+                            }`}>
+                              {dept.status || 'Active'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleUpdateDept(dept._id)}
+                                disabled={actionLoading}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <Check size={12} />
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingDeptId(null)}
+                                className="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <X size={12} />
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => startEditingDept(dept)}
+                                className="p-1.5 hover:bg-slate-850 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                title="Edit Department"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDept(dept._id)}
+                                className="p-1.5 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                title="Delete Department"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {departments.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center p-6 text-slate-500">
+                        No departments found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end pt-4 border-t border-slate-850 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditDeptModalOpen(false);
+                  setEditingDeptId(null);
+                  setDeptModalError(null);
+                  setDeptModalSuccess(null);
+                }}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

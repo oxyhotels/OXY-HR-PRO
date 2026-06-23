@@ -4,6 +4,7 @@ import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
 import { syncUserDepartmentGroups, addUserToGlobalGroup } from './community.controller';
+import { diffFields, logAuditTrail } from '@/utils/audit';
 
 const validateShiftDetails = (body: any) => {
   if (body.isCustom) {
@@ -221,6 +222,9 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
       throw new ApiError(404, 'Employee not found');
     }
 
+    // Clone original user data before update for audit logs
+    const originalUser = employee.toObject();
+
     // Tenancy check
     if (req.user?.role !== 'ROOT_ADMIN' && employee.hotel?.toString() !== req.user?.hotel?.toString()) {
       throw new ApiError(403, 'Permission denied: cannot modify profiles from other hotels');
@@ -270,7 +274,94 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
 
     await syncUserDepartmentGroups(employee);
 
-    if (req.user) {
+    if (req.user && originalUser) {
+      const isEmployee = originalUser.role === 'EMPLOYEE';
+      const fieldsToTrack = isEmployee
+        ? [
+            'firstName',
+            'lastName',
+            'phone',
+            'department',
+            'salaryDetails.baseSalary',
+            'employeeCode',
+            'employeeId',
+            'reportingManager',
+            'shift',
+            'designation',
+            'personalDetails.address',
+            'homeLocation.address',
+            'documents',
+          ]
+        : [
+            'department',
+            'salaryDetails.baseSalary',
+            'managerCode',
+            'hotel',
+            'reportingManager',
+            'shift',
+            'enabledFeatures',
+            'designation',
+          ];
+
+      const { oldValue, newValue, hasChanged, changedFields } = diffFields(
+        originalUser,
+        employee,
+        fieldsToTrack
+      );
+
+      if (hasChanged) {
+        const module = isEmployee ? 'Employee' : 'Manager';
+        const action = isEmployee ? 'Employee Updated' : 'Manager Updated';
+        const details = `${module} profile for ${employee.firstName} ${employee.lastName} updated: ${changedFields.join(', ')}`;
+        
+        await logAuditTrail({
+          userId: req.user._id,
+          action,
+          module,
+          oldValue,
+          newValue,
+          details,
+          targetUserId: employee._id,
+          req,
+        });
+
+        // Track Hierarchy changes if department, hotel, or reportingManager changed
+        const hierarchyFields = ['department', 'hotel', 'reportingManager'];
+        const changedHierarchy = changedFields.filter(f => hierarchyFields.includes(f));
+        if (changedHierarchy.length > 0) {
+          let oldProperty = originalUser.hotel;
+          let newProperty = employee.hotel;
+          if (changedFields.includes('hotel')) {
+            const oldH = oldProperty ? await Hotel.findById(oldProperty) : null;
+            const newH = newProperty ? await Hotel.findById(newProperty) : null;
+            oldProperty = oldH ? oldH.name : 'None';
+            newProperty = newH ? newH.name : 'None';
+          }
+          
+          const oldHierarchyParts = [];
+          const newHierarchyParts = [];
+          
+          if (originalUser.department) oldHierarchyParts.push(`Department: ${originalUser.department}`);
+          if (originalUser.reportingManager) oldHierarchyParts.push(`Manager: ${originalUser.reportingManager}`);
+          if (originalUser.hotel) oldHierarchyParts.push(`Property: ${oldProperty}`);
+          
+          if (employee.department) newHierarchyParts.push(`Department: ${employee.department}`);
+          if (employee.reportingManager) newHierarchyParts.push(`Manager: ${employee.reportingManager}`);
+          if (employee.hotel) newHierarchyParts.push(`Property: ${newProperty}`);
+
+          await logAuditTrail({
+            userId: req.user._id,
+            action: 'Hierarchy Updated',
+            module: 'Hierarchy',
+            oldValue: oldHierarchyParts.join(' | ') || 'None',
+            newValue: newHierarchyParts.join(' | ') || 'None',
+            details: `Hierarchy moved for user ${employee.firstName} ${employee.lastName}`,
+            targetUserId: employee._id,
+            req,
+          });
+        }
+      }
+
       await logAudit(
         req.user._id.toString(),
         employee.hotel,

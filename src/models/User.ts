@@ -90,6 +90,10 @@ export interface IUser extends Document {
   approvedAt?: Date;
   state?: string;
   district?: string;
+  parentId?: Schema.Types.ObjectId;
+  rootAdminId?: Schema.Types.ObjectId;
+  employeeCode?: string;
+  managerCode?: string;
   comparePassword(password: string): Promise<boolean>;
   createdAt: Date;
   updatedAt: Date;
@@ -219,6 +223,10 @@ const UserSchema = new Schema<IUser>(
     approvedAt: { type: Date },
     state: { type: String, trim: true },
     district: { type: String, trim: true },
+    parentId: { type: Schema.Types.ObjectId, ref: 'User' },
+    rootAdminId: { type: Schema.Types.ObjectId, ref: 'User' },
+    employeeCode: { type: String },
+    managerCode: { type: String },
   },
   { timestamps: true }
 );

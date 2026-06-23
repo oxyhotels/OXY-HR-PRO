@@ -3,6 +3,7 @@ import { Hotel } from '@/models/Hotel';
 import { User } from '@/models/User';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
+import { diffFields, logAuditTrail } from '@/utils/audit';
 
 export const createHotel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -89,6 +90,8 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
       throw new ApiError(404, 'Hotel not found');
     }
 
+    const originalHotel = existingHotel.toObject();
+
     const { name, hotelCode, email, phone, address, googleLocationLink, subscriptionPlan, status } = req.body;
 
     if (hotelCode !== undefined) {
@@ -138,6 +141,39 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
     }
 
     if (req.user) {
+      const fieldsToTrack = [
+        'name',
+        'hotelCode',
+        'email',
+        'phone',
+        'address.street',
+        'address.city',
+        'address.state',
+        'address.zip',
+        'address.country',
+        'googleLocationLink',
+        'status',
+      ];
+      
+      const { oldValue, newValue, hasChanged, changedFields } = diffFields(
+        originalHotel,
+        updatedHotel,
+        fieldsToTrack
+      );
+
+      if (hasChanged) {
+        await logAuditTrail({
+          userId: req.user._id,
+          action: 'Property Updated',
+          module: 'Property',
+          oldValue,
+          newValue,
+          details: `Property ${updatedHotel.name} details updated: ${changedFields.join(', ')}`,
+          targetId: updatedHotel._id.toString(),
+          req,
+        });
+      }
+
       AuditLog.create({
         user: req.user._id,
         action: 'UPDATE_HOTEL',

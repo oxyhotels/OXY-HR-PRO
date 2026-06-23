@@ -26,8 +26,17 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
   const { accessToken, isAuthenticated, isHydrated } = useAuthStore.getState();
 
   // Public endpoints don't need auth — allow them even if auth store isn't hydrated yet
-  const publicEndpoints = ['/auth/login', '/auth/refresh', '/auth/register', '/hotels/public', '/organization/public-departments'];
-  const isPublic = publicEndpoints.some(ep => endpoint.startsWith(ep));
+  const publicEndpoints = [
+    '/auth/login',
+    '/auth/refresh',
+    '/auth/register',
+    '/hotels/public',
+    '/organization/public-departments',
+    '/hierarchy/invite',
+    '/hierarchy/join'
+  ];
+  const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
+  const isPublic = publicEndpoints.some(ep => cleanEndpoint.startsWith(ep) || endpoint.startsWith(ep));
 
   // === AUTH GUARD: Do not fire protected API calls before authentication ===
   // Fast-path: if localStorage has a token, treat as hydrated (happens right after login)

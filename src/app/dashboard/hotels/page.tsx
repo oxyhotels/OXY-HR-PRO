@@ -27,6 +27,7 @@ interface HotelData {
 export default function HotelsPage() {
   const { user } = useAuthStore();
   const [hotels, setHotels] = useState<HotelData[]>([]);
+  const [latestUpdates, setLatestUpdates] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingHotel, setEditingHotel] = useState<HotelData | null>(null);
@@ -46,6 +47,11 @@ export default function HotelsPage() {
     try {
       const res = await api.get('/hotels');
       setHotels(res.data.hotels);
+      
+      const updatesRes = await api.get('/hierarchy/audit-logs/latest');
+      if (updatesRes.data && updatesRes.data.latestUpdates) {
+        setLatestUpdates(updatesRes.data.latestUpdates);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -229,6 +235,14 @@ export default function HotelsPage() {
                           </a>
                         )}
                       </div>
+                      {latestUpdates[hotel._id] && (
+                        <div className="text-[10px] text-slate-500 font-normal mt-1.5 leading-tight pt-1.5 border-t border-slate-800/20">
+                          <span className="font-bold text-slate-450 block">Edited By:</span>
+                          <span className="text-slate-350 block whitespace-pre-line">{latestUpdates[hotel._id].editedBy}</span>
+                          <span className="font-bold text-slate-450 mt-1 block">Last Updated:</span>
+                          <span className="text-slate-350 block">{new Date(latestUpdates[hotel._id].updatedAt).toLocaleString()}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="p-4 font-mono text-gold uppercase">{hotel.hotelCode}</td>
                     <td className="p-4">
