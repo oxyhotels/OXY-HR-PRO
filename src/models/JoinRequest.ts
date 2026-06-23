@@ -12,6 +12,12 @@ export interface IJoinRequest extends Document {
   designation: string;
   password?: string;
   status: 'Pending' | 'Approved' | 'Rejected';
+  joinRole?: string;
+  invitedById?: Schema.Types.ObjectId;
+  hierarchyLevel?: number;
+  rejectionReason?: string;
+  state?: string;
+  district?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +35,12 @@ const JoinRequestSchema = new Schema<IJoinRequest>(
     designation: { type: String, required: true, trim: true },
     password: { type: String, required: true },
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
+    joinRole: { type: String, default: 'EMPLOYEE' },
+    invitedById: { type: Schema.Types.ObjectId, ref: 'User' },
+    hierarchyLevel: { type: Number },
+    rejectionReason: { type: String },
+    state: { type: String, trim: true },
+    district: { type: String, trim: true },
   },
   { timestamps: true }
 );

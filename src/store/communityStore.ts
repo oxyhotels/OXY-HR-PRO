@@ -106,6 +106,8 @@ interface CommunityState {
   activeCalls: any[];
   loading: boolean;
   error: string | null;
+  unreadCounts: Record<string, number>; // groupId -> unread count
+  lastMessages: Record<string, ZustandMessage>; // groupId -> last message
 
   // Actions
   fetchGroups: () => Promise<void>;
@@ -145,6 +147,7 @@ interface CommunityState {
   setUserOnline: (userId: string, isOnline: boolean) => void;
   setTyping: (groupId: string, userId: string, name: string, isTyping: boolean) => void;
   createGroup: (payload: any) => Promise<void>;
+  markGroupRead: (groupId: string) => void;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -160,6 +163,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   activeCalls: [],
   loading: false,
   error: null,
+  unreadCounts: {},
+  lastMessages: {},
 
   fetchGroups: async () => {
     set({ loading: true, error: null });
@@ -201,7 +206,23 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         if (state.messages.some((m) => m._id === message._id)) return state;
         return { messages: [...state.messages, message] };
       });
+    } else {
+      // Increment unread count for non-active groups
+      set((state) => ({
+        unreadCounts: {
+          ...state.unreadCounts,
+          [message.group]: (state.unreadCounts[message.group] || 0) + 1
+        }
+      }));
     }
+
+    // Track last message per group
+    set((state) => ({
+      lastMessages: {
+        ...state.lastMessages,
+        [message.group]: message
+      }
+    }));
 
     // Refresh groups list ordering to show latest updated message time
     set((state) => ({
@@ -430,5 +451,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
       };
     });
+  },
+
+  markGroupRead: (groupId) => {
+    set((state) => ({
+      unreadCounts: { ...state.unreadCounts, [groupId]: 0 }
+    }));
   }
 }));

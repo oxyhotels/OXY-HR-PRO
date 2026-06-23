@@ -27,6 +27,12 @@ export interface IUser extends Document {
   panNumber?: string;
   panVerified?: boolean;
   shift?: string;
+  shiftType?: string;
+  shiftName?: string;
+  startTime?: string;
+  endTime?: string;
+  totalHours?: number;
+  isCustom?: boolean;
   emergencyContact?: {
     name: string;
     relation: string;
@@ -75,6 +81,15 @@ export interface IUser extends Document {
   accountabilityIndex?: number;
   capacityLimit?: number;
   dailyWorkingHours?: number;
+  enabledFeatures?: string[];
+  hierarchyLevel?: number;
+  hierarchyPath?: string;
+  parentManagerId?: Schema.Types.ObjectId;
+  invitedById?: Schema.Types.ObjectId;
+  approvedBy?: Schema.Types.ObjectId;
+  approvedAt?: Date;
+  state?: string;
+  district?: string;
   comparePassword(password: string): Promise<boolean>;
   createdAt: Date;
   updatedAt: Date;
@@ -101,6 +116,31 @@ const UserSchema = new Schema<IUser>(
     employmentType: { type: String, trim: true },
     status: { type: String, enum: ['Pending', 'Active', 'OnLeave', 'Terminated'], default: 'Active' },
     shift: { type: String, default: 'General Shift (09:00 AM - 05:00 PM)' },
+    shiftType: { type: String },
+    shiftName: { type: String },
+    startTime: { type: String },
+    endTime: { type: String },
+    totalHours: { type: Number },
+    isCustom: { type: Boolean, default: false },
+    enabledFeatures: {
+      type: [String],
+      default: [
+        'organisationSettings',
+        'rightsManagement',
+        'shiftManagement',
+        'organisationCategories',
+        'liveLocationSettings',
+        'employeeConfiguration',
+        'shiftMaster',
+        'approverManagement',
+        'holidays',
+        'bulkMaster',
+        'payroll',
+        'mySubscription',
+        'groupMaster',
+        'googleCalendarSettings'
+      ]
+    },
     joinedDate: { type: Date, default: Date.now },
     photoUrl: { type: String },
     aadhaarNumber: { type: String, trim: true },
@@ -171,6 +211,14 @@ const UserSchema = new Schema<IUser>(
     accountabilityIndex: { type: Number, default: 100 },
     capacityLimit: { type: Number, default: 5 },
     dailyWorkingHours: { type: Number, default: 8 },
+    hierarchyLevel: { type: Number },
+    hierarchyPath: { type: String },
+    parentManagerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    invitedById: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: { type: Date },
+    state: { type: String, trim: true },
+    district: { type: String, trim: true },
   },
   { timestamps: true }
 );
@@ -192,5 +240,9 @@ UserSchema.methods.comparePassword = async function (password: string): Promise<
     return false;
   }
 };
+
+UserSchema.index({ hotel: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ status: 1 });
 
 export const User = models.User || model<IUser>('User', UserSchema);

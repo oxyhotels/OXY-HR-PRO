@@ -6,6 +6,8 @@ export interface IHierarchyNode extends Document {
   departmentId: Schema.Types.ObjectId;
   organizationId: Schema.Types.ObjectId;
   role: string;
+  hierarchyLevel?: number;
+  hierarchyPath?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,8 @@ const HierarchyNodeSchema = new Schema<IHierarchyNode>(
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
     role: { type: String, required: true },
+    hierarchyLevel: { type: Number },
+    hierarchyPath: { type: String },
   },
   { timestamps: true }
 );

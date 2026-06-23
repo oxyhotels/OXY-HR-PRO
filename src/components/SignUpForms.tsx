@@ -7,6 +7,97 @@ import { z } from 'zod';
 import { api } from '../lib/api';
 import GoogleIcon from './GoogleIcon';
 import { DEPARTMENTS } from '@/constants/departments';
+import { ChevronDown, Search } from 'lucide-react';
+import { INDIA_STATES_DISTRICTS } from '@/constants/indiaStatesDistricts';
+
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  label
+}: {
+  options: string[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  label: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filtered = options.filter(opt =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <label className="block text-slate-400 font-semibold mb-1">{label}</label>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full bg-slate-950/60 border rounded py-1.5 px-3 text-white flex justify-between items-center cursor-pointer outline-none transition-all ${
+          disabled ? 'opacity-40 cursor-not-allowed border-slate-800' : 'border-slate-800 hover:border-gold/60 focus:border-gold'
+        }`}
+      >
+        <span className={value ? 'text-white text-xs' : 'text-slate-500 text-xs'}>
+          {value || placeholder}
+        </span>
+        <ChevronDown size={12} className="text-slate-500" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-[#0b1424] border border-slate-800 rounded shadow-xl max-h-60 flex flex-col overflow-hidden animate-in fade-in duration-200">
+          <div className="p-2 border-b border-slate-800 flex items-center gap-1.5 bg-slate-950/60">
+            <Search size={12} className="text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent text-white border-none outline-none text-xs placeholder:text-slate-600 focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 max-h-48 py-1">
+            {filtered.map((opt) => (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearchTerm('');
+                }}
+                className={`px-3 py-1.5 text-xs text-slate-300 hover:bg-gold/10 hover:text-white cursor-pointer transition-colors ${
+                  opt === value ? 'bg-gold/15 text-gold font-bold' : ''
+                }`}
+              >
+                {opt}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-3 py-3 text-xs text-slate-500 text-center italic">
+                No matches found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const TOP_LEVEL_DEPARTMENTS = [
   "Property Department",
@@ -1289,26 +1380,24 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                 />
               </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">State *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Jharkhand"
-                  value={homeState}
-                  onChange={(e) => setHomeState(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">District *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ranchi"
-                  value={homeDistrict}
-                  onChange={(e) => setHomeDistrict(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                />
-              </div>
+              <SearchableDropdown
+                options={INDIA_STATES_DISTRICTS.map(s => s.state)}
+                value={homeState}
+                onChange={(val) => {
+                  setHomeState(val);
+                  setHomeDistrict('');
+                }}
+                placeholder="Select State"
+                label="State *"
+              />
+              <SearchableDropdown
+                options={INDIA_STATES_DISTRICTS.find(s => s.state === homeState)?.districts || []}
+                value={homeDistrict}
+                onChange={(val) => setHomeDistrict(val)}
+                placeholder={homeState ? "Select District" : "Select State First"}
+                disabled={!homeState}
+                label="District *"
+              />
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">City *</label>
                 <input
@@ -1821,26 +1910,24 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
                 />
               </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">State *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Jharkhand"
-                  value={homeState}
-                  onChange={(e) => setHomeState(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">District *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ranchi"
-                  value={homeDistrict}
-                  onChange={(e) => setHomeDistrict(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
-                />
-              </div>
+              <SearchableDropdown
+                options={INDIA_STATES_DISTRICTS.map(s => s.state)}
+                value={homeState}
+                onChange={(val) => {
+                  setHomeState(val);
+                  setHomeDistrict('');
+                }}
+                placeholder="Select State"
+                label="State *"
+              />
+              <SearchableDropdown
+                options={INDIA_STATES_DISTRICTS.find(s => s.state === homeState)?.districts || []}
+                value={homeDistrict}
+                onChange={(val) => setHomeDistrict(val)}
+                placeholder={homeState ? "Select District" : "Select State First"}
+                disabled={!homeState}
+                label="District *"
+              />
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">City *</label>
                 <input

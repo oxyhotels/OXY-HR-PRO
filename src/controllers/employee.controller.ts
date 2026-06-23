@@ -3,7 +3,28 @@ import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
-import { syncUserDepartmentGroups } from './community.controller';
+import { syncUserDepartmentGroups, addUserToGlobalGroup } from './community.controller';
+
+const validateShiftDetails = (body: any) => {
+  if (body.isCustom) {
+    if (!body.startTime) {
+      throw new ApiError(400, 'Start time is required for custom shifts');
+    }
+    if (!body.endTime) {
+      throw new ApiError(400, 'End time is required for custom shifts');
+    }
+    // Validate time format (24h standard HH:MM or 12h HH:MM AM/PM)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const ampmRegex = /^(0[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM)$/i;
+    
+    if (!timeRegex.test(body.startTime) && !ampmRegex.test(body.startTime)) {
+      throw new ApiError(400, 'Invalid startTime format. Use HH:MM or HH:MM AM/PM');
+    }
+    if (!timeRegex.test(body.endTime) && !ampmRegex.test(body.endTime)) {
+      throw new ApiError(400, 'Invalid endTime format. Use HH:MM or HH:MM AM/PM');
+    }
+  }
+};
 
 // Helper to log audit actions
 const logAudit = async (userId: string, hotelId: any, action: string, details: string) => {
@@ -18,6 +39,7 @@ const logAudit = async (userId: string, hotelId: any, action: string, details: s
 
 export const createEmployee = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    validateShiftDetails(req.body);
     const { 
       firstName, 
       lastName, 
@@ -77,10 +99,20 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
       status,
       documents: documents || [],
       shift,
+      shiftType: req.body.shiftType,
+      shiftName: req.body.shiftName,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      totalHours: req.body.totalHours,
+      isCustom: req.body.isCustom,
       homeLocation,
     });
 
     await syncUserDepartmentGroups(employee);
+    // Auto-join global community for Active employees
+    if (employee.status === 'Active') {
+      await addUserToGlobalGroup(employee._id);
+    }
 
     if (req.user) {
       await logAudit(
@@ -183,6 +215,7 @@ export const getEmployeeById = async (req: Request, res: Response, next: NextFun
 
 export const updateEmployee = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    validateShiftDetails(req.body);
     const employee = await User.findById(req.params.id);
     if (!employee) {
       throw new ApiError(404, 'Employee not found');
@@ -405,6 +438,8 @@ export const approveSignup = async (req: Request, res: Response, next: NextFunct
     await employee.save();
 
     await syncUserDepartmentGroups(employee);
+    // Auto-join the OXY Global Community on approval
+    await addUserToGlobalGroup(employee._id);
 
     // Activate the associated hotel
     if (employee.hotel) {

@@ -40,6 +40,12 @@ interface EmployeeProfile {
   };
   documents: { name: string; fileUrl: string; uploadedAt: string }[];
   shift?: string;
+  shiftType?: string;
+  shiftName?: string;
+  startTime?: string;
+  endTime?: string;
+  totalHours?: number;
+  isCustom?: boolean;
   homeLocation?: {
     address: string;
     latitude: number;
@@ -59,6 +65,73 @@ interface EmployeeProfile {
     hotelCode: string;
   } | string;
 }
+
+const convert24To12 = (time24: string): string => {
+  if (!time24) return '';
+  if (time24.toLowerCase().includes('am') || time24.toLowerCase().includes('pm')) {
+    return time24;
+  }
+  const [hourStr, minStr] = time24.split(':');
+  if (!hourStr || !minStr) return time24;
+  let hour = parseInt(hourStr, 10);
+  const min = minStr;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12;
+  const hourFormatted = hour < 10 ? `0${hour}` : `${hour}`;
+  return `${hourFormatted}:${min} ${ampm}`;
+};
+
+const convert12To24 = (time12: string): string => {
+  if (!time12) return '';
+  if (!time12.toLowerCase().includes('am') && !time12.toLowerCase().includes('pm')) {
+    return time12;
+  }
+  const parts = time12.trim().split(/\s+/);
+  if (parts.length < 2) return time12;
+  const [time, ampm] = parts;
+  const [hourStr, minStr] = time.split(':');
+  let hour = parseInt(hourStr, 10);
+  const min = minStr;
+  if (ampm.toUpperCase() === 'PM' && hour < 12) hour += 12;
+  if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+  const hourFormatted = hour < 10 ? `0${hour}` : `${hour}`;
+  return `${hourFormatted}:${min}`;
+};
+
+const timeToMinutes = (time: string): number => {
+  const time24 = convert12To24(time);
+  const [hourStr, minStr] = time24.split(':');
+  if (!hourStr || !minStr) return 0;
+  const hour = parseInt(hourStr, 10);
+  const min = parseInt(minStr, 10);
+  return hour * 60 + min;
+};
+
+const calculateDuration = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  const startMins = timeToMinutes(start);
+  const endMins = timeToMinutes(end);
+  if (endMins >= startMins) {
+    return (endMins - startMins) / 60;
+  } else {
+    return (1440 - startMins + endMins) / 60;
+  }
+};
+
+const PREDEFINED_SHIFTS = [
+  { value: "12-Hour Day Shift (10:00 AM - 10:00 PM)", label: "12-Hour Day Shift (10:00 AM - 10:00 PM)", name: "12-Hour Day Shift", start: "10:00 AM", end: "10:00 PM", type: "Day", hours: 12 },
+  { value: "12-Hour Shift (09:00 AM - 09:00 PM)", label: "12-Hour Shift (09:00 AM - 09:00 PM)", name: "12-Hour Shift", start: "09:00 AM", end: "09:00 PM", type: "Day", hours: 12 },
+  { value: "12-Hour Night Shift (09:00 PM - 09:00 AM)", label: "12-Hour Night Shift (09:00 PM - 09:00 AM)", name: "12-Hour Night Shift", start: "09:00 PM", end: "09:00 AM", type: "Night", hours: 12 },
+  { value: "General Shift (09:00 AM - 05:00 PM)", label: "General Shift (09:00 AM - 05:00 PM)", name: "General Shift", start: "09:00 AM", end: "05:00 PM", type: "Day", hours: 8 },
+  { value: "Day Shift (10:00 AM - 06:00 PM)", label: "Day Shift (10:00 AM - 06:00 PM)", name: "Day Shift", start: "10:00 AM", end: "06:00 PM", type: "Day", hours: 8 },
+  { value: "Night Shift (06:00 PM - 06:00 AM)", label: "Night Shift (06:00 PM - 06:00 AM)", name: "Night Shift", start: "06:00 PM", end: "06:00 AM", type: "Night", hours: 12 },
+  { value: "Morning Shift (07:00 AM - 03:00 PM)", label: "Morning Shift (07:00 AM - 03:00 PM)", name: "Morning Shift", start: "07:00 AM", end: "03:00 PM", type: "Day", hours: 8 },
+  { value: "Afternoon Shift (03:00 PM - 11:00 PM)", label: "Afternoon Shift (03:00 PM - 11:00 PM)", name: "Afternoon Shift", start: "03:00 PM", end: "11:00 PM", type: "Day", hours: 8 },
+  { value: "Night Shift (11:00 PM - 07:00 AM)", label: "Night Shift (11:00 PM - 07:00 AM)", name: "Night Shift", start: "11:00 PM", end: "07:00 AM", type: "Night", hours: 8 },
+  { value: "9-Hour Shift (09:00 AM - 06:00 PM)", label: "9-Hour Shift (09:00 AM - 06:00 PM)", name: "9-Hour Shift", start: "09:00 AM", end: "06:00 PM", type: "Day", hours: 9 }
+];
+
 
 export default function EmployeesPage() {
   const { user } = useAuthStore();
@@ -101,8 +174,30 @@ export default function EmployeesPage() {
   const [panFile, setPanFile] = useState<string | null>(null);
   const [bankFile, setBankFile] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
   const { register: registerDoc, handleSubmit: handleSubmitDoc, reset: resetDoc } = useForm();
+
+  const watchedShift = watch('shift');
+  const watchedStartTime = watch('startTime');
+  const watchedEndTime = watch('endTime');
+
+  useEffect(() => {
+    if (watchedShift === 'custom') {
+      setValue('isCustom', true);
+      const hours = calculateDuration(watchedStartTime, watchedEndTime);
+      setValue('totalHours', hours);
+    } else {
+      setValue('isCustom', false);
+      const matched = PREDEFINED_SHIFTS.find(s => s.value === watchedShift);
+      if (matched) {
+        setValue('shiftName', matched.name);
+        setValue('startTime', convert12To24(matched.start));
+        setValue('endTime', convert12To24(matched.end));
+        setValue('shiftType', matched.type);
+        setValue('totalHours', matched.hours);
+      }
+    }
+  }, [watchedShift, watchedStartTime, watchedEndTime, setValue]);
 
   const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
 
@@ -177,6 +272,12 @@ export default function EmployeesPage() {
       emergencyContactRelation: '',
       emergencyContactPhone: '',
       shift: 'General Shift (09:00 AM - 05:00 PM)',
+      isCustom: false,
+      shiftName: '',
+      startTime: '',
+      endTime: '',
+      shiftType: 'Day',
+      totalHours: 0,
     });
     setModalOpen(true);
   };
@@ -210,7 +311,13 @@ export default function EmployeesPage() {
       emergencyContactName: emp.emergencyContact?.name || '',
       emergencyContactRelation: emp.emergencyContact?.relation || '',
       emergencyContactPhone: emp.emergencyContact?.phone || '',
-      shift: emp.shift || 'General Shift (09:00 AM - 05:00 PM)',
+      shift: emp.isCustom ? 'custom' : (emp.shift || 'General Shift (09:00 AM - 05:00 PM)'),
+      isCustom: emp.isCustom || false,
+      shiftName: emp.shiftName || '',
+      startTime: emp.startTime ? convert12To24(emp.startTime) : '',
+      endTime: emp.endTime ? convert12To24(emp.endTime) : '',
+      shiftType: emp.shiftType || 'Day',
+      totalHours: emp.totalHours || 0,
     });
     setModalOpen(true);
   };
@@ -272,6 +379,34 @@ export default function EmployeesPage() {
       else documentsPayload.push(doc);
     }
 
+    let isCustom = false;
+    let shiftName = '';
+    let startTime = '';
+    let endTime = '';
+    let shiftType = 'Day';
+    let totalHours = 8;
+    let finalShift = values.shift;
+
+    if (values.shift === 'custom') {
+      isCustom = true;
+      shiftName = values.shiftName || 'Custom Shift';
+      startTime = convert24To12(values.startTime);
+      endTime = convert24To12(values.endTime);
+      shiftType = values.shiftType || 'Day';
+      totalHours = calculateDuration(values.startTime, values.endTime);
+      finalShift = `${shiftName} (${startTime} - ${endTime})`;
+    } else {
+      const matched = PREDEFINED_SHIFTS.find(s => s.value === values.shift);
+      if (matched) {
+        isCustom = false;
+        shiftName = matched.name;
+        startTime = matched.start;
+        endTime = matched.end;
+        shiftType = matched.type;
+        totalHours = matched.hours;
+      }
+    }
+
     const payload = {
       firstName: values.firstName,
       lastName: values.lastName,
@@ -299,7 +434,13 @@ export default function EmployeesPage() {
         ifsc: values.ifsc,
       },
       documents: documentsPayload,
-      shift: user?.role === 'EMPLOYEE' ? (activeEmployee?.shift || 'General Shift (09:00 AM - 05:00 PM)') : values.shift,
+      shift: user?.role === 'EMPLOYEE' ? (activeEmployee?.shift || 'General Shift (09:00 AM - 05:00 PM)') : finalShift,
+      shiftType: user?.role === 'EMPLOYEE' ? activeEmployee?.shiftType : shiftType,
+      shiftName: user?.role === 'EMPLOYEE' ? activeEmployee?.shiftName : shiftName,
+      startTime: user?.role === 'EMPLOYEE' ? activeEmployee?.startTime : startTime,
+      endTime: user?.role === 'EMPLOYEE' ? activeEmployee?.endTime : endTime,
+      totalHours: user?.role === 'EMPLOYEE' ? activeEmployee?.totalHours : totalHours,
+      isCustom: user?.role === 'EMPLOYEE' ? activeEmployee?.isCustom : isCustom,
     };
 
     try {
@@ -650,24 +791,82 @@ export default function EmployeesPage() {
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Shift Schedule</label>
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-4 items-center mb-3">
                   <select
                     disabled={user?.role === 'EMPLOYEE'}
-                    className="flex-1 bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="flex-1 bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold"
                     {...register('shift')}
                   >
-                    <option value="Morning Shift (07:00 AM - 03:00 PM)">Morning Shift (07:00 AM - 03:00 PM)</option>
-                    <option value="Afternoon Shift (03:00 PM - 11:00 PM)">Afternoon Shift (03:00 PM - 11:00 PM)</option>
-                    <option value="Night Shift (11:00 PM - 07:00 AM)">Night Shift (11:00 PM - 07:00 AM)</option>
-                    <option value="General Shift (09:00 AM - 05:00 PM)">General Shift (09:00 AM - 05:00 PM)</option>
-                    <option value="12-Hour Shift (09:00 AM - 09:00 PM)">12-Hour Shift (09:00 AM - 09:00 PM)</option>
-                    <option value="9-Hour Shift (09:00 AM - 06:00 PM)">9-Hour Shift (09:00 AM - 06:00 PM)</option>
+                    {PREDEFINED_SHIFTS.map((preset) => (
+                      <option key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </option>
+                    ))}
+                    <option value="custom">➕ Custom Shift</option>
                   </select>
                   <div className="bg-slate-950/40 border border-slate-800 px-3 py-2 rounded text-slate-300 font-mono text-[11px] flex items-center gap-1.5 whitespace-nowrap shadow-inner">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
                     <span>🕒 {currentTime || '--:--:--'}</span>
                   </div>
                 </div>
+
+                {watchedShift === 'custom' && (
+                  <div className="bg-[#050c21]/50 border border-slate-800 rounded-lg p-4 mt-2 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Shift Name (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Early Bird"
+                          disabled={user?.role === 'EMPLOYEE'}
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white text-[11px]"
+                          {...register('shiftName')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Shift Type</label>
+                        <select
+                          disabled={user?.role === 'EMPLOYEE'}
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white cursor-pointer text-[11px] font-semibold"
+                          {...register('shiftType')}
+                        >
+                          <option value="Day">Day Shift</option>
+                          <option value="Night">Night Shift</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">Start Time</label>
+                        <input
+                          type="time"
+                          required={watchedShift === 'custom'}
+                          disabled={user?.role === 'EMPLOYEE'}
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white cursor-pointer text-[11px]"
+                          {...register('startTime')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider text-[10px]">End Time</label>
+                        <input
+                          type="time"
+                          required={watchedShift === 'custom'}
+                          disabled={user?.role === 'EMPLOYEE'}
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white cursor-pointer text-[11px]"
+                          {...register('endTime')}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-slate-400 font-mono text-[10px] bg-slate-950/40 p-2 rounded border border-slate-800">
+                      <span>Calculated Duration:</span>
+                      <span className="text-gold font-bold">
+                        {calculateDuration(watchedStartTime, watchedEndTime).toFixed(1)} Hours
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 border-t border-slate-800/60 pt-3">

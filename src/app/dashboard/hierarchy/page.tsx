@@ -24,6 +24,7 @@ import {
   Activity,
   Clock,
   Compass,
+  Edit,
 } from 'lucide-react';
 import { DEPARTMENTS } from '@/constants/departments';
 
@@ -62,6 +63,23 @@ interface InviteDetails {
   managerId: { _id: string; firstName: string; lastName: string; designation?: string };
 }
 
+const HIERARCHY_FEATURES = [
+  { key: 'organisationSettings', label: 'Organisation Settings', Icon: Building },
+  { key: 'rightsManagement', label: 'Rights Management', Icon: ShieldCheck },
+  { key: 'shiftManagement', label: 'Shift Management', Icon: Clock },
+  { key: 'organisationCategories', label: 'Organisation Categories', Icon: Building },
+  { key: 'liveLocationSettings', label: 'Live Location Settings', Icon: Compass },
+  { key: 'employeeConfiguration', label: 'Employee Configuration', Icon: Users },
+  { key: 'shiftMaster', label: 'Shift Master', Icon: Clock },
+  { key: 'approverManagement', label: 'Approver Management', Icon: CheckCircle2 },
+  { key: 'holidays', label: 'Holidays', Icon: Info },
+  { key: 'bulkMaster', label: 'Bulk Master', Icon: UserPlus },
+  { key: 'payroll', label: 'Payroll', Icon: Activity },
+  { key: 'mySubscription', label: 'My Subscription', Icon: ShieldCheck },
+  { key: 'groupMaster', label: 'Group Master', Icon: Users },
+  { key: 'googleCalendarSettings', label: 'Google Calendar Settings', Icon: Clock },
+];
+
 export default function HierarchyPage() {
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('invites');
@@ -89,6 +107,7 @@ export default function HierarchyPage() {
   const [filterHotel, setFilterHotel] = useState('');
   const [filterManager, setFilterManager] = useState('');
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
+  const [treeScale, setTreeScale] = useState(1);
 
   // Invites
   const [invites, setInvites] = useState<any[]>([]);
@@ -112,6 +131,35 @@ export default function HierarchyPage() {
   const [qrDirectView, setQrDirectView] = useState<any>(null);
   const [memberEditForm, setMemberEditForm] = useState<any>(null);
 
+  // Subordinate edit fields
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmployeeId, setEditEmployeeId] = useState('');
+  const [editDesignation, setEditDesignation] = useState('');
+  const [editRole, setEditRole] = useState('EMPLOYEE');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editBaseSalary, setEditBaseSalary] = useState(0);
+  const [editFeatures, setEditFeatures] = useState<string[]>([]);
+
+  // Hydrate form states on edit selection
+  useEffect(() => {
+    if (memberEditForm) {
+      const parts = (memberEditForm.name || '').trim().split(/\s+/);
+      setEditFirstName(parts[0] || '');
+      setEditLastName(parts.slice(1).join(' ') || '');
+      setEditEmail(memberEditForm.email || '');
+      setEditPhone(memberEditForm.phone || '');
+      setEditEmployeeId(memberEditForm.employeeId || '');
+      setEditDesignation(memberEditForm.designation || '');
+      setEditRole(memberEditForm.role || 'EMPLOYEE');
+      setEditDepartment(memberEditForm.departmentName || '');
+      setEditBaseSalary(memberEditForm.salaryDetails?.baseSalary || 0);
+      setEditFeatures(memberEditForm.enabledFeatures || []);
+    }
+  }, [memberEditForm]);
+
   // Custom Department Form states
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptCode, setNewDeptCode] = useState('');
@@ -131,6 +179,7 @@ export default function HierarchyPage() {
   const [inviteOrgId, setInviteOrgId] = useState('');
   const [inviteDeptId, setInviteDeptId] = useState('');
   const [inviteExpiry, setInviteExpiry] = useState(7);
+  const [inviteType, setInviteType] = useState<'employee' | 'manager'>('employee');
   const [transferEmpId, setTransferEmpId] = useState('');
   const [transferManagerId, setTransferManagerId] = useState('');
   const [transferDeptId, setTransferDeptId] = useState('');
@@ -229,8 +278,8 @@ export default function HierarchyPage() {
   useEffect(() => {
     if (user?.role === 'EMPLOYEE') {
       setActiveTab('my-team');
-    } else if (user?.role !== 'ROOT_ADMIN') {
-      setActiveTab('invites');
+    } else {
+      setActiveTab('tree');
     }
   }, [user]);
 
@@ -369,10 +418,12 @@ export default function HierarchyPage() {
         organizationId: inviteOrgId,
         departmentId: inviteDeptId,
         expiresInDays: inviteExpiry,
+        inviteType: inviteType,
       });
       setQrDirectView(res.data.invite);
       setInviteOrgId('');
       setInviteDeptId('');
+      setInviteType('employee');
       fetchActiveInvites();
     } catch (err: any) {
       showError(err.message || 'Failed to generate invite');
@@ -429,7 +480,7 @@ export default function HierarchyPage() {
 
   const handleApprove = async (requestId: string) => {
     try {
-      await api.post('/hierarchy/requests/approve', { requestId });
+      await api.post('/hierarchy/approve', { requestId });
       showSuccess('Join request approved. Node added to hierarchy.');
       fetchPendingRequests();
     } catch (err: any) {
@@ -440,11 +491,46 @@ export default function HierarchyPage() {
   const handleReject = async (requestId: string) => {
     if (!confirm('Are you sure you want to reject this join request?')) return;
     try {
-      await api.post('/hierarchy/requests/reject', { requestId });
+      await api.post('/hierarchy/reject', { requestId });
       showSuccess('Join request rejected.');
       fetchPendingRequests();
     } catch (err: any) {
       showError(err.message || 'Rejection failed');
+    }
+  };
+
+  const handleUpdateSubordinate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberEditForm?.id) return;
+    setActionLoading(true);
+    try {
+      await api.post('/hierarchy/update-node', {
+        targetUserId: memberEditForm.id,
+        firstName: editFirstName,
+        lastName: editLastName,
+        email: editEmail,
+        phone: editPhone,
+        employeeId: editEmployeeId,
+        designation: editDesignation,
+        role: editRole,
+        department: editDepartment,
+        baseSalary: Number(editBaseSalary),
+        enabledFeatures: editFeatures,
+      });
+      setMemberEditForm(null);
+      showSuccess('Subordinate details and rights updated successfully.');
+      
+      // Refresh tree
+      fetchHierarchyTree({
+        departmentId: filterDept || undefined,
+        hotelId: filterHotel || undefined,
+        managerId: filterManager || undefined,
+        search: searchQuery || undefined,
+      });
+    } catch (err: any) {
+      showError(err.message || 'Failed to update subordinate');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -528,19 +614,30 @@ export default function HierarchyPage() {
               </div>
             </div>
 
-            {user?.role === 'ROOT_ADMIN' && (
+            {user?.role !== 'EMPLOYEE' && (node.id !== user?._id && node.id !== user?.id) && (
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity">
                 <button
                   onClick={() => {
-                    setTransferEmpId(node.id);
-                    setTransferDeptId(departments.find((d) => d.name === node.departmentName)?._id || '');
-                    setTransferModalOpen(true);
+                    setMemberEditForm(node);
                   }}
-                  title="Transfer Employee"
-                  className="p-1 text-slate-400 hover:text-gold hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  title="Edit Subordinate Details & Access Rights"
+                  className="p-1.5 text-slate-400 hover:text-gold hover:bg-slate-800 rounded transition-colors cursor-pointer"
                 >
-                  <ArrowRightLeft size={13} />
+                  <Edit size={13} />
                 </button>
+                {user?.role === 'ROOT_ADMIN' && (
+                  <button
+                    onClick={() => {
+                      setTransferEmpId(node.id);
+                      setTransferDeptId(departments.find((d) => d.name === node.departmentName)?._id || '');
+                      setTransferModalOpen(true);
+                    }}
+                    title="Transfer Employee"
+                    className="p-1 text-slate-400 hover:text-gold hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  >
+                    <ArrowRightLeft size={13} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -549,6 +646,118 @@ export default function HierarchyPage() {
         {hasChildren && !isCollapsed && (
           <div className="mt-1 border-l border-slate-800/80 ml-5.5 space-y-1">
             {node.children.map((child) => renderTreeNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const matchesSearch = (node: any) => {
+    if (!searchQuery) return false;
+    const q = searchQuery.toLowerCase();
+    return (
+      (node.name || '').toLowerCase().includes(q) ||
+      (node.designation || '').toLowerCase().includes(q) ||
+      (node.email || '').toLowerCase().includes(q) ||
+      (node.employeeId && node.employeeId.toLowerCase().includes(q))
+    );
+  };
+
+  const renderVisualTree = (node: any): React.ReactNode => {
+    const isCollapsed = collapsedNodes[node.id];
+    const hasChildren = node.children && node.children.length > 0;
+    const highlight = matchesSearch(node);
+
+    return (
+      <div key={node.id} className="tree-node-container">
+        {/* Node Profile Card */}
+        <div 
+          onClick={() => {
+            if (user?.role !== 'EMPLOYEE' && (node.id !== user?._id && node.id !== user?.id)) {
+              setMemberEditForm(node);
+            }
+          }}
+          className={`relative w-64 bg-slate-900 border ${highlight ? 'border-gold ring-2 ring-gold/45 shadow-[0_0_15px_rgba(212,175,55,0.45)]' : 'border-slate-800 hover:border-slate-700'} rounded-xl p-4 flex flex-col gap-3 transition-all cursor-pointer shadow-lg`}
+        >
+          {/* Card Header: Avatar & Roles */}
+          <div className="flex items-center gap-3">
+            {node.photoUrl ? (
+              <img 
+                src={node.photoUrl} 
+                alt={node.name} 
+                className="w-10 h-10 rounded-full border border-slate-700 object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-slate-850 border border-slate-750 flex items-center justify-center font-bold text-xs text-gold uppercase shadow">
+                {node.name.substring(0, 2)}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-bold text-white truncate">{node.name}</h4>
+              <p className="text-[10px] text-slate-400 truncate mt-0.5">{node.designation}</p>
+            </div>
+            {node.role !== 'EMPLOYEE' && (
+              <span className="bg-gold/15 text-[8px] text-gold border border-gold/20 px-1 py-0.5 rounded font-bold tracking-wide shrink-0">
+                MGR
+              </span>
+            )}
+          </div>
+
+          {/* Card Info Details */}
+          <div className="border-t border-slate-850 pt-2 flex flex-col gap-1 text-[9px] text-slate-500 font-mono">
+            <p className="flex justify-between">
+              <span>ID:</span>
+              <span className="text-slate-300">{node.employeeId || 'N/A'}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Email:</span>
+              <span className="text-slate-300 truncate max-w-[120px]">{node.email}</span>
+            </p>
+            {node.hotelCode && (
+              <p className="flex justify-between">
+                <span>Hotel:</span>
+                <span className="text-gold uppercase">{node.hotelCode}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Card Footer: Expand/Collapse & Direct Reports count */}
+          {hasChildren && (
+            <div className="border-t border-slate-850 pt-2 flex items-center justify-between text-[10px]">
+              <span className="text-slate-400 font-medium">
+                {node.children.length} {node.children.length === 1 ? 'direct report' : 'direct reports'}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleNode(node.id);
+                }}
+                className="flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800 border border-slate-700/50 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+              >
+                {isCollapsed ? (
+                  <>
+                    <span>Expand</span>
+                    <ChevronRight size={10} />
+                  </>
+                ) : (
+                  <>
+                    <span>Collapse</span>
+                    <ChevronDown size={10} />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Children Nodes rendering recursively */}
+        {hasChildren && !isCollapsed && (
+          <div className="tree-children-container">
+            {node.children.map((child: any) => (
+              <div key={child.id} className="tree-child-node">
+                {renderVisualTree(child)}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -619,7 +828,7 @@ export default function HierarchyPage() {
 
       {/* Tabs Menu */}
       <div className="flex border-b border-slate-800/80 text-xs">
-        {user?.role === 'ROOT_ADMIN' && (
+        {user?.role !== 'EMPLOYEE' && (
           <button
             onClick={() => setActiveTab('tree')}
             className={`px-4 py-3.5 border-b-2 font-bold transition-all cursor-pointer ${
@@ -670,7 +879,7 @@ export default function HierarchyPage() {
       ) : (
         <div className="space-y-6">
           {/* TAB 1: TREE CHART VIEW */}
-          {activeTab === 'tree' && user?.role === 'ROOT_ADMIN' && (
+          {activeTab === 'tree' && user?.role !== 'EMPLOYEE' && (
             <div className="space-y-4">
               {/* Tree Filters */}
               <div className="bg-card-dark border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row gap-3">
@@ -719,49 +928,156 @@ export default function HierarchyPage() {
                   </select>
                 </div>
               </div>
+              <div className="relative bg-card-dark border border-slate-800/80 rounded-xl p-6 overflow-hidden min-h-[600px] flex flex-col">
+                <style>{`
+                  .tree-node-container {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    position: relative;
+                  }
+                  .tree-children-container {
+                    display: flex;
+                    flex-direction: row;
+                    justify-content: center;
+                    position: relative;
+                    padding-top: 24px;
+                  }
+                  .tree-children-container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 50%;
+                    border-left: 2px solid #475569; /* slate-600 */
+                    height: 24px;
+                    width: 0;
+                  }
+                  .tree-child-node {
+                    padding: 24px 12px 0 12px;
+                    position: relative;
+                  }
+                  .tree-child-node::before, .tree-child-node::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    right: 50%;
+                    border-top: 2px solid #475569;
+                    width: 50%;
+                    height: 24px;
+                  }
+                  .tree-child-node::after {
+                    right: auto;
+                    left: 50%;
+                    border-left: 2px solid #475569;
+                  }
+                  .tree-child-node:only-child::after, .tree-child-node:only-child::before {
+                    display: none;
+                  }
+                  .tree-child-node:only-child {
+                    padding-top: 24px;
+                  }
+                  .tree-child-node:only-child::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 50%;
+                    border-left: 2px solid #475569;
+                    height: 24px;
+                  }
+                  .tree-child-node:first-child::before {
+                    border: 0 none;
+                  }
+                  .tree-child-node:last-child::after {
+                    border: 0 none;
+                  }
+                  .tree-child-node:first-child::after {
+                    border-left: 2px solid #475569;
+                    border-radius: 4px 0 0 0;
+                  }
+                  .tree-child-node:last-child::before {
+                    border-right: 2px solid #475569;
+                    border-radius: 0 4px 0 0;
+                  }
+                `}</style>
 
-              {/* Render Tree Output */}
-              <div className="bg-card-dark border border-slate-800/80 rounded-xl p-6 overflow-hidden">
+                {/* Zoom Controls */}
+                <div className="absolute right-6 top-6 z-10 flex items-center gap-2 bg-slate-950/80 backdrop-blur border border-slate-800 p-1.5 rounded-lg shadow-lg">
+                  <button 
+                    onClick={() => setTreeScale(prev => Math.max(0.5, prev - 0.1))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-bold transition-all text-sm cursor-pointer select-none"
+                    title="Zoom Out"
+                  >
+                    -
+                  </button>
+                  <span className="px-2 text-slate-300 text-xs font-mono select-none w-12 text-center">
+                    {Math.round(treeScale * 100)}%
+                  </span>
+                  <button 
+                    onClick={() => setTreeScale(prev => Math.min(2, prev + 0.1))}
+                    className="w-8 h-8 flex items-center justify-center bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-bold transition-all text-sm cursor-pointer select-none"
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                  <div className="w-px h-5 bg-slate-800 mx-1" />
+                  <button 
+                    onClick={() => setTreeScale(1)}
+                    className="px-2 py-1.5 text-[10px] bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-semibold transition-all cursor-pointer select-none"
+                    title="Reset Zoom"
+                  >
+                    Reset
+                  </button>
+                </div>
+
                 {tree.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 text-xs">
+                  <div className="text-center py-12 text-slate-500 text-xs my-auto">
                     No organizational nodes match the current criteria.
                   </div>
                 ) : (
-                  <div className="space-y-8">
-                    {tree.map((org) => (
-                      <div key={org.id} className="space-y-4">
-                        {/* Org Header */}
-                        <div className="flex items-center gap-2 border-b border-slate-850 pb-2">
-                          <Building className="text-gold shrink-0" size={16} />
-                          <h2 className="text-sm font-bold text-white uppercase tracking-wider">{org.name}</h2>
-                          {org.code && (
-                            <span className="bg-slate-800/80 text-slate-400 font-mono text-[9px] border border-slate-700 px-1.5 py-0.5 rounded">
-                              {org.code}
-                            </span>
-                          )}
-                        </div>
+                  <div className="flex-1 overflow-auto p-4" style={{ touchAction: 'pan-x pan-y' }}>
+                    <div 
+                      style={{ 
+                        transform: `scale(${treeScale})`, 
+                        transformOrigin: 'top center', 
+                        transition: 'transform 0.15s ease-out' 
+                      }} 
+                      className="space-y-12 min-w-max pb-8"
+                    >
+                      {tree.map((org) => (
+                        <div key={org.id} className="space-y-6 flex flex-col items-center">
+                          {/* Org Header */}
+                          <div className="flex items-center gap-2 border-b border-slate-800 pb-2 w-full justify-center">
+                            <Building className="text-gold shrink-0" size={16} />
+                            <h2 className="text-sm font-bold text-white uppercase tracking-wider">{org.name}</h2>
+                            {org.code && (
+                              <span className="bg-slate-800/80 text-slate-400 font-mono text-[9px] border border-slate-700 px-1.5 py-0.5 rounded">
+                                {org.code}
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Dept Level */}
-                        <div className="ml-4 space-y-6">
-                          {org.departments.map((dept: any) => (
-                            <div key={dept.id} className="space-y-3">
-                              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 py-1.5 px-3 rounded-lg border border-slate-850/60 inline-flex">
-                                <span className="w-1.5 h-1.5 rounded-full bg-gold" />
-                                <span>{dept.name} Department</span>
-                                <span className="text-[10px] text-slate-500 font-normal">
-                                  ({dept.employeesCount} staff)
-                                </span>
-                              </div>
+                          {/* Dept Level */}
+                          <div className="space-y-12 w-full flex flex-col items-center">
+                            {org.departments.map((dept: any) => (
+                              <div key={dept.id} className="w-full flex flex-col items-center space-y-6">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 py-1.5 px-3 rounded-lg border border-slate-850/60 justify-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gold" />
+                                  <span>{dept.name} Department</span>
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    ({dept.employeesCount} staff)
+                                  </span>
+                                </div>
 
-                              {/* Department Employee Tree Nodes */}
-                              <div className="ml-3 border-l border-slate-850 pl-3 space-y-1">
-                                {dept.structure.map((node: any) => renderTreeNode(node))}
+                                {/* Department Employee Tree Nodes */}
+                                <div className="flex flex-row justify-center gap-12 pt-4 w-full">
+                                  {dept.structure.map((node: any) => renderVisualTree(node))}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -806,6 +1122,18 @@ export default function HierarchyPage() {
                       {departments.map((d) => (
                         <option key={d._id} value={d._id}>{d.name}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Invite Type *</label>
+                    <select
+                      value={inviteType}
+                      onChange={(e) => setInviteType(e.target.value as 'employee' | 'manager')}
+                      className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold cursor-pointer"
+                    >
+                      <option value="employee">Employee Invite</option>
+                      <option value="manager">Manager / Employee Invite (allows choosing role)</option>
                     </select>
                   </div>
 
@@ -1048,6 +1376,7 @@ export default function HierarchyPage() {
                           <th className="p-3">Designation</th>
                           <th className="p-3">Status</th>
                           <th className="p-3">Hierarchy Path</th>
+                          <th className="p-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-850 text-slate-300">
@@ -1069,12 +1398,38 @@ export default function HierarchyPage() {
                             <td className="p-3 font-mono text-[9px] text-slate-500 truncate max-w-[200px]" title={struct.path}>
                               {struct.path}
                             </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => {
+                                  const node = {
+                                    id: struct.userId?._id || struct.userId?.id,
+                                    name: `${struct.userId?.firstName} ${struct.userId?.lastName}`,
+                                    email: struct.userId?.email,
+                                    role: struct.userId?.role,
+                                    departmentName: struct.userId?.department,
+                                    designation: struct.userId?.designation,
+                                    status: struct.userId?.status,
+                                    phone: struct.userId?.phone,
+                                    employeeId: struct.userId?.employeeId,
+                                    joinedDate: struct.userId?.joinedDate,
+                                    hotelCode: struct.userId?.hotel?.hotelCode || 'OTHER',
+                                    enabledFeatures: struct.userId?.enabledFeatures || [],
+                                    salaryDetails: struct.userId?.salaryDetails || { baseSalary: 0 },
+                                  };
+                                  setMemberEditForm(node);
+                                }}
+                                className="p-1 text-slate-400 hover:text-gold hover:bg-slate-850 rounded transition-all cursor-pointer inline-flex items-center gap-1 text-[11px] font-medium"
+                              >
+                                <Edit size={12} />
+                                <span>Edit</span>
+                              </button>
+                            </td>
                           </tr>
                         ))}
 
                         {team.length === 0 && (
                           <tr>
-                            <td colSpan={6} className="text-center p-6 text-slate-500">
+                            <td colSpan={7} className="text-center p-6 text-slate-500">
                               You currently do not have any employees mapped under your team. Generate invite QRs to bring team members onboard.
                             </td>
                           </tr>
@@ -1538,84 +1893,211 @@ export default function HierarchyPage() {
         </div>
       )}
 
-      {/* Member Edit Form - Manager can fill details after scan */}
+      {/* Member Edit Form - Manage details and access rights */}
       {memberEditForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4">
             <button
+              type="button"
               onClick={() => setMemberEditForm(null)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 hover:bg-slate-850 rounded-lg transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-850 pb-3 mb-4">
-              Edit Team Member Details
-            </h2>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setMemberEditForm(null);
-              showSuccess('Member details updated successfully');
-            }} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Full Name *</label>
-                <input
-                  required
-                  type="text"
-                  defaultValue={memberEditForm.name}
-                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
-                />
+            
+            <div className="border-b border-slate-850 pb-3">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="text-gold" size={18} />
+                Configure Subordinate Access & Details
+              </h2>
+              <p className="text-[10px] text-slate-450 mt-1">
+                Modify roles, salary, department parameters, and toggle their 14-Feature access checklist.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateSubordinate} className="space-y-5 text-xs text-slate-200">
+              
+              {/* Section 1: Basic Parameters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">First Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Last Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Email Address *</label>
+                  <input
+                    required
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Phone/Mobile *</label>
+                  <input
+                    required
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Employee ID *</label>
+                  <input
+                    required
+                    type="text"
+                    value={editEmployeeId}
+                    onChange={(e) => setEditEmployeeId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Designation *</label>
+                  <input
+                    required
+                    type="text"
+                    value={editDesignation}
+                    onChange={(e) => setEditDesignation(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Role *</label>
+                  <select
+                    required
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 outline-none focus:border-gold cursor-pointer text-white"
+                  >
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="DEPT_MANAGER">Department Manager</option>
+                    <option value="HR_MANAGER">HR Manager</option>
+                    <option value="HOTEL_ADMIN">Hotel Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Department *</label>
+                  <select
+                    required
+                    value={editDepartment}
+                    onChange={(e) => setEditDepartment(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 outline-none focus:border-gold cursor-pointer text-white"
+                  >
+                    <option value="" disabled>Select department...</option>
+                    {departments.map((d) => (
+                      <option key={d._id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Base Monthly Salary (₹) *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={editBaseSalary}
+                    onChange={(e) => setEditBaseSalary(Number(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold text-white"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Email *</label>
-                <input
-                  required
-                  type="email"
-                  defaultValue={memberEditForm.email}
-                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
-                />
+
+              {/* Section 2: Feature checklist rights grid */}
+              <div className="border-t border-slate-800/80 pt-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Feature Rights Checklist</h3>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditFeatures(HIERARCHY_FEATURES.map(f => f.key))}
+                      className="text-[9px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-750">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditFeatures([])}
+                      className="text-[9px] text-slate-400 hover:text-slate-200 uppercase font-bold cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {HIERARCHY_FEATURES.map((feat) => {
+                    const isChecked = editFeatures.includes(feat.key);
+                    const FeatureIcon = feat.Icon;
+                    return (
+                      <label
+                        key={feat.key}
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                          isChecked
+                            ? 'bg-gold/5 border-gold/45 text-white'
+                            : 'bg-slate-900/40 border-slate-850 text-slate-400 hover:bg-slate-900/60'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setEditFeatures(prev => prev.filter(k => k !== feat.key));
+                            } else {
+                              setEditFeatures(prev => [...prev, feat.key]);
+                            }
+                          }}
+                        />
+                        <span className={`p-1.5 rounded-lg shrink-0 ${isChecked ? 'bg-gold/15 text-gold' : 'bg-slate-950 text-slate-550'}`}>
+                          <FeatureIcon size={14} />
+                        </span>
+                        <span className="text-[10px] font-semibold truncate leading-tight">{feat.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Mobile *</label>
-                <input
-                  required
-                  type="tel"
-                  defaultValue={memberEditForm.mobile}
-                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Employee ID *</label>
-                <input
-                  required
-                  type="text"
-                  defaultValue={memberEditForm.employeeId}
-                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold uppercase text-slate-400 mb-1.5">Designation *</label>
-                <input
-                  required
-                  type="text"
-                  defaultValue={memberEditForm.designation}
-                  className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-800/80">
                 <button
                   type="button"
                   onClick={() => setMemberEditForm(null)}
                   className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  disabled={actionLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-gold hover:bg-gold-light disabled:bg-gold/45 text-slate-dark px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  disabled={actionLoading}
+                  className="bg-gold hover:bg-gold-light disabled:bg-gold/45 text-slate-dark px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-md gold-glow cursor-pointer flex items-center gap-1.5"
                 >
-                  Update Member
+                  {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-dark" /> : <Check size={14} />}
+                  Save Settings
                 </button>
               </div>
+
             </form>
           </div>
         </div>

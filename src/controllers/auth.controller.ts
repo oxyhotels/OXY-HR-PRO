@@ -451,7 +451,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
         phone: emergencyContactPhone
       } : undefined,
       documents: documents || [],
-      homeLocation
+      homeLocation,
+      state: homeLocation?.state,
+      district: homeLocation?.district
     });
 
     await logAudit(user._id.toString(), hotel._id, 'REGISTER_PENDING', `New signup request submitted for role ${role} by ${email}`);

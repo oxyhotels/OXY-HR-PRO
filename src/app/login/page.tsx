@@ -11,6 +11,7 @@ import GoogleIcon from '../../components/GoogleIcon';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import AnimatedSkyBackground from '../../components/AnimatedSkyBackground';
+import QRScannerModal from '@/components/QRScannerModal';
 
 const SignUpForms = dynamic(() => import('../../components/SignUpForms'), {
   loading: () => <div className="text-center py-8 text-xs text-slate-400 animate-pulse">Loading registration forms...</div>,
@@ -32,6 +33,7 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Password visibility states
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -252,6 +254,24 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+
+      {/* Floating QR Scanner Button */}
+      <div className="fixed right-6 bottom-6 z-40">
+        <button
+          onClick={() => {
+            setScannerOpen(true);
+          }}
+          className="bg-slate-900/95 hover:bg-slate-800/95 text-gold border border-gold/30 hover:border-gold/60 w-14 h-14 rounded-full shadow-[0_0_25px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group hover:shadow-gold/10 cursor-pointer"
+          style={{ textShadow: '0 0 10px rgba(212,175,55,0.2)' }}
+        >
+          <div className="flex flex-col items-center justify-center">
+            <GoogleIcon name="qr_code_scanner" size={22} className="animate-pulse" />
+            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5 select-none">Scan</span>
+          </div>
+        </button>
+      </div>
+
+      <QRScannerModal isOpen={scannerOpen} onClose={() => setScannerOpen(false)} />
     </AnimatedSkyBackground>
   );
 }

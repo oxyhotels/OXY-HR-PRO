@@ -10,6 +10,7 @@ import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { createNotification } from '@/services/notification.service';
+import { addUserToGlobalGroup } from './community.controller';
 import mongoose from 'mongoose';
 
 // Ensure all Mongoose models are loaded to avoid tree-shaking and MissingSchemaErrors on populate
@@ -133,11 +134,34 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
     
     // Fetch all users with status = 'Active' or 'Pending' or 'OnLeave'
     const users = await User.find({ status: { $ne: 'Terminated' } }).select(
-      'firstName lastName email role department designation status phone employeeId joinedDate hotel'
+      'firstName lastName email role department designation status phone employeeId joinedDate hotel enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentManagerId'
     ).populate('hotel', 'name hotelCode');
+
+    // Scoping rule: If not ROOT_ADMIN, restrict to descendants of logged-in manager
+    let managerRootId = '';
+    if (req.user && req.user.role !== 'ROOT_ADMIN') {
+      managerRootId = req.user._id.toString();
+    } else if (managerId) {
+      managerRootId = String(managerId);
+    }
+
+    const allowedUserIds = new Set<string>();
+    if (managerRootId) {
+      const rootStruct = reportingStructures.find(s => s.userId.toString() === managerRootId);
+      const rootPath = rootStruct ? rootStruct.path : `/${managerRootId}`;
+      reportingStructures.forEach(struct => {
+        if (struct.path === rootPath || struct.path.startsWith(rootPath + '/')) {
+          allowedUserIds.add(struct.userId.toString());
+        }
+      });
+      allowedUserIds.add(managerRootId);
+    }
 
     // Filter structures based on parameters if provided
     let filteredUsers = [...users];
+    if (managerRootId) {
+      filteredUsers = filteredUsers.filter(u => allowedUserIds.has(u._id.toString()));
+    }
 
     if (search) {
       const q = String(search).toLowerCase();
@@ -177,6 +201,12 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
         employeeId: u.employeeId,
         joinedDate: u.joinedDate,
         hotelCode: (u.hotel as any)?.hotelCode || 'OTHER',
+        enabledFeatures: u.enabledFeatures || [],
+        salaryDetails: u.salaryDetails || { baseSalary: 0 },
+        photoUrl: u.photoUrl || '',
+        hierarchyLevel: u.hierarchyLevel,
+        hierarchyPath: u.hierarchyPath,
+        parentManagerId: u.parentManagerId,
         children: [],
       });
     });
@@ -198,26 +228,45 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
       const orgDepts = depts
         .filter((d) => d.organization.toString() === org._id.toString())
         .map((d) => {
-          // Find root level employees in this department (no manager or reporting outside this department)
           const deptUsers = users.filter((u) => u.department === d.name);
           const deptRootNodes: any[] = [];
 
-          deptUsers.forEach((u) => {
-            const node = userMap.get(u._id.toString());
-            if (node) {
-              const struct = reportingStructures.find((s) => s.userId.toString() === u._id.toString());
-              const manager = struct?.managerId ? userMap.get(struct.managerId.toString()) : null;
-              
-              // It's a root node for this department if it has no manager, or manager department is different
-              if (!manager || manager.departmentName !== d.name) {
-                deptRootNodes.push(node);
-              }
+          if (managerRootId) {
+            const rootNode = userMap.get(managerRootId);
+            if (rootNode && (rootNode.departmentName === d.name || (!rootNode.departmentName && d.name === 'Administration'))) {
+              deptRootNodes.push(rootNode);
+            } else if (rootNode && !rootNode.hasParent && deptUsers.some(u => u._id.toString() === managerRootId)) {
+              deptRootNodes.push(rootNode);
+            } else {
+              deptUsers.forEach((u) => {
+                const node = userMap.get(u._id.toString());
+                if (node && allowedUserIds.has(node.id)) {
+                  const struct = reportingStructures.find((s) => s.userId.toString() === u._id.toString());
+                  if (!struct?.managerId || !allowedUserIds.has(struct.managerId.toString())) {
+                    deptRootNodes.push(node);
+                  }
+                }
+              });
             }
-          });
+          } else {
+            deptUsers.forEach((u) => {
+              const node = userMap.get(u._id.toString());
+              if (node) {
+                const struct = reportingStructures.find((s) => s.userId.toString() === u._id.toString());
+                const manager = struct?.managerId ? userMap.get(struct.managerId.toString()) : null;
+                if (!manager || manager.departmentName !== d.name) {
+                  deptRootNodes.push(node);
+                }
+              }
+            });
+          }
 
           // Helper to check if a node or any of its descendants matches the filter
           const filterTree = (node: any): any | null => {
-            const filteredChildren = node.children.map(filterTree).filter(Boolean);
+            const filteredChildren = node.children
+              .filter((c: any) => !managerRootId || allowedUserIds.has(c.id))
+              .map(filterTree)
+              .filter(Boolean);
             const matchesSearch = matchedUserIds.has(node.id);
             const matchesManager = !managerId || node.id === String(managerId) || node.children.some((c: any) => c.id === String(managerId));
 
@@ -235,7 +284,7 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
             id: d._id.toString(),
             name: d.name,
             hotelCode: d.hotel ? (d.hotel as any).hotelCode : null,
-            employeesCount: deptUsers.length,
+            employeesCount: deptUsers.filter(u => !managerRootId || allowedUserIds.has(u._id.toString())).length,
             structure: finalNodes,
           };
         })
@@ -247,7 +296,7 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
         code: org.code,
         departments: orgDepts,
       };
-    });
+    }).filter(org => org.departments.length > 0);
 
     res.status(200).json({
       status: 'success',
@@ -277,7 +326,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       throw new ApiError(403, 'Permission denied to generate invite QR links');
     }
 
-    const { organizationId, departmentId, expiresInDays } = req.body;
+    const { organizationId, departmentId, expiresInDays, inviteType } = req.body;
     if (!organizationId || !departmentId) {
       throw new ApiError(400, 'Organization ID and Department ID are required');
     }
@@ -314,12 +363,13 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       createdBy: req.user._id,
       expiresAt,
       status: 'Active',
+      inviteType: inviteType || 'employee',
     });
 
     await HierarchyAuditLog.create({
       userId: req.user._id,
       action: 'INVITE_GENERATED',
-      details: JSON.stringify({ inviteId: invite._id, inviteCode, departmentId, managerId: req.user._id }),
+      details: JSON.stringify({ inviteId: invite._id, inviteCode, departmentId, managerId: req.user._id, inviteType: inviteType || 'employee' }),
     });
 
     res.status(201).json({
@@ -368,10 +418,10 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
 export const joinHierarchy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     registerModels();
-    const { inviteCode, name, email, mobile, employeeId, designation, password } = req.body;
+    const { inviteCode, name, email, mobile, employeeId, designation, password, state, district } = req.body;
     
-    if (!inviteCode || !name || !email || !mobile || !employeeId || !designation || !password) {
-      throw new ApiError(400, 'All fields (Invite Code, Name, Email, Mobile, Employee ID, Designation, Password) are required');
+    if (!inviteCode || !name || !email || !mobile || !employeeId || !designation || !password || !state || !district) {
+      throw new ApiError(400, 'All fields (Invite Code, Name, Email, Mobile, Employee ID, Designation, Password, State, District) are required');
     }
 
     const invite = await InviteLink.findOne({ inviteCode, status: 'Active' });
@@ -401,86 +451,51 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
       throw new ApiError(404, 'Manager not found');
     }
 
-    // Split name
-    const nameParts = name.trim().split(/\s+/);
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || 'Staff';
+    let hierarchyLevel = 1;
+    if (manager && typeof manager.hierarchyLevel === 'number') {
+      hierarchyLevel = manager.hierarchyLevel + 1;
+    }
 
-    // Create active user directly (no approval needed)
-    const newUser = await User.create({
-      firstName,
-      lastName,
+    // Split name
+    // Check if duplicate request exists
+    const existingReq = await JoinRequest.findOne({ email: email.toLowerCase(), status: 'Pending' });
+    if (existingReq) {
+      throw new ApiError(400, 'You have already submitted a join request that is pending approval');
+    }
+
+    // Create a pending JoinRequest document
+    const newRequest = await JoinRequest.create({
+      inviteCode,
+      organizationId: invite.organizationId,
+      departmentId: invite.departmentId,
+      managerId: invite.managerId,
+      name: name.trim(),
       email: email.toLowerCase(),
-      phone: mobile,
+      mobile,
       employeeId,
       designation,
       password,
-      role: 'EMPLOYEE',
-      department: dept.name,
-      hotel: manager.hotel || undefined,
-      status: 'Active',
-      joinedDate: new Date(),
-      reportingManager: `${manager.firstName} ${manager.lastName}`,
+      status: 'Pending',
+      joinRole: req.body.joinRole || 'EMPLOYEE',
+      invitedById: invite.managerId,
+      hierarchyLevel,
+      state,
+      district,
     });
 
-    // Construct reporting path
-    const managerStruct = await ReportingStructure.findOne({ userId: manager._id });
-    const parentPath = managerStruct ? managerStruct.path : `/${manager._id}`;
-    const currentPath = `${parentPath}/${newUser._id}`;
-
-    // Create reporting structure
-    await ReportingStructure.create({
-      userId: newUser._id,
-      managerId: manager._id,
-      departmentId: invite.departmentId,
-      organizationId: invite.organizationId,
-      path: currentPath,
-    });
-
-    // Create hierarchy node
-    await HierarchyNode.create({
-      userId: newUser._id,
-      parentId: manager._id,
-      departmentId: invite.departmentId,
-      organizationId: invite.organizationId,
-      role: 'EMPLOYEE',
-    });
-
-    // Log hierarchy audit
-    await HierarchyAuditLog.create({
-      userId: manager._id,
-      action: 'JOIN_DIRECT_APPROVED',
-      details: JSON.stringify({ 
-        employeeId: newUser._id, 
-        name: `${firstName} ${lastName}`,
-        email: newUser.email,
-        departmentId: invite.departmentId,
-        managerId: manager._id 
-      }),
-    });
-
-    // Notify manager
+    // Notify manager of pending request
     await createNotification({
-      title: 'New Team Member Added',
-      message: `${firstName} ${lastName} has joined your team as ${designation} in ${dept.name} department.`,
-      type: 'success',
-      recipientId: manager._id.toString(),
+      title: 'New Join Request Pending',
+      message: `${name} has requested to join your department (${dept.name}) as ${designation}. Please review and approve.`,
+      type: 'warning',
+      recipientId: invite.managerId.toString(),
       link: '/dashboard/hierarchy',
-    });
-
-    // Notify employee
-    await createNotification({
-      title: 'Welcome to the Team!',
-      message: `You have been added to ${dept.name} department. Your account is now active.`,
-      type: 'success',
-      recipientId: newUser._id.toString(),
-      link: '/dashboard/profile',
     });
 
     res.status(200).json({
       status: 'success',
-      message: 'Successfully joined the team! Your account has been created.',
-      data: { user: newUser },
+      message: 'Join request successfully submitted! Your registration is pending approval by your manager.',
+      data: { request: newRequest },
     });
   } catch (error) {
     next(error);
@@ -528,22 +543,21 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ') || 'Staff';
 
-    // Create active user
-    const newUser = await User.create({
-      firstName,
-      lastName,
-      email: joinReq.email,
-      phone: joinReq.mobile,
-      employeeId: joinReq.employeeId,
-      designation: joinReq.designation,
-      password: joinReq.password, // Schema handles plain text as per setup
-      role: 'EMPLOYEE',
-      department: dept.name,
-      hotel: req.user.hotel || undefined, // inherit manager's hotel
-      status: 'Active',
-      joinedDate: new Date(),
-      reportingManager: `${req.user.firstName} ${req.user.lastName}`,
-    });
+    // Fetch approving manager's details
+    const managerUser = await User.findById(req.user._id);
+    let managerLevel = 0;
+    if (managerUser && typeof managerUser.hierarchyLevel === 'number') {
+      managerLevel = managerUser.hierarchyLevel;
+    } else {
+      const managerStruct = await ReportingStructure.findOne({ userId: req.user._id });
+      if (managerStruct && managerStruct.path) {
+        managerLevel = managerStruct.path.split('/').filter(Boolean).length - 1;
+      }
+    }
+    const newUserLevel = managerLevel + 1;
+
+    // Temporary user document to get ID
+    const finalRole = joinReq.joinRole || 'EMPLOYEE';
 
     // Construct reporting path prefix
     let parentPath = '';
@@ -553,7 +567,39 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     } else {
       parentPath = `/${req.user._id}`;
     }
-    const currentPath = `${parentPath}/${newUser._id}`;
+    
+    // In order to construct the path with the user ID, we need the user ID. Mongoose allows us to pre-generate it
+    const newUserId = new mongoose.Types.ObjectId();
+    const currentPath = `${parentPath}/${newUserId}`;
+
+    // Create active user
+    const newUser = await User.create({
+      _id: newUserId,
+      firstName,
+      lastName,
+      email: joinReq.email,
+      phone: joinReq.mobile,
+      employeeId: joinReq.employeeId,
+      designation: joinReq.designation,
+      password: joinReq.password,
+      role: finalRole,
+      department: dept.name,
+      hotel: req.user.hotel || undefined, // inherit manager's hotel
+      status: 'Active',
+      joinedDate: new Date(),
+      reportingManager: `${req.user.firstName} ${req.user.lastName}`,
+      hierarchyLevel: newUserLevel,
+      hierarchyPath: currentPath,
+      parentManagerId: req.user._id,
+      invitedById: joinReq.invitedById || joinReq.managerId,
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+      state: joinReq.state,
+      district: joinReq.district,
+    });
+
+    // Auto-join to global community chat group
+    await addUserToGlobalGroup(newUser._id);
 
     // Create reporting structure
     await ReportingStructure.create({
@@ -570,7 +616,9 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
       parentId: req.user._id,
       departmentId: joinReq.departmentId,
       organizationId: joinReq.organizationId,
-      role: 'EMPLOYEE',
+      role: finalRole,
+      hierarchyLevel: newUserLevel,
+      hierarchyPath: currentPath,
     });
 
     // Log hierarchy audit
@@ -742,7 +790,7 @@ export const getTeamStructure = async (req: Request, res: Response, next: NextFu
     // Fetch team reports (materialized path includes managerId)
     const regex = new RegExp(`/${req.user._id}`);
     const reports = await ReportingStructure.find({ path: regex })
-      .populate('userId', 'firstName lastName email role department designation phone employeeId status')
+      .populate('userId', 'firstName lastName email role department designation phone employeeId status enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentManagerId')
       .populate('departmentId', 'name')
       .sort({ path: 1 });
 
@@ -1040,6 +1088,97 @@ export const toggleInviteStatus = async (req: Request, res: Response, next: Next
     res.status(200).json({
       status: 'success',
       message: `Invite link status successfully updated to ${status}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateHierarchyNode = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    if (!req.user) {
+      throw new ApiError(401, 'Please authenticate');
+    }
+
+    const { targetUserId, firstName, lastName, email, phone, employeeId, department, designation, role, baseSalary, enabledFeatures } = req.body;
+    if (!targetUserId) {
+      throw new ApiError(400, 'Target User ID is required');
+    }
+
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
+      throw new ApiError(404, 'Target user not found');
+    }
+
+    // Tenancy/Hierarchy Check: Is the logged-in user the Root Admin, or a parent manager of targetUserId?
+    if (req.user.role !== 'ROOT_ADMIN') {
+      const targetStruct = await ReportingStructure.findOne({ userId: targetUserId });
+      if (!targetStruct) {
+        throw new ApiError(403, 'Target user is not in your hierarchy reporting structure');
+      }
+      
+      const managerPathRegex = new RegExp(`/${req.user._id}(/|$)`);
+      if (!managerPathRegex.test(targetStruct.path)) {
+        throw new ApiError(403, 'Permission denied: Target user is not in your reporting hierarchy line');
+      }
+    }
+
+    // Update basic details if provided
+    if (firstName) targetUser.firstName = firstName;
+    if (lastName) targetUser.lastName = lastName;
+    if (email) targetUser.email = email.toLowerCase();
+    if (phone) targetUser.phone = phone;
+    if (employeeId) targetUser.employeeId = employeeId;
+    if (department) targetUser.department = department;
+    if (designation) targetUser.designation = designation;
+    if (role) targetUser.role = role;
+    
+    // Salary details
+    if (baseSalary !== undefined) {
+      targetUser.salaryDetails = {
+        ...targetUser.salaryDetails,
+        baseSalary: Number(baseSalary),
+      };
+    }
+
+    // Rights/Features
+    if (enabledFeatures !== undefined) {
+      targetUser.enabledFeatures = enabledFeatures;
+    }
+
+    await targetUser.save();
+
+    // Also update HierarchyNode and ReportingStructure if department or role changed
+    if (department) {
+      const deptDoc = await Department.findOne({ name: department });
+      if (deptDoc) {
+        await HierarchyNode.findOneAndUpdate(
+          { userId: targetUserId },
+          { departmentId: deptDoc._id, role: role || targetUser.role }
+        );
+        await ReportingStructure.findOneAndUpdate(
+          { userId: targetUserId },
+          { departmentId: deptDoc._id }
+        );
+      }
+    } else if (role) {
+      await HierarchyNode.findOneAndUpdate(
+        { userId: targetUserId },
+        { role }
+      );
+    }
+
+    await HierarchyAuditLog.create({
+      userId: req.user._id,
+      action: 'SUBORDINATE_UPDATED',
+      details: JSON.stringify({ targetUserId, updatedFields: Object.keys(req.body).filter(k => k !== 'targetUserId') }),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Subordinate details updated successfully',
+      data: { user: targetUser },
     });
   } catch (error) {
     next(error);

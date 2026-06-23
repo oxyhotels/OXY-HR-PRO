@@ -30,12 +30,37 @@
   --oxy-zebra: #F8FAFC;
 }
 
+/* Dark Mode Overrides for Custom Properties */
+.dark {
+  /* Main Backgrounds */
+  --oxy-main-bg: #0F172A; /* Deep charcoal background */
+  --oxy-card-bg: #1E293B; /* Slightly lighter card bg */
+  --oxy-card-border: #334155; /* Dark gray border */
+  --oxy-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); /* Deeper shadow for dark mode */
+
+  /* Typography */
+  --oxy-text-primary: #F8FAFC; /* Very light slate for readability */
+  --oxy-text-secondary: #CBD5E1; /* Muted slate for subtitles */
+  --oxy-text-muted: #64748B; /* Darker muted text */
+  --oxy-card-text: #F8FAFC; /* Light text on dark cards */
+
+  /* Structural Grays */
+  --oxy-slate-100: #1E293B;
+  --oxy-slate-200: #334155;
+  --oxy-zebra: #1E293B;
+}
+
 /* Ensure global typography is clean */
 body, .content-area {
-  background-color: var(--oxy-main-bg) !important;
-  color: var(--oxy-text-primary) !important;
+  background-color: var(--oxy-main-bg);
+  color: var(--oxy-text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Smooth transition for theme colors across core container elements */
+body, .content-area, .oxy-card, .card, .panel, table, thead, th, td, tr, input, select, textarea, button, border {
+  transition: background-color 350ms ease, border-color 350ms ease, color 350ms ease, box-shadow 350ms ease;
 }
 
 /* Respect existing sidebar — do not override sidebar selectors */

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LifeBuoy, AlertCircle, Clock, Check, Plus, X, MessageSquare, Tag } from 'lucide-react';
 
 interface TicketTimeline {
@@ -57,6 +57,11 @@ export default function TicketsPage() {
   const [newDesc, setNewDesc] = useState('');
   const [newCategory, setNewCategory] = useState<'HR' | 'IT' | 'Maintenance' | 'Complaint'>('Maintenance');
   const [newPriority, setNewPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,9 +161,11 @@ export default function TicketsPage() {
                     <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
                       <Clock size={12} className="text-gold" />
                       <span className="font-mono">
-                        {new Date(ticket.slaDueDate).getTime() > Date.now()
-                          ? `${Math.max(0, Math.round((new Date(ticket.slaDueDate).getTime() - Date.now()) / 3600000))} hrs left`
-                          : 'SLA Breached'}
+                        {!mounted ? 'Calculating...' : (
+                          new Date(ticket.slaDueDate).getTime() > Date.now()
+                            ? `${Math.max(0, Math.round((new Date(ticket.slaDueDate).getTime() - Date.now()) / 3600000))} hrs left`
+                            : 'SLA Breached'
+                        )}
                       </span>
                     </div>
                   </td>

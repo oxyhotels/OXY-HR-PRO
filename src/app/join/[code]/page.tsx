@@ -2,14 +2,109 @@
 
 import React, { use, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
-import { ShieldCheck, UserPlus, Info, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, UserPlus, Info, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Search } from 'lucide-react';
+import QRScannerModal from '@/components/QRScannerModal';
+import GoogleIcon from '@/components/GoogleIcon';
+import { INDIA_STATES_DISTRICTS } from '@/constants/indiaStatesDistricts';
 
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  label,
+  error
+}: {
+  options: string[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  label: string;
+  error?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filtered = options.filter(opt =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <label className="block text-[11px] font-semibold uppercase text-slate-400 mb-1.5">{label}</label>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full bg-slate-950 text-white border rounded-lg px-3.5 py-2 text-xs flex justify-between items-center cursor-pointer outline-none transition-all ${
+          disabled ? 'opacity-40 cursor-not-allowed border-slate-800' : 'border-slate-800 hover:border-gold/60 focus:border-gold'
+        }`}
+      >
+        <span className={value ? 'text-white' : 'text-slate-605 font-medium'}>
+          {value || placeholder}
+        </span>
+        <ChevronDown size={14} className="text-slate-500" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-[#0b1424] border border-slate-800 rounded-lg shadow-xl max-h-60 flex flex-col overflow-hidden animate-in fade-in duration-200">
+          <div className="p-2 border-b border-slate-800 flex items-center gap-1.5 bg-slate-950/60">
+            <Search size={12} className="text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent text-white border-none outline-none text-xs placeholder:text-slate-600 focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 max-h-48 py-1">
+            {filtered.map((opt) => (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                  setSearchTerm('');
+                }}
+                className={`px-3.5 py-2 text-xs text-slate-300 hover:bg-gold/10 hover:text-white cursor-pointer transition-colors ${
+                  opt === value ? 'bg-gold/15 text-gold font-bold' : ''
+                }`}
+              >
+                {opt}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-3.5 py-3 text-xs text-slate-500 text-center italic">
+                No matches found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+    </div>
+  );
+};
 interface InviteDetails {
   inviteCode: string;
   inviteLink: string;
   organizationId: { _id: string; name: string; code?: string };
   departmentId: { _id: string; name: string };
   managerId: { _id: string; firstName: string; lastName: string; designation?: string };
+  inviteType?: 'employee' | 'manager';
 }
 
 export default function JoinPage({ params }: { params: Promise<{ code: string }> }) {
@@ -20,6 +115,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Form Fields
   const [formData, setFormData] = useState({
@@ -29,6 +125,9 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
     employeeId: '',
     designation: '',
     password: '',
+    joinRole: 'EMPLOYEE',
+    state: '',
+    district: '',
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -71,6 +170,8 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
     }
     if (!formData.employeeId.trim()) errors.employeeId = 'Employee ID is required';
     if (!formData.designation.trim()) errors.designation = 'Designation is required';
+    if (!formData.state) errors.state = 'State is required';
+    if (!formData.district) errors.district = 'District is required';
     if (!formData.password) {
       errors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -99,6 +200,9 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         employeeId: formData.employeeId,
         designation: formData.designation,
         password: formData.password,
+        joinRole: formData.joinRole,
+        state: formData.state,
+        district: formData.district,
       });
       setSubmitted(true);
     } catch (err: any) {
@@ -261,6 +365,38 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
                   </div>
                 </div>
 
+                {/* State & District dependent dropdowns */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SearchableDropdown
+                    options={INDIA_STATES_DISTRICTS.map(s => s.state)}
+                    value={formData.state}
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, state: val, district: '' }));
+                      if (formErrors.state) {
+                        setFormErrors(prev => ({ ...prev, state: '', district: '' }));
+                      }
+                    }}
+                    placeholder="Select State"
+                    label="State *"
+                    error={formErrors.state}
+                  />
+
+                  <SearchableDropdown
+                    options={INDIA_STATES_DISTRICTS.find(s => s.state === formData.state)?.districts || []}
+                    value={formData.district}
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, district: val }));
+                      if (formErrors.district) {
+                        setFormErrors(prev => ({ ...prev, district: '' }));
+                      }
+                    }}
+                    placeholder={formData.state ? "Select District" : "Select State First"}
+                    disabled={!formData.state}
+                    label="District *"
+                    error={formErrors.district}
+                  />
+                </div>
+
                 {/* Pre-filled Department */}
                 <div>
                   <label className="block text-[11px] font-semibold uppercase text-slate-500 mb-1.5">Assigned Department (Autolinked)</label>
@@ -271,6 +407,37 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
                     className="w-full bg-slate-950/40 text-slate-400 border border-slate-800/80 rounded-lg px-3.5 py-2 text-xs cursor-not-allowed outline-none"
                   />
                 </div>
+
+                {/* Optional Manager/Employee Role Selector */}
+                {invite.inviteType === 'manager' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase text-slate-400 mb-1.5">Join As *</label>
+                    <div className="flex gap-6 p-3 bg-slate-950/60 border border-slate-800 rounded-lg">
+                      <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                        <input
+                          type="radio"
+                          name="joinRole"
+                          value="EMPLOYEE"
+                          checked={formData.joinRole === 'EMPLOYEE'}
+                          onChange={() => setFormData({ ...formData, joinRole: 'EMPLOYEE' })}
+                          className="w-4 h-4 accent-gold"
+                        />
+                        <span>Employee</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                        <input
+                          type="radio"
+                          name="joinRole"
+                          value="DEPT_MANAGER"
+                          checked={formData.joinRole === 'DEPT_MANAGER'}
+                          onChange={() => setFormData({ ...formData, joinRole: 'DEPT_MANAGER' })}
+                          className="w-4 h-4 accent-gold"
+                        />
+                        <span>Manager</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {/* Password */}
                 <div>
@@ -309,6 +476,24 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
           )
         )}
       </div>
+
+      {/* Floating QR Scanner Button */}
+      <div className="fixed right-6 bottom-6 z-40">
+        <button
+          onClick={() => {
+            setScannerOpen(true);
+          }}
+          className="bg-slate-900/95 hover:bg-slate-800/95 text-gold border border-gold/30 hover:border-gold/60 w-14 h-14 rounded-full shadow-[0_0_25px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group hover:shadow-gold/10 cursor-pointer"
+          style={{ textShadow: '0 0 10px rgba(212,175,55,0.2)' }}
+        >
+          <div className="flex flex-col items-center justify-center">
+            <GoogleIcon name="qr_code_scanner" size={22} className="animate-pulse" />
+            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5 select-none">Scan</span>
+          </div>
+        </button>
+      </div>
+
+      <QRScannerModal isOpen={scannerOpen} onClose={() => setScannerOpen(false)} />
     </div>
   );
 }

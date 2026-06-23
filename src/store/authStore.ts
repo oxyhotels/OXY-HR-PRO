@@ -50,6 +50,7 @@ export interface UserProfile {
   badges?: string[];
   accountabilityIndex?: number;
   shift?: string;
+  enabledFeatures?: string[];
 }
 
 interface AuthState {

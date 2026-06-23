@@ -10,6 +10,7 @@ export interface IInviteLink extends Document {
   createdBy: Schema.Types.ObjectId;
   expiresAt?: Date;
   status: 'Active' | 'Disabled';
+  inviteType?: 'employee' | 'manager';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ const InviteLinkSchema = new Schema<IInviteLink>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     expiresAt: { type: Date },
     status: { type: String, enum: ['Active', 'Disabled'], default: 'Active' },
+    inviteType: { type: String, enum: ['employee', 'manager'], default: 'employee' },
   },
   { timestamps: true }
 );

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '@/config/config';
 import { User } from '@/models/User';
 import { connectDB } from '@/config/db';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const filename = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+    const filename = `${crypto.randomUUID()}_${file.name.replace(/\s+/g, '_')}`;
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'community');
 
     // Ensure directory exists

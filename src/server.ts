@@ -18,7 +18,7 @@ const nextApp = next({ dev });
 const nextHandler = nextApp.getRequestHandler();
 
 // Memory store for online users: maps userId -> Set of socketIds
-const onlineUsers = new Map<string, { socketIds: Set<string>; name: string; email: string }>();
+const onlineUsers = new Map<string, { socketIds: Set<string>; name: string; email: string; status?: string }>();
 
 // Helper to check authorization and extract user details
 const authenticateSocket = async (socket: Socket, nextFn: (err?: any) => void) => {
@@ -99,16 +99,31 @@ nextApp.prepare().then(async () => {
       onlineUsers.set(userId, {
         socketIds: new Set([socket.id]),
         name: userDisplayName,
-        email: user.email
+        email: user.email,
+        status: 'online'
       });
       // Broadcast online status to all users
       io.emit('user_status_change', { userId, status: 'online', name: userDisplayName });
     } else {
-      onlineUsers.get(userId)!.socketIds.add(socket.id);
+      const cache = onlineUsers.get(userId);
+      if (cache) {
+        cache.socketIds.add(socket.id);
+        cache.status = 'online';
+      }
+      io.emit('user_status_change', { userId, status: 'online', name: userDisplayName });
     }
 
     // Join user-specific room for notifications
     socket.join(`user_${userId}`);
+
+    // Custom user status event handler
+    socket.on('user_status_set', (status: 'online' | 'away' | 'offline') => {
+      const cache = onlineUsers.get(userId);
+      if (cache) {
+        cache.status = status === 'offline' ? 'online' : status;
+      }
+      io.emit('user_status_change', { userId, status, name: userDisplayName });
+    });
 
     // Join room for root admin or specific hotel tasks monitoring
     socket.on('join_room', (roomData: any) => {
@@ -236,7 +251,11 @@ nextApp.prepare().then(async () => {
   // Make online list queryable by HTTP API endpoints
   app.get('/api/community/realtime/online', (req, res) => {
     const onlineList = Array.from(onlineUsers.keys());
-    res.json({ status: 'success', data: { onlineUsers: onlineList } });
+    const onlineStatuses = Array.from(onlineUsers.entries()).reduce((acc, [uId, details]) => {
+      acc[uId] = details.status || 'online';
+      return acc;
+    }, {} as Record<string, string>);
+    res.json({ status: 'success', data: { onlineUsers: onlineList, onlineStatuses } });
   });
 
   // Serve Next.js requests

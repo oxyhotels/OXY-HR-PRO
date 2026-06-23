@@ -12,6 +12,8 @@ import { io } from 'socket.io-client';
 import TaskNotificationPopup from '@/components/TaskNotificationPopup';
 import TaskDeadlineAlert from '@/components/TaskDeadlineAlert';
 import { useCommunityStore } from '../../store/communityStore';
+import ThemeToggle from '@/components/ThemeToggle';
+import QRScannerModal from '@/components/QRScannerModal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -478,12 +480,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Profile', icon: 'account_circle', href: '/dashboard/profile' },
   ];
 
+  // Scanner states
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   const visibleMenuItems = menuItems.filter(item => {
     if (user?.role === 'EMPLOYEE') {
       const employeeAllowed = ['/dashboard', '/dashboard/attendance', '/dashboard/tasks', '/dashboard/tasks/my-tasks', '/dashboard/performance', '/dashboard/lms', '/dashboard/policy', '/dashboard/tickets', '/dashboard/compliance', '/dashboard/community', '/dashboard/notifications', '/dashboard/profile'];
       return employeeAllowed.includes(item.href);
     }
-    if (item.href === '/dashboard/tracking' && user?.role !== 'ROOT_ADMIN') {
+
+    // Role feature rights control mapping
+    if (user?.role !== 'ROOT_ADMIN' && user?.enabledFeatures && user.enabledFeatures.length > 0) {
+      const routeFeatureMap: Record<string, string> = {
+        '/dashboard/hierarchy': 'organisationSettings',
+        '/dashboard/employees': 'employeeConfiguration',
+        '/dashboard/payroll': 'payroll',
+        '/dashboard/tracking': 'liveLocationSettings',
+        '/dashboard/community': 'groupMaster',
+        '/dashboard/leaves': 'approverManagement'
+      };
+
+      const requiredFeature = routeFeatureMap[item.href];
+      if (requiredFeature && !user.enabledFeatures.includes(requiredFeature)) {
+        return false;
+      }
+    }
+
+    if (item.href === '/dashboard/tracking') {
+      if (user?.role === 'ROOT_ADMIN') return true;
+      if (user?.enabledFeatures && user.enabledFeatures.includes('liveLocationSettings')) return true;
       return false;
     }
     return true;
@@ -540,6 +565,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="pt-4 border-t border-slate-700/60 mt-4">
+          <div className="px-1.5 mb-3 flex items-center justify-between">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Appearance</span>
+            <ThemeToggle />
+          </div>
           <div className="flex items-center gap-3 mb-3 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors" onClick={() => setProfileModalOpen(true)} title="View & Edit Profile">
             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center border border-gold/30 text-gold font-bold text-xs overflow-hidden flex-shrink-0">
               {user?.photoUrl ? (
@@ -636,49 +665,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2 text-xs">
             <img src="/oxy-logo.jpeg" alt="OxyHotels Logo" className="h-7 w-auto object-contain rounded" />
           </div>
-          <div className="relative" ref={dropdownRef}>
-            <button onClick={() => setShowNotifications(!showNotifications)} className="relative text-slate-300 hover:text-white p-1">
-              <GoogleIcon name="notifications" size={20} />
-              {notifications.filter(n => !n.read).length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {notifications.filter(n => !n.read).length}
-                </span>
-              )}
-            </button>
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
-                <div className="p-3 border-b border-slate-800 flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-white">Notifications</h3>
-                  <button onClick={handleMarkAllAsRead} className="text-[10px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark All Read</button>
-                </div>
-                {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-xs italic">All caught up!</div>
-                ) : (
-                  notifications.map((n: any) => {
-                    const ni = getNotificationIcon(n.type);
-                    return (
-                      <div key={n._id} className={`p-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors ${!n.read ? 'bg-gold/5' : ''}`}>
-                        <div className="flex items-start gap-2.5">
-                          <span className={`p-1.5 rounded-lg ${ni.color}`}>
-                            <GoogleIcon name={ni.icon} size={14} />
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] text-slate-200 font-semibold truncate">{n.title}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="text-[9px] text-slate-600 font-mono">{new Date(n.createdAt).toLocaleDateString()}</span>
-                              {!n.read && (
-                                <button onClick={() => handleMarkAsRead(n._id)} className="text-[9px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark Read</button>
-                              )}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <div className="relative" ref={dropdownRef}>
+              <button onClick={() => setShowNotifications(!showNotifications)} className="relative text-slate-300 hover:text-white p-1">
+                <GoogleIcon name="notifications" size={20} />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xs font-bold text-white">Notifications</h3>
+                    <button onClick={handleMarkAllAsRead} className="text-[10px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark All Read</button>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 text-xs italic">All caught up!</div>
+                  ) : (
+                    notifications.map((n: any) => {
+                      const ni = getNotificationIcon(n.type);
+                      return (
+                        <div key={n._id} className={`p-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors ${!n.read ? 'bg-gold/5' : ''}`}>
+                          <div className="flex items-start gap-2.5">
+                            <span className={`p-1.5 rounded-lg ${ni.color}`}>
+                              <GoogleIcon name={ni.icon} size={14} />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] text-slate-200 font-semibold truncate">{n.title}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="text-[9px] text-slate-600 font-mono">{new Date(n.createdAt).toLocaleDateString()}</span>
+                                {!n.read && (
+                                  <button onClick={() => handleMarkAsRead(n._id)} className="text-[9px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark Read</button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -851,6 +883,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       )}
+
+      {/* Floating QR Scanner Button */}
+      <div className="fixed right-6 bottom-6 z-40">
+        <button
+          onClick={() => {
+            setScannerOpen(true);
+          }}
+          className="bg-slate-900/95 hover:bg-slate-855 text-gold border border-gold/30 hover:border-gold/60 w-14 h-14 rounded-full shadow-[0_0_25px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group hover:shadow-gold/10 cursor-pointer"
+          style={{ textShadow: '0 0 10px rgba(212,175,55,0.2)' }}
+        >
+          <div className="flex flex-col items-center justify-center">
+            <GoogleIcon name="qr_code_scanner" size={22} className="animate-pulse" />
+            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5 select-none">Scan</span>
+          </div>
+        </button>
+      </div>
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal isOpen={scannerOpen} onClose={() => setScannerOpen(false)} />
     </div>
   );
 }

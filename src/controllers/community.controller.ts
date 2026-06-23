@@ -15,6 +15,34 @@ import { ReadStatus } from '@/models/ReadStatus';
 import { DeliveryStatus } from '@/models/DeliveryStatus';
 import { sendPushNotification } from '@/services/fcm.service';
 
+// Add a single user to the OXY Global Community group (idempotent)
+export const addUserToGlobalGroup = async (userId: any): Promise<void> => {
+  try {
+    let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' });
+    if (!globalGroup) {
+      // Create global group if missing
+      globalGroup = await CommunityGroup.create({
+        name: 'OXY Global Community',
+        type: 'GlobalGroup',
+        description: 'Global corporate communication hub for all OXY Hotels employees, departments, and management.',
+        members: [{ user: userId, role: 'member', joinedAt: new Date() }]
+      });
+      console.log('[Community] Created Global Group and added first user.');
+      return;
+    }
+    // Idempotent: only add if not already a member
+    const alreadyMember = globalGroup.members.some((m: any) => m.user.toString() === userId.toString());
+    if (!alreadyMember) {
+      await CommunityGroup.findByIdAndUpdate(globalGroup._id, {
+        $push: { members: { user: userId, role: 'member', joinedAt: new Date() } }
+      });
+      console.log(`[Community] Auto-joined user ${userId} into OXY Global Community.`);
+    }
+  } catch (error) {
+    console.error('[Community] addUserToGlobalGroup error:', error);
+  }
+};
+
 // Sync Global Group so everyone is a member
 const ensureGlobalGroup = async (): Promise<any> => {
   let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' });
@@ -280,23 +308,17 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
     // Handle Mentions Scan & Notifications
     let mentionedUserIds = new Set<string>();
-    if (content && typeof content === 'string') {
-      const mentionRegex = /@(\w+)/g;
-      let match;
-      const mentionedUsernames = new Set<string>();
-      while ((match = mentionRegex.exec(content)) !== null) {
-        mentionedUsernames.add(match[1].toLowerCase());
-      }
-
-      if (mentionedUsernames.size > 0) {
-        const users = await User.find({
-          _id: { $in: group.members.map((m: any) => m.user) },
-          status: { $ne: 'Terminated' }
-        });
-        for (const user of users) {
-          if (mentionedUsernames.has(user.firstName.toLowerCase())) {
-            mentionedUserIds.add(user._id.toString());
-          }
+    if (Array.isArray(req.body.mentionedUserIds)) {
+      req.body.mentionedUserIds.forEach((id: string) => mentionedUserIds.add(id));
+    } else if (content && typeof content === 'string') {
+      const users = await User.find({
+        _id: { $in: group.members.map((m: any) => m.user) },
+        status: { $ne: 'Terminated' }
+      });
+      for (const u of users) {
+        const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+        if (content.toLowerCase().includes(`@${fullName}`) || content.toLowerCase().includes(`@${u.firstName.toLowerCase()}`)) {
+          mentionedUserIds.add(u._id.toString());
         }
       }
     }
@@ -880,6 +902,228 @@ export const deletePushToken = async (req: Request, res: Response, next: NextFun
     res.status(200).json({
       status: 'success',
       message: 'Push token deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/community/groups/:id
+export const getGroupById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id: groupId } = req.params;
+    const group = await CommunityGroup.findById(groupId)
+      .populate('createdBy', 'firstName lastName photoUrl role department')
+      .populate('members.user', 'firstName lastName photoUrl role department designation status employeeId reportingManager');
+
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isMember = group.members.some((m: any) => m.user && m.user._id.toString() === req.user?._id.toString());
+    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
+    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Access denied: You are not a member of this group');
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { group }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/community/groups/:id
+export const updateGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id: groupId } = req.params;
+    const { name, description, groupIcon } = req.body;
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isCreator = group.createdBy?.toString() === req.user?._id.toString();
+    const isGroupAdmin = group.members.some(
+      (m: any) => m.user.toString() === req.user?._id.toString() && m.role === 'admin'
+    );
+    const isRoot = req.user?.role === 'ROOT_ADMIN';
+
+    if (!isCreator && !isGroupAdmin && !isRoot) {
+      throw new ApiError(403, 'Access denied: Only group admins can update group settings');
+    }
+
+    if (name) group.name = name;
+    if (description !== undefined) group.description = description;
+    if (groupIcon !== undefined) group.groupIcon = groupIcon;
+
+    await group.save();
+
+    const populatedGroup = await CommunityGroup.findById(groupId)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
+    if ((global as any).io) {
+      (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { group: populatedGroup }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/community/groups/:id/members
+export const addGroupMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id: groupId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) throw new ApiError(400, 'User ID is required');
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isCreator = group.createdBy?.toString() === req.user?._id.toString();
+    const isGroupAdmin = group.members.some(
+      (m: any) => m.user.toString() === req.user?._id.toString() && m.role === 'admin'
+    );
+    const isRoot = req.user?.role === 'ROOT_ADMIN';
+
+    if (!isCreator && !isGroupAdmin && !isRoot) {
+      throw new ApiError(403, 'Access denied: Only group admins can add members');
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) throw new ApiError(404, 'User not found');
+
+    const alreadyMember = group.members.some((m: any) => m.user.toString() === userId.toString());
+    if (alreadyMember) {
+      throw new ApiError(400, 'User is already a member of this group');
+    }
+
+    group.members.push({
+      user: userId,
+      role: 'member',
+      joinedAt: new Date()
+    });
+
+    await group.save();
+
+    const populatedGroup = await CommunityGroup.findById(groupId)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
+    if ((global as any).io) {
+      (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { group: populatedGroup }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/community/groups/:id/members/:userId
+export const removeGroupMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id: groupId, userId } = req.params;
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isCreator = group.createdBy?.toString() === req.user?._id.toString();
+    const isGroupAdmin = group.members.some(
+      (m: any) => m.user.toString() === req.user?._id.toString() && m.role === 'admin'
+    );
+    const isRoot = req.user?.role === 'ROOT_ADMIN';
+
+    if (!isCreator && !isGroupAdmin && !isRoot) {
+      throw new ApiError(403, 'Access denied: Only group admins can remove members');
+    }
+
+    if (group.createdBy?.toString() === userId && !isRoot && req.user?._id.toString() !== userId) {
+      throw new ApiError(400, 'Cannot remove the group owner/creator');
+    }
+
+    const isMember = group.members.some((m: any) => m.user.toString() === userId.toString());
+    if (!isMember) {
+      throw new ApiError(400, 'User is not a member of this group');
+    }
+
+    group.members = group.members.filter((m: any) => m.user.toString() !== userId.toString());
+
+    await group.save();
+
+    const populatedGroup = await CommunityGroup.findById(groupId)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
+    if ((global as any).io) {
+      (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
+      (global as any).io.to(`user_${userId}`).emit('group_removed', { groupId });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { group: populatedGroup }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/community/groups/:id/members/:userId/role
+export const updateGroupMemberRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id: groupId, userId } = req.params;
+    const { role } = req.body;
+
+    if (!['admin', 'member'].includes(role)) {
+      throw new ApiError(400, "Role must be 'admin' or 'member'");
+    }
+
+    const group = await CommunityGroup.findById(groupId);
+    if (!group) throw new ApiError(404, 'Community group not found');
+
+    const isCreator = group.createdBy?.toString() === req.user?._id.toString();
+    const isGroupAdmin = group.members.some(
+      (m: any) => m.user.toString() === req.user?._id.toString() && m.role === 'admin'
+    );
+    const isRoot = req.user?.role === 'ROOT_ADMIN';
+
+    if (!isCreator && !isGroupAdmin && !isRoot) {
+      throw new ApiError(403, 'Access denied: Only group admins can manage member roles');
+    }
+
+    if (group.createdBy?.toString() === userId && role === 'member') {
+      throw new ApiError(400, 'Cannot demote the group owner/creator');
+    }
+
+    const memberIndex = group.members.findIndex((m: any) => m.user.toString() === userId.toString());
+    if (memberIndex === -1) {
+      throw new ApiError(400, 'User is not a member of this group');
+    }
+
+    group.members[memberIndex].role = role;
+    await group.save();
+
+    const populatedGroup = await CommunityGroup.findById(groupId)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
+    if ((global as any).io) {
+      (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { group: populatedGroup }
     });
   } catch (error) {
     next(error);

@@ -61,4 +61,6 @@ const HotelSchema = new Schema<IHotel>(
   { timestamps: true }
 );
 
+HotelSchema.index({ status: 1 });
+
 export const Hotel = models.Hotel || model<IHotel>('Hotel', HotelSchema);
