@@ -87,21 +87,42 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
 
     // Sync global group first
     await ensureGlobalGroup();
+    
+    // Auto-sync eligible department groups for this user on load
+    await syncUserDepartmentGroups(req.user);
 
-    const query: any = {
-      'members.user': userId
+    // Initial query matching explicit membership OR eligible department groups
+    // Even if sync was slightly delayed, this query ensures they can see it instantly
+    const userDepartment = req.user?.department;
+    let baseQuery: any = {
+      $or: [
+        { 'members.user': userId }
+      ]
     };
+    
+    if (userDepartment) {
+      baseQuery.$or.push({ type: 'DepartmentGroup', department: userDepartment });
+    }
+
+    let finalQuery = baseQuery;
 
     // Multi-tenant containment
     if (req.user?.role !== 'ROOT_ADMIN') {
       const userHotel = req.user?.hotel;
-      query.$or = [
-        { hotel: userHotel },
-        { type: 'GlobalGroup' }
-      ];
+      finalQuery = {
+        $and: [
+          baseQuery,
+          {
+            $or: [
+              { hotel: userHotel },
+              { type: 'GlobalGroup' }
+            ]
+          }
+        ]
+      };
     }
 
-    const groups = await CommunityGroup.find(query)
+    const groups = await CommunityGroup.find(finalQuery)
       .populate('createdBy', 'firstName lastName role')
       .populate('members.user', 'firstName lastName photoUrl role department status')
       .sort({ updatedAt: -1 });
@@ -328,9 +349,27 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Update group timestamp
     await CommunityGroup.findByIdAndUpdate(groupId, { updatedAt: new Date() });
 
+    // Handle @all mention logic
+    let isAllMention = false;
+    if (content && typeof content === 'string' && content.toLowerCase().includes('@all')) {
+      const isGroupAdmin = group.members.some((m: any) => m.user.toString() === req.user?._id.toString() && m.role === 'admin');
+      const allowedRoles = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'];
+      const hasPermission = isGroupAdmin || (req.user && allowedRoles.includes(req.user.role));
+
+      if (hasPermission) {
+        isAllMention = true;
+      }
+    }
+
     // Handle Mentions Scan & Notifications
     let mentionedUserIds = new Set<string>();
-    if (Array.isArray(req.body.mentionedUserIds)) {
+    if (isAllMention) {
+      group.members.forEach((m: any) => {
+        if (m.user.toString() !== req.user?._id.toString()) {
+          mentionedUserIds.add(m.user.toString());
+        }
+      });
+    } else if (Array.isArray(req.body.mentionedUserIds)) {
       req.body.mentionedUserIds.forEach((id: string) => mentionedUserIds.add(id));
     } else if (content && typeof content === 'string') {
       const users = await User.find({
@@ -354,10 +393,14 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       const isMentioned = mentionedUserIds.has(memberIdStr);
       
       const type = isMentioned ? 'mention' : 'chat';
-      const title = isMentioned ? '💬 Mentioned in Chat' : `💬 New Message in ${group.name}`;
-      const messageText = isMentioned 
-        ? `${senderName} mentioned you in "${group.name}": "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
-        : `${senderName}: ${messagePreview}`;
+      const title = isAllMention 
+        ? `📢 @all in ${group.name}` 
+        : (isMentioned ? '💬 Mentioned in Chat' : `💬 New Message in ${group.name}`);
+      const messageText = isAllMention 
+        ? `${senderName} mentioned @all in "${group.name}": "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
+        : (isMentioned 
+          ? `${senderName} mentioned you in "${group.name}": "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`
+          : `${senderName}: ${messagePreview}`);
 
       const notif = await Notification.create({
         recipient: member.user,
@@ -860,17 +903,22 @@ export const getActiveCalls = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// Helper: Auto-sync user to department groups with autoSyncDept toggled on
+// Helper: Auto-sync user to department groups
 export const syncUserDepartmentGroups = async (user: any): Promise<void> => {
   try {
     if (!user.department || user.status === 'Terminated') return;
 
-    // Find all department groups matching this department and has autoSyncDept: true
-    const groups = await CommunityGroup.find({
+    // Find all department groups matching this department
+    const query: any = {
       type: 'DepartmentGroup',
       department: user.department,
-      autoSyncDept: true
-    });
+    };
+    
+    if (user.hotel && user.role !== 'ROOT_ADMIN') {
+      query.hotel = user.hotel;
+    }
+
+    const groups = await CommunityGroup.find(query);
 
     for (const group of groups) {
       const isMember = group.members.some((m: any) => m.user.toString() === user._id.toString());
@@ -882,6 +930,15 @@ export const syncUserDepartmentGroups = async (user: any): Promise<void> => {
         });
         await group.save();
         console.log(`[Community] Auto-added user ${user.firstName} ${user.lastName} to group ${group.name}`);
+        
+        // Emit socket event so client updates UI
+        const io = getIO();
+        if (io) {
+          const populatedGroup = await CommunityGroup.findById(group._id)
+            .populate('createdBy', 'firstName lastName role')
+            .populate('members.user', 'firstName lastName photoUrl role department status');
+          io.to(`user_${user._id.toString()}`).emit('user_added_to_group', populatedGroup);
+        }
       }
     }
   } catch (error) {

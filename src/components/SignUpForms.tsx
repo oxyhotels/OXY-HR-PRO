@@ -402,6 +402,21 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [properties, setProperties] = useState<any[]>([]);
   const [signupType, setSignupType] = useState<'manager' | 'employee'>('manager');
+  const [publicManagers, setPublicManagers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchManagers = async () => {
+      try {
+        const res = await api.get('/organization/public-managers');
+        if (res?.data?.managers) {
+          setPublicManagers(res.data.managers);
+        }
+      } catch (err) {
+        console.error('Failed to load active managers', err);
+      }
+    };
+    fetchManagers();
+  }, []);
 
   // Password visibility states
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -1648,13 +1663,18 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1">Reporting Manager (Optional)</label>
-                <input
-                  type="text"
+                <select
                   disabled={!!inviteData && !!inviteData.managerId}
-                  placeholder="Manager Name"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold disabled:opacity-50"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold disabled:opacity-50 cursor-pointer"
                   {...registerEmpSignup('reportingManager')}
-                />
+                >
+                  <option value="" className="bg-slate-950 text-slate-400">Select Manager</option>
+                  {publicManagers.map((m) => (
+                    <option key={m._id} value={m._id} className="bg-slate-950 text-white">
+                      {m.firstName} {m.lastName} {m.designation ? `(${m.designation})` : ''}
+                    </option>
+                  ))}
+                </select>
                 {empSignupErrors.reportingManager?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.reportingManager.message}</p>}
               </div>
               <div>

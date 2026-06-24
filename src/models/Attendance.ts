@@ -3,6 +3,9 @@ import { Schema, model, models, Document } from 'mongoose';
 export interface IBreak {
   start: Date;
   end?: Date;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
 }
 
 export interface IAttendance extends Document {
@@ -77,6 +80,9 @@ const AttendanceSchema = new Schema<IAttendance>(
       {
         start: { type: Date, required: true },
         end: { type: Date },
+        latitude: { type: Number },
+        longitude: { type: Number },
+        address: { type: String },
       },
     ],
     totalWorkingHours: { type: Number, default: 0 },

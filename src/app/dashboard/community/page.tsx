@@ -99,6 +99,24 @@ const uploadCompressedImage = async (file: File): Promise<string> => {
   }
 };
 
+const renderMessageContent = (content?: string) => {
+  if (!content) return null;
+  // Regex to match @all or @username
+  const parts = content.split(/(@all|@[a-zA-Z0-9_]+)/gi);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.toLowerCase() === '@all') {
+          return <span key={i} className="font-bold text-gold bg-gold/10 px-1 rounded mx-0.5">{part}</span>;
+        } else if (part.startsWith('@')) {
+          return <span key={i} className="font-semibold text-gold bg-[#1b223c] px-1 rounded mx-0.5">{part}</span>;
+        }
+        return part;
+      })}
+    </>
+  );
+};
+
 export default function CommunityHubPage() {
   const { user } = useAuthStore();
   const store = useCommunityStore();
@@ -771,6 +789,7 @@ export default function CommunityHubPage() {
                     {filteredMessages.map(msg => {
                       const isMe = msg.sender?._id === user?.id || msg.sender?.id === user?.id;
                       const isMentioned = user && msg.sender?._id !== user.id && (
+                        msg.content?.toLowerCase().includes('@all') ||
                         msg.content?.toLowerCase().includes(`@${user.firstName.toLowerCase()} ${user.lastName.toLowerCase()}`) ||
                         msg.content?.toLowerCase().includes(`@${user.firstName.toLowerCase()}`)
                       );
@@ -849,7 +868,7 @@ export default function CommunityHubPage() {
                                 isMentioned ? 'bg-[#1b223c] text-gold border border-gold/40 rounded-bl-sm shadow-[0_0_12px_rgba(212,175,55,0.2)] font-semibold' :
                                 'bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700/60'
                               }`}>
-                                <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.isDeleted ? <span className="italic opacity-60">🗑 Message deleted</span> : msg.content}</p>
+                                <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.isDeleted ? <span className="italic opacity-60">🗑 Message deleted</span> : renderMessageContent(msg.content)}</p>
                                 {msg.attachments?.length > 0 && (
                                   <div className="mt-2 space-y-1.5 border-t border-slate-700/40 pt-2">
                                     {msg.attachments.map((f: any, fi: number) => (

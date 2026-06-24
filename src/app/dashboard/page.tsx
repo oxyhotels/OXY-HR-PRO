@@ -549,6 +549,38 @@ export default function DashboardPage() {
       setWorkDescription('');
       setWorkPicture(null);
       setWorkVideo(null);
+    } else if (endpoint === 'break-start') {
+      if (!navigator.geolocation) {
+        setFeedback({ type: 'error', message: 'Location access is required to start break.' });
+        return;
+      }
+      setActionLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            await api.post('/attendance/break-start', {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            });
+            setFeedback({ type: 'success', message: 'Break started successfully.' });
+            await fetchDashboardData();
+            if (user && user.role !== 'EMPLOYEE') {
+              fetchLiveAttendance();
+            }
+          } catch (err: any) {
+            setFeedback({ type: 'error', message: err.response?.data?.message || err.message || 'Operation failed. Please try again.' });
+          } finally {
+            setActionLoading(false);
+          }
+        },
+        (error) => {
+          setActionLoading(false);
+          setFeedback({ type: 'error', message: 'Location access is required to start break.' });
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } else if (endpoint === 'break-end') {
+      handleAttendanceAction(endpoint, actionName, {});
     } else {
       // Check-In Geolocation and Selfie Verification flow
       const exempt = isExempt(user);

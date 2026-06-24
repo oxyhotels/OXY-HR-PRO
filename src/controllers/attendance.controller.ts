@@ -341,6 +341,22 @@ export const startBreak = async (req: Request, res: Response, next: NextFunction
   try {
     if (!req.user) throw new ApiError(401, 'Unauthorized');
 
+    const { latitude, longitude } = req.body;
+    if (latitude === undefined || longitude === undefined) {
+      throw new ApiError(400, 'Location access is required to start break.');
+    }
+
+    // Geocode to get address if possible
+    let address: string | undefined = undefined;
+    try {
+      const addressData = await reverseGeocode(Number(latitude), Number(longitude));
+      if (addressData?.formattedAddress) {
+        address = addressData.formattedAddress;
+      }
+    } catch (err) {
+      console.error('Failed to get address for break start', err);
+    }
+
     const todayStr = getLocalDateString();
     const attendance = await Attendance.findOne({
       employee: req.user._id,
@@ -360,7 +376,12 @@ export const startBreak = async (req: Request, res: Response, next: NextFunction
       throw new ApiError(400, 'You are already on an active break');
     }
 
-    attendance.breaks.push({ start: new Date() });
+    attendance.breaks.push({
+      start: new Date(),
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      address
+    });
     await attendance.save();
 
     res.status(200).json({
