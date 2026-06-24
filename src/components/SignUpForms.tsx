@@ -401,11 +401,21 @@ const employeeRegisterSchema = z.object({
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-interface SignUpFormsProps {
-  onRegisterSuccess: () => void;
+export interface InviteData {
+  inviteCode: string;
+  organizationId: { _id: string; name: string; code?: string };
+  departmentId: { _id: string; name: string };
+  managerId: { _id: string; firstName: string; lastName: string; designation?: string };
+  hotelId?: { _id: string; name: string; hotelCode?: string };
+  inviteType?: 'employee' | 'manager';
 }
 
-export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
+interface SignUpFormsProps {
+  onRegisterSuccess: () => void;
+  inviteData?: InviteData;
+}
+
+export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFormsProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [properties, setProperties] = useState<any[]>([]);
@@ -802,6 +812,23 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
   });
   const empSignupErrors = empSignupErrorsRaw as any;
 
+  useEffect(() => {
+    if (inviteData) {
+      setSignupType(inviteData.inviteType === 'employee' ? 'employee' : 'manager');
+      const deptName = inviteData.departmentId?.name || '';
+      const hotelId = inviteData.hotelId?._id || '';
+      
+      if (inviteData.inviteType === 'employee') {
+        setValueEmpSignup('department', deptName);
+        setValueEmpSignup('property', hotelId);
+        setValueEmpSignup('reportingManager', inviteData.managerId?._id || '');
+      } else {
+        setValueSignup('department', deptName);
+        setValueSignup('property', hotelId);
+      }
+    }
+  }, [inviteData, setValueSignup, setValueEmpSignup]);
+
   // Watchers for dynamic dropdown logic — default to '' to prevent undefined flowing into helpers
   const selectedDeptSignup = watchSignup('department') ?? '';
   const selectedCategorySignup = watchSignup('category') ?? '';
@@ -902,7 +929,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
     const payload = {
       ...values,
       documents,
-      homeLocation
+      homeLocation,
+      inviteCode: inviteData?.inviteCode
     };
 
     try {
@@ -986,7 +1014,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       ...values,
       role: 'EMPLOYEE', // Hardcoded for self-signing employees
       documents,
-      homeLocation
+      homeLocation,
+      inviteCode: inviteData?.inviteCode
     };
 
     try {
@@ -1022,25 +1051,27 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
       <div className="flex bg-slate-950/40 p-1 rounded-lg border border-slate-900 mb-4 text-[10px]">
         <button
           type="button"
+          disabled={!!inviteData}
           onClick={() => {
             setSignupType('manager');
             setErrorMsg(null);
           }}
-          className={`flex-1 py-1.5 text-center rounded transition-all cursor-pointer font-bold ${
+          className={`flex-1 py-1.5 text-center rounded transition-all font-bold ${
             signupType === 'manager' ? 'bg-gold text-slate-dark shadow' : 'text-slate-400 hover:text-slate-200'
-          }`}
+          } ${!!inviteData ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           Manager Sign Up
         </button>
         <button
           type="button"
+          disabled={!!inviteData}
           onClick={() => {
             setSignupType('employee');
             setErrorMsg(null);
           }}
-          className={`flex-1 py-1.5 text-center rounded transition-all cursor-pointer font-bold ${
+          className={`flex-1 py-1.5 text-center rounded transition-all font-bold ${
             signupType === 'employee' ? 'bg-gold text-slate-dark shadow' : 'text-slate-400 hover:text-slate-200'
-          }`}
+          } ${!!inviteData ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           Employee Sign Up
         </button>
@@ -1164,8 +1195,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                     <GoogleIcon name="work" size={14} />
                   </span>
                   <select
+                    disabled={!!inviteData}
                     style={{ paddingLeft: '40px' }}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left disabled:opacity-50"
                     {...registerSignup('department')}
                   >
                     <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
@@ -1188,8 +1220,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                       <GoogleIcon name="corporate_fare" size={14} />
                     </span>
                     <select
+                      disabled={!!inviteData && !!inviteData.hotelId}
                       style={{ paddingLeft: '40px' }}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
+                      className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left disabled:opacity-50"
                       {...registerSignup('property')}
                     >
                       <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
@@ -1328,9 +1361,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             </div>
           </div>
 
-          {/* Home Location Registration */}
+          {/* Geographic Map Pin */}
           <div className="space-y-4 pt-4 border-t border-slate-800/60 mt-4">
-            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
+            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">GEOGRAPHIC MAP PIN</h5>
             
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
@@ -1582,7 +1615,8 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             <div>
               <label className="block text-slate-400 mb-1">Department *</label>
               <select
-                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
+                disabled={!!inviteData}
+                className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer disabled:opacity-50"
                 {...registerEmpSignup('department')}
               >
                 <option value="" className="bg-slate-950 text-slate-400">Select Department</option>
@@ -1604,8 +1638,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                     <GoogleIcon name="corporate_fare" size={14} />
                   </span>
                   <select
+                    disabled={!!inviteData && !!inviteData.hotelId}
                     style={{ paddingLeft: '40px' }}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 pl-8 pr-3 text-white focus:outline-none focus:border-gold cursor-pointer input-with-icon-left disabled:opacity-50"
                     {...registerEmpSignup('property')}
                   >
                     <option value="" className="bg-slate-950 text-slate-400">Select Existing Property</option>
@@ -1661,8 +1696,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
                 <label className="block text-slate-400 mb-1">Reporting Manager *</label>
                 <input
                   type="text"
+                  disabled={!!inviteData && !!inviteData.managerId}
                   placeholder="Manager Name"
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold disabled:opacity-50"
                   {...registerEmpSignup('reportingManager')}
                 />
                 {empSignupErrors.reportingManager?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.reportingManager.message}</p>}
@@ -1859,9 +1895,9 @@ export default function SignUpForms({ onRegisterSuccess }: SignUpFormsProps) {
             </div>
           </div>
 
-          {/* Home Location Registration */}
+          {/* Geographic Map Pin */}
           <div className="space-y-4 pt-4 border-t border-slate-800/60 mt-4">
-            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Home Location Registration</h5>
+            <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">GEOGRAPHIC MAP PIN</h5>
             
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">

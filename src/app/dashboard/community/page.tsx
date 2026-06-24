@@ -251,6 +251,10 @@ export default function CommunityHubPage() {
       const ag = useCommunityStore.getState().activeGroup;
       if (ag) useCommunityStore.getState().fetchMessages(ag._id);
     });
+    newSocket.on('user_added_to_group', (newGroup: ZustandGroup) => {
+      useCommunityStore.getState().fetchGroups();
+      playAlarm(true);
+    });
     newSocket.on('user_typing_start', ({ groupId, userId, name }: any) => useCommunityStore.getState().setTyping(groupId, userId, name, true));
     newSocket.on('user_typing_stop', ({ groupId, userId }: any) => useCommunityStore.getState().setTyping(groupId, userId, '', false));
     
@@ -642,7 +646,7 @@ export default function CommunityHubPage() {
   };
 
   return (
-    <div className="flex flex-col text-slate-100 relative" style={{ height: 'calc(100vh - 7rem)' }}>
+    <div className="flex flex-col text-slate-100 relative h-[calc(100dvh-7rem)] sm:h-[calc(100vh-7rem)] min-h-[400px]">
 
       {/* Incoming Call Overlay */}
       {incomingCallData && (

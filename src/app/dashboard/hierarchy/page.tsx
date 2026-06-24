@@ -32,7 +32,6 @@ import {
   Ban,
   Mail,
 } from 'lucide-react';
-import { DEPARTMENTS } from '@/constants/departments';
 
 interface TreeNode {
   id: string;
@@ -140,6 +139,7 @@ export default function HierarchyPage() {
   // Organization & Department
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [publicDepartments, setPublicDepartments] = useState<string[]>([]);
   const [allHotels, setAllHotels] = useState<any[]>([]);
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [allManagers, setAllManagers] = useState<any[]>([]);
@@ -340,6 +340,12 @@ export default function HierarchyPage() {
       const res = await api.get('/organization/list');
       setOrganizations(res.data.organizations || []);
       setDepartments(res.data.departments || []);
+      
+      const pDepts = await api.get('/organization/public-departments');
+      if (pDepts.data?.departments) {
+        setPublicDepartments(pDepts.data.departments);
+      }
+      
       fetchLatestUpdates();
     } catch (err) {
       console.error('Error fetching orgs/depts:', err);
@@ -1577,8 +1583,8 @@ export default function HierarchyPage() {
                       className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3 py-2 outline-none focus:border-gold"
                     >
                       <option value="">Choose department...</option>
-                      {departments.map((d) => (
-                        <option key={d._id} value={d._id}>{d.name}</option>
+                      {publicDepartments.map((name) => (
+                        <option key={name} value={name}>{name}</option>
                       ))}
                     </select>
                   </div>
@@ -2607,8 +2613,8 @@ export default function HierarchyPage() {
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 outline-none focus:border-gold cursor-pointer text-white"
                   >
                     <option value="" disabled>Select department...</option>
-                    {departments.map((d) => (
-                      <option key={d._id} value={d.name}>{d.name}</option>
+                    {publicDepartments.map((name) => (
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
                 </div>

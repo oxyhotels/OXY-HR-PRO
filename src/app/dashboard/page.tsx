@@ -814,73 +814,97 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Action Buttons — 4 buttons, always visible, inline styles, no Tailwind */}
-          <div className="shift-btn-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-            {/* Work In — Primary Green */}
-            <button
-              type="button"
-              onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
-              disabled={actionLoading || !!todayAttendance}
-              style={{
-                minHeight: '52px', background: '#16a34a', color: '#ffffff',
-                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                opacity: (actionLoading || !!todayAttendance) ? 0.45 : 1,
-                cursor: (actionLoading || !!todayAttendance) ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(22,163,74,0.3)'
-              }}
-            >
-              <GoogleIcon name="play_arrow" size={18} /> Work In
-            </button>
+          {/* Action Buttons — State-based visibility */}
+          <div className="shift-btn-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+            {/* Work In — Primary Green (Only show if not checked in) */}
+            {!todayAttendance && (
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('check-in', 'Work In')}
+                disabled={actionLoading}
+                style={{
+                  minHeight: '52px', background: '#16a34a', color: '#ffffff',
+                  border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  opacity: actionLoading ? 0.45 : 1,
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(22,163,74,0.3)'
+                }}
+              >
+                <GoogleIcon name="play_arrow" size={18} /> Work In
+              </button>
+            )}
 
-            {/* Break Start — Yellow */}
-            <button
-              type="button"
-              onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
-              disabled={actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut}
-              style={{
-                minHeight: '52px', background: '#fef3c7', color: '#92400e',
-                border: '1px solid #fde68a', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                opacity: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
-                cursor: (actionLoading || !todayAttendance || isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <GoogleIcon name="coffee" size={16} /> Break Start
-            </button>
+            {/* Break Start & Work Out (Only show if checked in, not on break, and not checked out) */}
+            {todayAttendance && !isBreakActive && !todayAttendance.checkOut && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceActionClick('break-start', 'Start Break')}
+                  disabled={actionLoading}
+                  style={{
+                    minHeight: '52px', background: '#fef3c7', color: '#92400e',
+                    border: '1px solid #fde68a', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: actionLoading ? 0.4 : 1,
+                    cursor: actionLoading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <GoogleIcon name="coffee" size={16} /> Break Start
+                </button>
 
-            {/* Break End — Blue */}
-            <button
-              type="button"
-              onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
-              disabled={actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut}
-              style={{
-                minHeight: '52px', background: '#dbeafe', color: '#1e40af',
-                border: '1px solid #bfdbfe', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                opacity: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 0.4 : 1,
-                cursor: (actionLoading || !todayAttendance || !isBreakActive || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <GoogleIcon name="play_arrow" size={16} /> Break End
-            </button>
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
+                  disabled={actionLoading}
+                  style={{
+                    minHeight: '52px', background: '#DC2626', color: '#ffffff',
+                    border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    opacity: actionLoading ? 0.45 : 1,
+                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(220,38,38,0.3)'
+                  }}
+                >
+                  <GoogleIcon name="logout" size={18} /> Work Out
+                </button>
+              </>
+            )}
 
-            {/* Work Out — Red, Last */}
-            <button
-              type="button"
-              onClick={() => handleAttendanceActionClick('check-out', 'Work Out')}
-              disabled={actionLoading || !todayAttendance || !!todayAttendance?.checkOut}
-              style={{
-                minHeight: '52px', background: '#DC2626', color: '#ffffff',
-                border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                opacity: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 0.45 : 1,
-                cursor: (actionLoading || !todayAttendance || !!todayAttendance?.checkOut) ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 8px rgba(220,38,38,0.3)'
-              }}
-            >
-              <GoogleIcon name="logout" size={18} /> Work Out
-            </button>
+            {/* Break End (Only show if checked in and on break) */}
+            {todayAttendance && isBreakActive && !todayAttendance.checkOut && (
+              <button
+                type="button"
+                onClick={() => handleAttendanceActionClick('break-end', 'End Break')}
+                disabled={actionLoading}
+                style={{
+                  minHeight: '52px', background: '#dbeafe', color: '#1e40af',
+                  border: '1px solid #bfdbfe', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  opacity: actionLoading ? 0.4 : 1,
+                  cursor: actionLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <GoogleIcon name="play_arrow" size={16} /> Break End
+              </button>
+            )}
+
+            {/* Checked Out / Shift Ended (Show disabled state if checked out) */}
+            {todayAttendance && todayAttendance.checkOut && (
+              <button
+                type="button"
+                disabled={true}
+                style={{
+                  minHeight: '52px', background: '#f1f5f9', color: '#64748b',
+                  border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '13px', fontWeight: '700',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  opacity: 0.7,
+                  cursor: 'not-allowed'
+                }}
+              >
+                <GoogleIcon name="check_circle" size={18} /> Shift Ended
+              </button>
+            )}
           </div>
 
           {/* Mobile: stack buttons vertically on small screens */}

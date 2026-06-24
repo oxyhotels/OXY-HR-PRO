@@ -3,6 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
+import { Department } from '@/models/Department';
+import { InviteLink } from '@/models/InviteLink';
 import { ApiError } from '@/utils/ApiError';
 import { config } from '@/config/config';
 import { AuditLog } from '@/models/AuditLog';
@@ -359,7 +361,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       emergencyContactPhone,
       joiningDate,
       documents,
-      homeLocation
+      homeLocation,
+      inviteCode
     } = req.body;
 
     // Check if email taken
@@ -413,21 +416,52 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '.';
 
-    // Create User with Pending status
+    // Determine initial values
+    let finalStatus = 'Pending';
+    let finalHotelId = hotel?._id;
+    let finalDepartment = department;
+    let finalReportingManager = reportingManager;
+    let finalRole = role;
+    let invitedById = undefined;
+
+    if (inviteCode) {
+      const invite = await InviteLink.findOne({ inviteCode, isActive: true });
+      if (!invite) {
+        throw new ApiError(400, 'Invalid or expired invite code');
+      }
+      if (invite.expiresAt < new Date()) {
+        throw new ApiError(400, 'Invite code has expired');
+      }
+
+      const deptDoc = await Department.findById(invite.departmentId);
+      if (!deptDoc) {
+        throw new ApiError(404, 'Department associated with this invite not found');
+      }
+
+      finalHotelId = invite.organizationId;
+      finalDepartment = deptDoc.name;
+      finalReportingManager = invite.managerId;
+      invitedById = invite.managerId;
+      finalStatus = 'Active';
+      finalRole = invite.inviteType === 'manager' ? 'DEPT_MANAGER' : 'EMPLOYEE';
+    }
+
+    // Create User with resolved status and assignments
     const user = await User.create({
       firstName,
       lastName,
       email,
       password,
-      role,
-      department,
+      role: finalRole,
+      department: finalDepartment,
       category,
       phone,
-      hotel: hotel?._id,
-      status: 'Pending',
+      hotel: finalHotelId,
+      status: finalStatus,
       joinedDate: joiningDate ? new Date(joiningDate) : new Date(),
       employeeId,
-      reportingManager,
+      reportingManager: finalReportingManager,
+      invitedById,
       employmentType,
       designation,
       salaryDetails: salary ? {
@@ -456,21 +490,28 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       district: homeLocation?.district
     });
 
-    await logAudit(user._id.toString(), hotel._id, 'REGISTER_PENDING', `New signup request submitted for role ${role} by ${email}`);
+    await logAudit(user._id.toString(), finalHotelId, inviteCode ? 'REGISTER_ACTIVE' : 'REGISTER_PENDING', `New signup for role ${finalRole} by ${email}`);
 
-    // Trigger notification to ROOT_ADMIN
-    await createNotification({
-      title: 'New Registration Request',
-      message: `New signup request from ${firstName} ${lastName} (${email}) for role ${role}.`,
-      type: 'info',
-      link: '/dashboard/employees',
-      recipientRole: 'ROOT_ADMIN'
-    });
+    if (finalStatus === 'Pending') {
+      // Trigger notification to ROOT_ADMIN
+      await createNotification({
+        title: 'New Registration Request',
+        message: `New signup request from ${firstName} ${lastName} (${email}) for role ${finalRole}.`,
+        type: 'info',
+        link: '/dashboard/employees',
+        recipientRole: 'ROOT_ADMIN'
+      });
 
-    res.status(201).json({
-      status: 'success',
-      message: 'Your registration request has been submitted successfully and is pending approval by the Administrator.',
-    });
+      res.status(201).json({
+        status: 'success',
+        message: 'Your registration request has been submitted successfully and is pending approval by the Administrator.',
+      });
+    } else {
+      res.status(201).json({
+        status: 'success',
+        message: 'Registration successful. You have joined the organization.',
+      });
+    }
   } catch (error) {
     next(error);
   }

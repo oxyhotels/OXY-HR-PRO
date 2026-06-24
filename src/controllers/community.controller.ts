@@ -14,6 +14,7 @@ import { VideoCallLog } from '@/models/VideoCallLog';
 import { ReadStatus } from '@/models/ReadStatus';
 import { DeliveryStatus } from '@/models/DeliveryStatus';
 import { sendPushNotification } from '@/services/fcm.service';
+import { createNotification } from '@/services/notification.service';
 
 // Add a single user to the OXY Global Community group (idempotent)
 export const addUserToGlobalGroup = async (userId: any): Promise<void> => {
@@ -87,20 +88,16 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
     // Sync global group first
     await ensureGlobalGroup();
 
-    const query: any = {};
+    const query: any = {
+      'members.user': userId
+    };
 
     // Multi-tenant containment
     if (req.user?.role !== 'ROOT_ADMIN') {
       const userHotel = req.user?.hotel;
       query.$or = [
-        { type: 'GlobalGroup' }, // Global is system-wide
-        { 
-          hotel: userHotel,
-          $or: [
-            { type: 'PublicGroup' },
-            { 'members.user': userId }
-          ]
-        }
+        { hotel: userHotel },
+        { type: 'GlobalGroup' }
       ];
     }
 
@@ -193,6 +190,29 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       members: membersList
     });
 
+    const populatedGroup = await CommunityGroup.findById(group._id)
+      .populate('createdBy', 'firstName lastName role')
+      .populate('members.user', 'firstName lastName photoUrl role department status');
+
+    const io = getIO();
+
+    // Notify users
+    for (const member of membersList) {
+      if (member.user.toString() !== creatorId) {
+        await createNotification({
+          title: 'New Group Assignment',
+          message: `You have been added to a new group: ${name}`,
+          type: 'info',
+          link: '/dashboard/community',
+          recipientId: member.user.toString(),
+        }).catch(err => console.error('Failed to create group notification', err));
+
+        if (io) {
+          io.to(`user_${member.user.toString()}`).emit('user_added_to_group', populatedGroup);
+        }
+      }
+    }
+
     // Logging Audit Trail
     await AuditLog.create({
       user: req.user._id,
@@ -201,10 +221,6 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
       module: 'COMMUNITY',
       details: `Created community group "${name}" of type ${type}`
     });
-
-    const populatedGroup = await CommunityGroup.findById(group._id)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
 
     res.status(201).json({
       status: 'success',
@@ -227,8 +243,11 @@ export const getGroupMessages = async (req: Request, res: Response, next: NextFu
     if (!group) throw new ApiError(404, 'Community group not found');
 
     const isMember = group.members.some((m: any) => m.user.toString() === req.user?._id.toString());
-    const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
-    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+    const isPublic = ['GlobalGroup', 'PublicGroup', 'AnnouncementChannel'].includes(group.type);
+    const isDeptMatch = group.type === 'DepartmentGroup' && group.department === req.user?.department;
+    const isPrivilegedAdmin = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'].includes(req.user?.role || '');
+    
+    if (!isMember && !isPublic && !isDeptMatch && !isPrivilegedAdmin) {
       throw new ApiError(403, 'Access denied: You are not a member of this group');
     }
 
@@ -271,7 +290,10 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
     const isMember = group.members.some((m: any) => m.user.toString() === req.user?._id.toString());
     const isPublic = ['GlobalGroup', 'PublicGroup'].includes(group.type);
-    if (!isMember && !isPublic && req.user?.role !== 'ROOT_ADMIN') {
+    const isDeptMatch = group.type === 'DepartmentGroup' && group.department === req.user?.department;
+    const isPrivilegedAdmin = ['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER'].includes(req.user?.role || '');
+
+    if (!isMember && !isPublic && !isDeptMatch && !isPrivilegedAdmin) {
       throw new ApiError(403, 'Access denied: You are not a member of this group');
     }
 
@@ -1018,7 +1040,16 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
 
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
+      (global as any).io.to(`user_${userId}`).emit('user_added_to_group', populatedGroup);
     }
+
+    await createNotification({
+      title: 'New Group Assignment',
+      message: `You have been added to a new group: ${group.name}`,
+      type: 'info',
+      link: '/dashboard/community',
+      recipientId: userId,
+    }).catch(err => console.error('Failed to create group notification', err));
 
     res.status(200).json({
       status: 'success',

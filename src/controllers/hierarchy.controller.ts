@@ -347,10 +347,31 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       throw new ApiError(404, 'Organization not found');
     }
 
-    const dept = await Department.findById(departmentId);
-    if (!dept) {
-      throw new ApiError(404, 'Department not found');
+    let dept;
+    if (mongoose.Types.ObjectId.isValid(departmentId)) {
+      dept = await Department.findById(departmentId);
     }
+    
+    if (!dept) {
+      // Find by name and hotel if not a valid ID or not found
+      dept = await Department.findOne({ 
+        name: new RegExp(`^${departmentId}$`, 'i'), 
+        hotel: req.user.hotel 
+      });
+      
+      if (!dept) {
+        // Create the department on the fly
+        dept = await Department.create({
+          name: departmentId,
+          hotel: req.user.hotel,
+          organization: organizationId,
+          status: 'Active'
+        });
+      }
+    }
+
+    // Use the resolved department ID for the invite link
+    const resolvedDepartmentId = dept._id;
 
     // Generate code INV-XXXXXX
     const inviteCode = `INV-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
@@ -377,7 +398,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       inviteLink,
       qrCode,
       organizationId,
-      departmentId,
+      departmentId: resolvedDepartmentId,
       managerId: req.user._id,
       createdBy: req.user._id,
       expiresAt,
