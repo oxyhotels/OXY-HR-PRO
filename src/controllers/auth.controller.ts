@@ -365,10 +365,22 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       inviteCode
     } = req.body;
 
+    if (!fullName || !phone || !password) {
+      throw new ApiError(400, 'Full Name, Mobile Number, and Password are required');
+    }
+
+    const generatedEmail = email || `${phone}@oxyhr.app`;
+
     // Check if email taken
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: generatedEmail });
     if (existingUser) {
-      throw new ApiError(400, 'User email already exists');
+      throw new ApiError(400, 'User email/mobile number already registered.');
+    }
+
+    // Check if phone taken
+    const existingPhone = await User.findOne({ phone });
+    if (existingPhone) {
+      throw new ApiError(400, 'User with this mobile number already exists');
     }
 
     // Verify property/hotel (optional for non-Property-Operations departments)
@@ -405,9 +417,10 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       }
     }
 
+    const finalRole = role || 'EMPLOYEE';
     // Validate role
     const validRoles = ['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER', 'EMPLOYEE'];
-    if (!validRoles.includes(role)) {
+    if (!validRoles.includes(finalRole)) {
       throw new ApiError(400, 'Invalid role selected');
     }
 
@@ -421,15 +434,14 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     let finalHotelId = hotel?._id;
     let finalDepartment = department;
     let finalReportingManager = reportingManager;
-    let finalRole = role;
     let invitedById = undefined;
 
     if (inviteCode) {
-      const invite = await InviteLink.findOne({ inviteCode, isActive: true });
+      const invite = await InviteLink.findOne({ inviteCode, status: { $in: ['Active', 'ACTIVE'] } });
       if (!invite) {
         throw new ApiError(400, 'Invalid or expired invite code');
       }
-      if (invite.expiresAt < new Date()) {
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
         throw new ApiError(400, 'Invite code has expired');
       }
 
@@ -443,14 +455,19 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       finalReportingManager = invite.managerId;
       invitedById = invite.managerId;
       finalStatus = 'Active';
-      finalRole = invite.inviteType === 'manager' ? 'DEPT_MANAGER' : 'EMPLOYEE';
+    }
+
+    let finalEmployeeId = employeeId;
+    if (!finalEmployeeId) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000).toString();
+      finalEmployeeId = finalRole === 'DEPT_MANAGER' || finalRole === 'HOTEL_ADMIN' ? `MGR-${randomSuffix}` : `EMP-${randomSuffix}`;
     }
 
     // Create User with resolved status and assignments
     const user = await User.create({
       firstName,
       lastName,
-      email,
+      email: generatedEmail,
       password,
       role: finalRole,
       department: finalDepartment,
@@ -459,7 +476,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       hotel: finalHotelId,
       status: finalStatus,
       joinedDate: joiningDate ? new Date(joiningDate) : new Date(),
-      employeeId,
+      employeeId: finalEmployeeId,
+      employeeCode: finalRole !== 'DEPT_MANAGER' && finalRole !== 'HOTEL_ADMIN' ? finalEmployeeId : undefined,
+      managerCode: finalRole === 'DEPT_MANAGER' || finalRole === 'HOTEL_ADMIN' ? finalEmployeeId : undefined,
       reportingManager: finalReportingManager,
       invitedById,
       employmentType,
@@ -490,13 +509,13 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       district: homeLocation?.district
     });
 
-    await logAudit(user._id.toString(), finalHotelId, inviteCode ? 'REGISTER_ACTIVE' : 'REGISTER_PENDING', `New signup for role ${finalRole} by ${email}`);
+    await logAudit(user._id.toString(), finalHotelId, inviteCode ? 'REGISTER_ACTIVE' : 'REGISTER_PENDING', `New signup for role ${finalRole} by ${generatedEmail}`);
 
     if (finalStatus === 'Pending') {
       // Trigger notification to ROOT_ADMIN
       await createNotification({
         title: 'New Registration Request',
-        message: `New signup request from ${firstName} ${lastName} (${email}) for role ${finalRole}.`,
+        message: `New signup request from ${firstName} ${lastName} (${generatedEmail}) for role ${finalRole}.`,
         type: 'info',
         link: '/dashboard/employees',
         recipientRole: 'ROOT_ADMIN'

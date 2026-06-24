@@ -270,6 +270,15 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
       Object.assign(employee, updates);
     }
 
+    if (req.user && req.user._id.toString() !== employee._id.toString()) {
+      if (!employee.editAuditLog) employee.editAuditLog = [];
+      employee.editAuditLog.push({
+        updatedBy: `${req.user.firstName} ${req.user.lastName}`,
+        role: req.user.role,
+        date: new Date()
+      });
+    }
+
     await employee.save();
 
     await syncUserDepartmentGroups(employee);

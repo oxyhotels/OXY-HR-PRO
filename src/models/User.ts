@@ -19,7 +19,7 @@ export interface IUser extends Document {
   employeeId?: string;
   reportingManager?: string;
   employmentType?: string;
-  status: 'Pending' | 'Active' | 'OnLeave' | 'Terminated';
+  status: 'Pending' | 'Active' | 'OnLeave' | 'Terminated' | 'Basic Registered';
   joinedDate: Date;
   photoUrl?: string;
   aadhaarNumber?: string;
@@ -94,6 +94,11 @@ export interface IUser extends Document {
   rootAdminId?: Schema.Types.ObjectId;
   employeeCode?: string;
   managerCode?: string;
+  editAuditLog?: {
+    updatedBy: string;
+    role: string;
+    date: Date;
+  }[];
   comparePassword(password: string): Promise<boolean>;
   createdAt: Date;
   updatedAt: Date;
@@ -118,7 +123,7 @@ const UserSchema = new Schema<IUser>(
     employeeId: { type: String, trim: true },
     reportingManager: { type: String, trim: true },
     employmentType: { type: String, trim: true },
-    status: { type: String, enum: ['Pending', 'Active', 'OnLeave', 'Terminated'], default: 'Active' },
+    status: { type: String, enum: ['Pending', 'Active', 'OnLeave', 'Terminated', 'Basic Registered'], default: 'Active' },
     shift: { type: String, default: 'General Shift (09:00 AM - 05:00 PM)' },
     shiftType: { type: String },
     shiftName: { type: String },
@@ -227,6 +232,13 @@ const UserSchema = new Schema<IUser>(
     rootAdminId: { type: Schema.Types.ObjectId, ref: 'User' },
     employeeCode: { type: String },
     managerCode: { type: String },
+    editAuditLog: [
+      {
+        updatedBy: { type: String },
+        role: { type: String },
+        date: { type: Date, default: Date.now }
+      }
+    ]
   },
   { timestamps: true }
 );

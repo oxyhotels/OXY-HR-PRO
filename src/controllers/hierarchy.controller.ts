@@ -356,7 +356,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       // Find by name and hotel if not a valid ID or not found
       dept = await Department.findOne({ 
         name: new RegExp(`^${departmentId}$`, 'i'), 
-        hotel: req.user.hotel 
+        organization: organizationId 
       });
       
       if (!dept) {
@@ -379,7 +379,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
     // Build join URL dynamically
     const proto = req.headers['x-forwarded-proto'] || 'http';
     const host = req.headers.host || 'localhost:3000';
-    const inviteLink = `${proto}://${host}/join/${inviteCode}`;
+    const inviteLink = `${proto}://${host}/invite/${inviteCode}`;
     const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(inviteLink)}`;
 
     const expiresAt = new Date();
@@ -440,12 +440,12 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
       .populate('managerId', 'firstName lastName email designation');
 
     if (!invite) {
-      throw new ApiError(404, 'Invite link not found');
+      throw new ApiError(404, 'Invalid or Expired Invite Code');
     }
 
     const statusUpper = (invite.status || '').toUpperCase();
     if (statusUpper === 'DISABLED' || statusUpper === 'DISABLE') {
-      throw new ApiError(400, 'This invite link has been disabled');
+      throw new ApiError(400, 'Invalid or Expired Invite Code');
     }
 
     if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
@@ -453,7 +453,7 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
         invite.status = 'EXPIRED';
         await invite.save();
       }
-      throw new ApiError(400, 'This invite link has expired');
+      throw new ApiError(400, 'Invalid or Expired Invite Code');
     }
 
     res.status(200).json({
@@ -1423,7 +1423,7 @@ export const regenerateInvite = async (req: Request, res: Response, next: NextFu
     const newInviteCode = `INV-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
     const proto = req.headers['x-forwarded-proto'] || 'http';
     const host = req.headers.host || 'localhost:3000';
-    const newInviteLink = `${proto}://${host}/join/${newInviteCode}`;
+    const newInviteLink = `${proto}://${host}/invite/${newInviteCode}`;
     const newQrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(newInviteLink)}`;
 
     // Set new expiry date (default 7 days, or carry over duration)

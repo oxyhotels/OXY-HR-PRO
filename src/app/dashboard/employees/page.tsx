@@ -64,6 +64,13 @@ interface EmployeeProfile {
     name: string;
     hotelCode: string;
   } | string;
+  invitedById?: string;
+  parentManagerId?: string;
+  editAuditLog?: {
+    updatedBy: string;
+    role: string;
+    date: string;
+  }[];
 }
 
 const convert24To12 = (time24: string): string => {
@@ -680,7 +687,11 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card-dark border border-gold/20 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-white">{activeEmployee ? 'Modify Employee Profile' : 'Onboard New Employee'}</h3>
+              <h3 className="font-bold text-white">
+                {activeEmployee 
+                  ? `Modify ${activeEmployee.role === 'EMPLOYEE' ? 'Employee' : 'Manager'} Profile` 
+                  : 'Onboard New Employee'}
+              </h3>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
                 <GoogleIcon name="close" size={18} />
               </button>

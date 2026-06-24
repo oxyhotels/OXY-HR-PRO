@@ -33,7 +33,8 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
     '/hotels/public',
     '/organization/public-departments',
     '/hierarchy/invite',
-    '/hierarchy/join'
+    '/hierarchy/join',
+    '/auth/invite-join'
   ];
   const cleanEndpoint = endpoint.startsWith('/api') ? endpoint.substring(4) : endpoint;
   const isPublic = publicEndpoints.some(ep => cleanEndpoint.startsWith(ep) || endpoint.startsWith(ep));

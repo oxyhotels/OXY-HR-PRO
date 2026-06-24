@@ -458,6 +458,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Navigation items
   const menuItems = [
+    { name: 'Profile', icon: 'account_circle', href: '/dashboard/profile' },
     { name: 'Dashboard', icon: 'dashboard', href: '/dashboard' },
     { name: 'Attendance', icon: 'fingerprint', href: '/dashboard/attendance' },
     { name: 'Employees', icon: 'group', href: '/dashboard/employees' },
@@ -477,7 +478,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Community', icon: 'forum', href: '/dashboard/community' },
     { name: 'Notifications', icon: 'notifications', href: '/dashboard/notifications' },
     { name: 'Employee Tracking', icon: 'my_location', href: '/dashboard/tracking' },
-    { name: 'Profile', icon: 'account_circle', href: '/dashboard/profile' },
   ];
 
   // Scanner states

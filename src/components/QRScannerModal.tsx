@@ -131,7 +131,7 @@ export default function QRScannerModal({ isOpen, onClose, onSuccess }: QRScanner
       if (onSuccess) {
         onSuccess(inviteCode);
       } else {
-        router.push(`/join/${inviteCode}`);
+        router.push(`/invite/${inviteCode}`);
       }
     } else {
       setScannerError('Invalid QR Code format. Please scan an OXY-HR PRO invitation QR code.');

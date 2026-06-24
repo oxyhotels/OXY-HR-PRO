@@ -5,12 +5,20 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../../store/authStore';
 import { api } from '../../../lib/api';
 import GoogleIcon from '../../../components/GoogleIcon';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function MobileProfilePage() {
   const router = useRouter();
   const { user, updateUser, clearAuth } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'personal' | 'corporate' | 'bank' | 'emergency'>('personal');
+  
+  // QR Invite states
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+
   
   // Profile field states
   const [photo, setPhoto] = useState('');
@@ -110,6 +118,37 @@ export default function MobileProfilePage() {
     reader.readAsDataURL(file);
   };
 
+  const handleGenerateInvite = async (type: 'employee' | 'manager' = 'employee') => {
+    if (!user) return;
+    setGeneratingInvite(true);
+    try {
+      const res = await api.post('/auth/generate-invite', { userId: user.id || (user as any)._id, inviteType: type });
+      if (res.data?.invite) {
+        setInviteLink(res.data.invite.inviteLink);
+        setInviteCode(res.data.invite.inviteCode);
+        setShowInviteModal(true);
+      }
+    } catch (err) {
+      console.error('Failed to generate invite', err);
+      setError('Failed to generate invite link.');
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const downloadQR = () => {
+    const canvas = document.getElementById('qr-gen') as HTMLCanvasElement;
+    if (canvas) {
+      const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
+      const downloadLink = document.createElement('a');
+      downloadLink.href = pngUrl;
+      downloadLink.download = `InviteQR_${inviteCode}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -197,7 +236,24 @@ export default function MobileProfilePage() {
   return (
     <div className="max-w-md mx-auto bg-slate-dark text-slate-100 flex flex-col space-y-6 pb-12">
       {/* Header Info */}
-      <div className="flex items-center gap-4 bg-card-dark border border-slate-800/80 p-5 rounded-2xl shadow-lg">
+      <div className="relative flex items-center gap-4 bg-card-dark border border-slate-800/80 p-5 rounded-2xl shadow-lg">
+        {/* QR Button in Top Right */}
+        {(user?.role !== 'EMPLOYEE') && (
+          <button 
+            onClick={() => handleGenerateInvite('employee')}
+            disabled={generatingInvite}
+            className="absolute top-4 right-4 p-2 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-xs font-bold uppercase tracking-wider"
+            title="Generate Invite QR"
+          >
+            {generatingInvite ? (
+              <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <GoogleIcon name="qr_code_2" size={18} />
+            )}
+            QR
+          </button>
+        )}
+
         <div className="relative w-16 h-16 rounded-full border-2 border-gold overflow-hidden flex-shrink-0 bg-slate-800 flex items-center justify-center font-bold">
           {photo ? (
             <img src={photo} alt="Avatar" className="w-full h-full object-cover" />
@@ -385,6 +441,76 @@ export default function MobileProfilePage() {
           Sign Out
         </button>
       </div>
+
+      {/* QR Share Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-gold/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative text-center">
+            <button 
+              onClick={() => setShowInviteModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <GoogleIcon name="close" size={20} />
+            </button>
+            
+            <h3 className="text-lg font-bold text-white mb-2">Share Invite</h3>
+            <p className="text-xs text-slate-400 mb-6">Scan QR or share the link to join.</p>
+
+            <div className="bg-white p-4 rounded-xl inline-block mb-6 mx-auto">
+              <QRCodeCanvas 
+                id="qr-gen"
+                value={inviteLink} 
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded-lg flex items-center gap-2 mb-6 border border-slate-800">
+              <input 
+                type="text" 
+                readOnly 
+                value={inviteLink} 
+                className="bg-transparent border-none outline-none text-xs text-slate-300 w-full font-mono"
+              />
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(inviteLink);
+                  alert('Link copied to clipboard!');
+                }}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-gold rounded cursor-pointer"
+                title="Copy Link"
+              >
+                <GoogleIcon name="content_copy" size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3">
+              <button 
+                onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Join our organization using this invite link: ${inviteLink}`)}`, '_blank')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="chat" size={14} />
+                WhatsApp
+              </button>
+              <button 
+                onClick={() => window.open(`mailto:?subject=Organization Invite&body=${encodeURIComponent(`Join our organization using this invite link: ${inviteLink}`)}`, '_blank')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="email" size={14} />
+                Email
+              </button>
+              <button 
+                onClick={downloadQR}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="download" size={14} />
+                Save QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

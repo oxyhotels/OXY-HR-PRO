@@ -338,65 +338,47 @@ const getDesignationsForCategory = (dept: string, category: string): string[] =>
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   phone: z.string().min(8, 'Mobile number must be at least 8 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters'),
   property: z.string().optional(),
-  department: z.string().min(1, 'Department selection is required'),
-  category: z.string().min(1, 'Category selection is required'),
-  designation: z.string().min(1, 'Designation selection is required'),
-  role: z.string().min(1, 'Role selection is required'),
+  department: z.string().optional(),
+  category: z.string().optional(),
+  designation: z.string().optional(),
+  role: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
-}).refine((data) => {
-  const normDept = getNormalizedDeptKey(data.department);
-  if (normDept === 'Property Department') {
-    return !!data.property && data.property.length > 0;
-  }
-  return true;
-}, {
-  message: "Property selection is required for Property Department",
-  path: ["property"],
 });
 
 const employeeRegisterSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   phone: z.string().min(8, 'Mobile number must be at least 8 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters'),
   property: z.string().optional(),
-  department: z.string().min(1, 'Department selection is required'),
-  category: z.string().min(1, 'Category selection is required'),
+  department: z.string().optional(),
+  category: z.string().optional(),
   role: z.string().default('EMPLOYEE'),
-  employeeId: z.string().min(1, 'Employee ID is required'),
-  reportingManager: z.string().min(1, 'Reporting Manager is required'),
-  employmentType: z.string().min(1, 'Employment status is required'),
-  designation: z.string().min(1, 'Designation is required'),
-  salary: z.string().min(1, 'Salary details are required'),
-  address: z.string().min(5, 'Address details are required'),
-  aadhaarNumber: z.string().min(12, 'Aadhaar number must be 12 digits').max(12, 'Aadhaar number must be 12 digits'),
-  panNumber: z.string().min(10, 'PAN number must be 10 characters').max(10, 'PAN number must be 10 characters'),
+  employeeId: z.string().optional(),
+  reportingManager: z.string().optional(),
+  employmentType: z.string().optional(),
+  designation: z.string().optional(),
+  salary: z.string().optional(),
+  address: z.string().optional(),
+  aadhaarNumber: z.string().optional().or(z.literal('')),
+  panNumber: z.string().optional().or(z.literal('')),
   bankName: z.string().optional(),
   accountNo: z.string().optional(),
   ifsc: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactRelation: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
-  joiningDate: z.string().min(1, 'Joining Date is required'),
+  joiningDate: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
-}).refine((data) => {
-  const normDept = getNormalizedDeptKey(data.department);
-  if (normDept === 'Property Department') {
-    return !!data.property && data.property.length > 0;
-  }
-  return true;
-}, {
-  message: "Property selection is required for Property Department",
-  path: ["property"],
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -880,21 +862,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
     setLoading(true);
     setErrorMsg(null);
 
-    if (!homeAddress || !homeState || !homeDistrict || !homeCity || !homePincode) {
-      setErrorMsg('Please fill in all home location address fields (Address, State, District, City, Pincode).');
-      setLoading(false);
-      return;
-    }
-    if (!homeLatitude || !homeLongitude || !locationVerified) {
-      setErrorMsg('Please pin/verify your location on the map.');
-      setLoading(false);
-      return;
-    }
-    if (!consentChecked) {
-      setErrorMsg('You must check the consent box to proceed with registration.');
-      setLoading(false);
-      return;
-    }
+    // No strict address, map validation, or consent checks because they are optional now
 
     // Construct documents payload
     const documents = [];
@@ -964,21 +932,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
     setLoading(true);
     setErrorMsg(null);
 
-    if (!homeAddress || !homeState || !homeDistrict || !homeCity || !homePincode) {
-      setErrorMsg('Please fill in all home location address fields (Address, State, District, City, Pincode).');
-      setLoading(false);
-      return;
-    }
-    if (!homeLatitude || !homeLongitude || !locationVerified) {
-      setErrorMsg('Please pin/verify your location on the map.');
-      setLoading(false);
-      return;
-    }
-    if (!consentChecked) {
-      setErrorMsg('You must check the consent box to proceed with registration.');
-      setLoading(false);
-      return;
-    }
+    // No strict address, map validation, or consent checks because they are optional now
     
     // Construct documents payload
     const documents = [];
@@ -1121,7 +1075,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
           </div>
 
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Email *</label>
+            <label className="block text-slate-400 font-semibold mb-1">Email (Optional)</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                 <GoogleIcon name="mail" size={14} />
@@ -1189,7 +1143,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
           <div className="space-y-3">
             <div className="space-y-3">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Department *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Department (Optional)</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                     <GoogleIcon name="work" size={14} />
@@ -1214,7 +1168,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
               {/* Conditional Property Dropdown */}
               {selectedDeptSignup && getNormalizedDeptKey(selectedDeptSignup) === 'Property Department' && (
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Property *</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Property (Optional)</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                       <GoogleIcon name="corporate_fare" size={14} />
@@ -1243,7 +1197,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 font-semibold mb-1">
-                      {getCategoryLabel(selectedDeptSignup)} *
+                      {getCategoryLabel(selectedDeptSignup)} (Optional)
                     </label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
@@ -1268,7 +1222,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 font-semibold mb-1">Designation *</label>
+                    <label className="block text-slate-400 font-semibold mb-1">Designation (Optional)</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                         <GoogleIcon name="badge" size={14} />
@@ -1292,7 +1246,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
               )}
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Role *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Role (Optional)</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                     <GoogleIcon name="person" size={14} />
@@ -1404,7 +1358,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
               </div>
 
               <div className="col-span-2">
-                <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Home Address (Optional)</label>
                 <textarea
                   rows={2}
                   placeholder="House No, Street Name, Locality"
@@ -1421,7 +1375,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                   setHomeDistrict('');
                 }}
                 placeholder="Select State"
-                label="State *"
+                label="State (Optional)"
               />
               <SearchableDropdown
                 options={INDIA_STATES_DISTRICTS.find(s => s.state === homeState)?.districts || []}
@@ -1429,10 +1383,10 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 onChange={(val) => setHomeDistrict(val)}
                 placeholder={homeState ? "Select District" : "Select State First"}
                 disabled={!homeState}
-                label="District *"
+                label="District (Optional)"
               />
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">City *</label>
+                <label className="block text-slate-400 font-semibold mb-1">City (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Ranchi"
@@ -1442,7 +1396,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 />
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Pincode *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Pincode (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. 834001"
@@ -1474,7 +1428,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
 
             {/* Leaflet Map Preview Container */}
             <div className="space-y-2">
-              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview *</label>
+              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview (Optional)</label>
               <div 
                 id="map-manager" 
                 className="w-full h-[180px] rounded-lg border border-slate-800 z-10 bg-slate-950/40" 
@@ -1570,7 +1524,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1">Email *</label>
+              <label className="block text-slate-400 mb-1">Email (Optional)</label>
               <input
                 type="email"
                 placeholder="john@hotel.com"
@@ -1613,7 +1567,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             
             {/* Department Section */}
             <div>
-              <label className="block text-slate-400 mb-1">Department *</label>
+              <label className="block text-slate-400 mb-1">Department (Optional)</label>
               <select
                 disabled={!!inviteData}
                 className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer disabled:opacity-50"
@@ -1632,7 +1586,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             {/* Conditional Property Dropdown */}
             {selectedDeptEmpSignup && getNormalizedDeptKey(selectedDeptEmpSignup) === 'Property Department' && (
               <div>
-                <label className="block text-slate-400 mb-1">Property Selection *</label>
+                <label className="block text-slate-400 mb-1">Property Selection (Optional)</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
                     <GoogleIcon name="corporate_fare" size={14} />
@@ -1659,7 +1613,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             {selectedDeptEmpSignup && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1">{getCategoryLabel(selectedDeptEmpSignup)} *</label>
+                  <label className="block text-slate-400 mb-1">{getCategoryLabel(selectedDeptEmpSignup)} (Optional)</label>
                   <select
                     className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
                     {...registerEmpSignup('category')}
@@ -1674,7 +1628,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                   {empSignupErrors.category?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.category.message}</p>}
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1">Designation *</label>
+                  <label className="block text-slate-400 mb-1">Designation (Optional)</label>
                   <select
                     className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
                     {...registerEmpSignup('designation')}
@@ -1693,7 +1647,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Reporting Manager *</label>
+                <label className="block text-slate-400 mb-1">Reporting Manager (Optional)</label>
                 <input
                   type="text"
                   disabled={!!inviteData && !!inviteData.managerId}
@@ -1704,7 +1658,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 {empSignupErrors.reportingManager?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.reportingManager.message}</p>}
               </div>
               <div>
-                <label className="block text-slate-400 mb-1">Employment Status *</label>
+                <label className="block text-slate-400 mb-1">Employment Status (Optional)</label>
                 <select
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold cursor-pointer"
                   {...registerEmpSignup('employmentType')}
@@ -1721,7 +1675,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Joining Date *</label>
+                <label className="block text-slate-400 mb-1">Joining Date (Optional)</label>
                 <input
                   type="date"
                   className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold"
@@ -1730,7 +1684,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 {empSignupErrors.joiningDate?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.joiningDate.message}</p>}
               </div>
               <div>
-                <label className="block text-slate-400 mb-1">Salary Structure *</label>
+                <label className="block text-slate-400 mb-1">Salary Structure (Optional)</label>
                 <input
                   type="number"
                   placeholder="25000"
@@ -1746,7 +1700,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
           <div className="space-y-3 pt-2">
             <h5 className="font-bold text-slate-300 text-[10px] uppercase border-l-2 border-gold pl-2">Address & Verification</h5>
             <div>
-              <label className="block text-slate-400 mb-1">Address *</label>
+              <label className="block text-slate-400 mb-1">Address (Optional)</label>
               <textarea
                 rows={2}
                 placeholder="Street, City, State, ZIP, Country"
@@ -1758,7 +1712,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Aadhaar Card *</label>
+                <label className="block text-slate-400 mb-1">Aadhaar Card (Optional)</label>
                 <input
                   type="text"
                   placeholder="12-digit number"
@@ -1768,7 +1722,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 {empSignupErrors.aadhaarNumber?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.aadhaarNumber.message}</p>}
               </div>
               <div>
-                <label className="block text-slate-400 mb-1">PAN Card *</label>
+                <label className="block text-slate-400 mb-1">PAN Card (Optional)</label>
                 <input
                   type="text"
                   placeholder="10-digit PAN"
@@ -1937,7 +1891,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 )}
               </div>
               <div className="col-span-2">
-                <label className="block text-slate-400 font-semibold mb-1">Home Address *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Home Address (Optional)</label>
                 <textarea
                   rows={2}
                   placeholder="House No, Street Name, Locality"
@@ -1954,7 +1908,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                   setHomeDistrict('');
                 }}
                 placeholder="Select State"
-                label="State *"
+                label="State (Optional)"
               />
               <SearchableDropdown
                 options={INDIA_STATES_DISTRICTS.find(s => s.state === homeState)?.districts || []}
@@ -1962,10 +1916,10 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 onChange={(val) => setHomeDistrict(val)}
                 placeholder={homeState ? "Select District" : "Select State First"}
                 disabled={!homeState}
-                label="District *"
+                label="District (Optional)"
               />
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">City *</label>
+                <label className="block text-slate-400 font-semibold mb-1">City (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Ranchi"
@@ -1975,7 +1929,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 />
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Pincode *</label>
+                <label className="block text-slate-400 font-semibold mb-1">Pincode (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. 834001"
@@ -2007,7 +1961,7 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
 
             {/* Leaflet Map Preview Container */}
             <div className="space-y-2">
-              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview *</label>
+              <label className="block text-slate-400 font-semibold mb-1">Location Map Preview (Optional)</label>
               <div 
                 id="map-employee" 
                 className="w-full h-[180px] rounded-lg border border-slate-800 z-10 bg-slate-950/40" 
