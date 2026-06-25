@@ -95,9 +95,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 
     const requestedAssignees = normalizeAssignedToIds(assignedTo);
     let targetAssignee = requestedAssignees.length > 0 ? requestedAssignees[0] : undefined;
-    if (req.user?.role === 'EMPLOYEE') {
-      targetAssignee = req.user._id.toString();
-    } else if (!targetAssignee && !department) {
+    if (!targetAssignee && !department) {
       targetAssignee = req.user?._id?.toString();
     }
 
@@ -194,7 +192,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       title,
       description,
       hotel: hotelId,
-      assignedTo: req.user?.role === 'EMPLOYEE' ? [req.user._id.toString()] : requestedAssignees.length > 0 ? requestedAssignees : (targetAssignee ? [targetAssignee] : undefined),
+      assignedTo: requestedAssignees.length > 0 ? requestedAssignees : (targetAssignee ? [targetAssignee] : undefined),
       assignedBy: req.user?._id,
       priority,
       dueDate,
@@ -295,6 +293,7 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction):
 
       const orConditions: any[] = [
         { assignedTo: req.user?._id },
+        { assignedBy: req.user?._id },
         { assignedTo: { $exists: false } },
         { assignedTo: null },
         { assignedBy: { $in: rootAdminIds } },

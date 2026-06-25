@@ -125,10 +125,8 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks();
-    if (isManager) {
-      fetchUsers();
-    }
-  }, [filterStatus, isManager]);
+    fetchUsers();
+  }, [filterStatus]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,15 +246,13 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold text-slate-900">Task Management</h1>
           <p className="text-slate-500 text-xs mt-1">Enterprise Smart Task Assignment & Tracking System</p>
         </div>
-        {isManager && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-sm"
-          >
-            <GoogleIcon name="add" size={18} />
-            Create New Task
-          </button>
-        )}
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-sm"
+        >
+          <GoogleIcon name="add" size={18} />
+          Create New Task
+        </button>
       </div>
 
       {/* Filters */}
