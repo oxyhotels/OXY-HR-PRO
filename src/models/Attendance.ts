@@ -65,6 +65,13 @@ export interface IAttendance extends Document {
     time: Date;
     notes?: string;
   }[];
+  overtimeRequested?: boolean;
+  overtimeApproved?: boolean;
+  overtimeHours?: number;
+  overtimeReason?: string;
+  overtimeApprovedBy?: Schema.Types.ObjectId;
+  overtimeApprovedAt?: Date;
+  overtimeStatus?: 'Pending' | 'Approved' | 'Rejected';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,6 +154,13 @@ const AttendanceSchema = new Schema<IAttendance>(
         notes: { type: String },
       },
     ],
+    overtimeRequested: { type: Boolean, default: false },
+    overtimeApproved: { type: Boolean, default: false },
+    overtimeHours: { type: Number, default: 0 },
+    overtimeReason: { type: String },
+    overtimeApprovedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    overtimeApprovedAt: { type: Date },
+    overtimeStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'] },
   },
   { timestamps: true }
 );

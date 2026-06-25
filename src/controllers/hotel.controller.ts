@@ -7,10 +7,23 @@ import { diffFields, logAuditTrail } from '@/utils/audit';
 
 export const createHotel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, hotelCode, email, phone, address, googleLocationLink, subscriptionPlan } = req.body;
+    const { name, email, phone, address, googleLocationLink, subscriptionPlan } = req.body;
+    let { hotelCode } = req.body;
 
-    if (!hotelCode) {
-      throw new ApiError(400, 'Hotel Code is required');
+    if (!hotelCode || hotelCode.trim() === '') {
+      // Auto-generate next hotel code
+      const lastHotel = await Hotel.findOne({ hotelCode: /^OXY\d+$/i }).sort({ createdAt: -1 });
+      if (lastHotel && lastHotel.hotelCode) {
+        const match = lastHotel.hotelCode.match(/^OXY(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          hotelCode = `OXY${String(num + 1).padStart(3, '0')}`;
+        } else {
+          hotelCode = 'OXY001';
+        }
+      } else {
+        hotelCode = 'OXY001';
+      }
     }
 
     const trimmedCode = hotelCode.trim().toUpperCase();
@@ -22,7 +35,7 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
       throw new ApiError(400, 'Hotel Code must only contain letters, numbers, and hyphens');
     }
 
-    const existingHotel = await Hotel.findOne({ hotelCode: trimmedCode });
+    const existingHotel = await Hotel.findOne({ hotelCode: new RegExp(`^${trimmedCode}$`, 'i') });
     if (existingHotel) {
       throw new ApiError(400, 'Hotel Code already exists. Please use a unique code.');
     }
@@ -94,11 +107,8 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
 
     const { name, hotelCode, email, phone, address, googleLocationLink, subscriptionPlan, status } = req.body;
 
-    if (hotelCode !== undefined) {
+    if (hotelCode !== undefined && hotelCode.trim() !== '') {
       const trimmedCode = hotelCode.trim().toUpperCase();
-      if (!trimmedCode) {
-        throw new ApiError(400, 'Hotel Code is required');
-      }
       if (trimmedCode.length < 3 || trimmedCode.length > 20) {
         throw new ApiError(400, 'Hotel Code must be between 3 and 20 characters');
       }
@@ -107,7 +117,7 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
       }
 
       const duplicateHotel = await Hotel.findOne({
-        hotelCode: trimmedCode,
+        hotelCode: new RegExp(`^${trimmedCode}$`, 'i'),
         _id: { $ne: req.params.id }
       });
       if (duplicateHotel) {

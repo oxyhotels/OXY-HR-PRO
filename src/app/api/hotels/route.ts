@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { adaptRoute } from '@/lib/adaptRoute';
 import { getHotels, createHotel } from '@/controllers/hotel.controller';
 import { authMiddleware } from '@/middlewares/auth.middleware';

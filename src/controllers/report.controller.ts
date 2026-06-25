@@ -477,6 +477,7 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
 
     const totalWorkingHours = logs.reduce((acc, l) => acc + (l.totalWorkingHours || 0), 0);
     const averageWorkingHours = presentDays > 0 ? Number((totalWorkingHours / presentDays).toFixed(2)) : 0;
+    const totalOvertimeHours = logs.reduce((acc, l) => acc + (l.overtimeStatus === 'Approved' ? (l.overtimeHours || 0) : 0), 0);
 
     res.status(200).json({
       status: 'success',
@@ -500,7 +501,8 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
           lateEntries,
           earlyCheckouts,
           totalWorkingHours: Number(totalWorkingHours.toFixed(2)),
-          averageWorkingHours
+          averageWorkingHours,
+          totalOvertimeHours: Number(totalOvertimeHours.toFixed(2)),
         },
         logs
       }
@@ -599,6 +601,13 @@ export const getAnalyticsData = async (req: Request, res: Response, next: NextFu
       count: h.count,
       level: h.count > 0 ? Math.min(4, Math.ceil(h.count / 2)) : 0
     }));
+
+    // 3.5 Global Overtime stats
+    const overtimeStats = await Attendance.aggregate([
+      { $match: { ...trendFilter, overtimeStatus: 'Approved' } },
+      { $group: { _id: null, totalOvertime: { $sum: '$overtimeHours' } } }
+    ]);
+    const globalTotalOvertime = overtimeStats[0]?.totalOvertime || 0;
 
     // 4. Bar Chart: Working hours comparison (Employee-vs-Employee, Dept-vs-Dept, Hotel-vs-Hotel)
     const employeeHours = await Attendance.aggregate([
@@ -739,6 +748,7 @@ export const getAnalyticsData = async (req: Request, res: Response, next: NextFu
     res.status(200).json({
       status: 'success',
       data: {
+        globalTotalOvertime,
         statusPercentages,
         trendData,
         heatmapData,

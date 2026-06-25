@@ -340,21 +340,21 @@ export default function AttendancePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">Attendance Logs</h1>
-          <p className="text-slate-400 text-xs mt-1">Review clock-in histories and total computed working hours.</p>
+          <h1 className="text-2xl font-black bg-gradient-to-r from-gold to-amber-200 bg-clip-text text-transparent drop-shadow-sm">Attendance Logs</h1>
+          <p className="text-slate-300 text-xs mt-1.5 font-medium">Review clock-in histories, GPS coordinates, and total computed working hours.</p>
         </div>
 
         {/* View mode toggle & Reporting toolbar */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {viewMode === 'hotel' && isManager && (
-            <div className="flex flex-wrap items-center gap-2 border-r border-slate-200 pr-4 mr-2">
+            <div className="flex flex-wrap items-center gap-2 border-r border-slate-700 pr-4 mr-2">
               <button
                 type="button"
                 onClick={() => setShowAnalytics(true)}
-                className="px-3 py-1.5 bg-brand-primary/5 hover:bg-brand-primary border border-brand-primary/10 text-brand-primary hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary border border-brand-primary/20 text-brand-primary hover:text-white rounded-lg text-xs font-bold transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:scale-105 shadow-sm hover:shadow-brand-primary/20"
                 title="Fullscreen Analytics Dashboard"
               >
                 <GoogleIcon name="analytics" size={14} />
@@ -363,7 +363,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handleCSVExport}
-                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:scale-105 shadow-sm"
                 title="Export CSV"
               >
                 <GoogleIcon name="description" size={14} />
@@ -372,7 +372,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handleExcelExport}
-                className="px-3 py-1.5 bg-emerald-55 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 hover:text-emerald-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-emerald-900/40 hover:bg-emerald-600 border border-emerald-800 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:scale-105 shadow-sm"
                 title="Export Excel"
               >
                 <GoogleIcon name="table_view" size={14} />
@@ -381,7 +381,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handlePDFExport}
-                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-100 text-red-705 hover:text-red-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-red-900/40 hover:bg-red-600 border border-red-800 text-red-400 hover:text-white rounded-lg text-xs font-bold transition-all duration-300 flex items-center gap-1.5 cursor-pointer hover:scale-105 shadow-sm"
                 title="Export PDF"
               >
                 <GoogleIcon name="picture_as_pdf" size={14} />
@@ -391,12 +391,12 @@ export default function AttendancePage() {
           )}
 
           {isManager && (
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs shadow-inner">
+            <div className="flex bg-slate-900/60 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 text-xs shadow-inner overflow-x-auto scrollbar-none">
               {user?.role === 'ROOT_ADMIN' && (
                 <button
                   onClick={() => setViewMode('gps')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    viewMode === 'gps' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
+                  className={`px-4 py-2 rounded-xl font-bold transition-all duration-300 cursor-pointer whitespace-nowrap ${
+                    viewMode === 'gps' ? 'bg-gradient-to-r from-brand-primary to-indigo-500 text-white shadow-md shadow-brand-primary/20 scale-[1.02]' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
                   📍 GPS Verification Center
@@ -404,16 +404,16 @@ export default function AttendancePage() {
               )}
               <button
                 onClick={() => setViewMode('hotel')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  viewMode === 'hotel' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
+                className={`px-4 py-2 rounded-xl font-bold transition-all duration-300 cursor-pointer whitespace-nowrap ${
+                  viewMode === 'hotel' ? 'bg-gradient-to-r from-brand-primary to-indigo-500 text-white shadow-md shadow-brand-primary/20 scale-[1.02]' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 Hotel View
               </button>
               <button
                 onClick={() => setViewMode('personal')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                  viewMode === 'personal' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-600 hover:text-brand-primary'
+                className={`px-4 py-2 rounded-xl font-bold transition-all duration-300 cursor-pointer whitespace-nowrap ${
+                  viewMode === 'personal' ? 'bg-gradient-to-r from-brand-primary to-indigo-500 text-white shadow-md shadow-brand-primary/20 scale-[1.02]' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 My Shifts
@@ -424,15 +424,15 @@ export default function AttendancePage() {
       </div>
       
       {/* Advanced Expandable Filter Panel */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all space-y-4">
+      <div className="bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-6 shadow-xl shadow-slate-200/20 hover:shadow-2xl transition-all duration-500 space-y-4">
         {viewMode === 'personal' ? (
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
             <span className="text-slate-600 font-bold uppercase tracking-wider">Salary Month:</span>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl p-2 text-slate-850 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+              className="bg-white border border-slate-200 rounded-xl p-2 text-slate-850 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all shadow-sm"
             />
           </div>
         ) : (
@@ -662,8 +662,8 @@ export default function AttendancePage() {
         <>
           {/* Desktop Table View */}
           {viewMode === 'gps' ? (
-            <div className="hidden md:block bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
-              <div className="overflow-x-auto">
+            <div className="hidden md:block bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl overflow-hidden shadow-xl shadow-slate-200/20 hover:shadow-2xl transition-all duration-500">
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-wider font-semibold">
@@ -685,8 +685,8 @@ export default function AttendancePage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-600">
                     {logs.filter(log => log.employee).map((log) => (
-                      <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="p-4 font-semibold text-slate-800">
+                      <tr key={log._id} className="hover:bg-brand-primary/5 transition-all duration-200 group">
+                        <td className="p-4 font-semibold text-slate-800 group-hover:text-brand-primary transition-colors">
                           {log.employee?.firstName} {log.employee?.lastName}
                         </td>
                         <td className="p-4">{log.hotel?.name || 'N/A'}</td>
@@ -735,14 +735,14 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setSelfieCompareLog(log)}
-                            className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-all hover:scale-105 shadow-sm hover:shadow-md"
                           >
                             View Selfie
                           </button>
                           <button
                             type="button"
                             onClick={() => setMapViewLog(log)}
-                            className="bg-brand-primary/5 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/10 px-2 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-colors shadow-sm"
+                            className="bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 px-3 py-1.5 rounded-lg text-[10px] uppercase font-bold cursor-pointer transition-all hover:scale-105 shadow-sm hover:shadow-brand-primary/30"
                           >
                             View Map
                           </button>
@@ -761,8 +761,8 @@ export default function AttendancePage() {
               </div>
             </div>
           ) : (
-            <div className="hidden md:block bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
-              <div className="overflow-x-auto">
+            <div className="hidden md:block bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl overflow-hidden shadow-xl shadow-slate-200/20 hover:shadow-2xl transition-all duration-500">
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-wider font-semibold">
@@ -778,7 +778,7 @@ export default function AttendancePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600">
                   {logs.filter(log => log.employee).map((log) => (
-                    <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={log._id} className="hover:bg-brand-primary/5 transition-all duration-200 group">
                       <td className="p-4 font-semibold text-slate-800">
                         <div className="flex items-center gap-1.5">
                           <GoogleIcon name="calendar_today" size={14} className="text-gold" />
@@ -788,7 +788,7 @@ export default function AttendancePage() {
                       {viewMode === 'hotel' && (
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-700 font-bold uppercase overflow-hidden shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center border-2 border-white shadow-sm text-slate-700 font-bold uppercase overflow-hidden shrink-0 group-hover:scale-110 transition-transform duration-300">
                               {log.employee?.photoUrl ? (
                                 <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                               ) : (
@@ -808,10 +808,10 @@ export default function AttendancePage() {
                         </td>
                       )}
                       <td className="p-4 text-xs">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3">
                           {/* Check-In Selfie Thumbnail */}
                           {viewMode === 'hotel' && (
-                            <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0 overflow-hidden relative group">
+                            <div className="w-11 h-11 rounded-lg bg-slate-50 border border-slate-200 shrink-0 overflow-hidden relative shadow-sm group-hover:shadow-md transition-all">
                               {log.checkInPhoto ? (
                                 <>
                                   <img src={log.checkInPhoto} alt="Selfie" className="w-full h-full object-cover" />
@@ -857,10 +857,10 @@ export default function AttendancePage() {
                       </td>
                       <td className="p-4 text-xs">
                         {log.checkOut ? (
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-3">
                             {/* Check-Out Selfie Thumbnail */}
                             {viewMode === 'hotel' && (
-                              <div className="w-10 h-10 rounded bg-slate-100 border border-slate-200 shrink-0 overflow-hidden relative group">
+                              <div className="w-11 h-11 rounded-lg bg-slate-50 border border-slate-200 shrink-0 overflow-hidden relative shadow-sm group-hover:shadow-md transition-all">
                                 {log.checkOutPhoto ? (
                                   <>
                                     <img src={log.checkOutPhoto} alt="Checkout Selfie" className="w-full h-full object-cover" />

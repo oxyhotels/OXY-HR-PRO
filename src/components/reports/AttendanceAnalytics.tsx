@@ -323,7 +323,7 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
         {!loading && !error && data && (
           <>
             {/* Top Row: Executive KPI Metric Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               
               {/* Metric 1 */}
               <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs hover:shadow-md transition-shadow duration-300">
@@ -389,6 +389,21 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
                 </div>
               </div>
 
+              {/* Metric 5 */}
+              <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs hover:shadow-md transition-shadow duration-300">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Approved Overtime</span>
+                    <span className="text-2xl font-extrabold text-purple-600 mt-1.5 block">{data.globalTotalOvertime || 0} hrs</span>
+                  </div>
+                  <span className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                    <GoogleIcon name="more_time" size={20} />
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-3 font-semibold flex items-center gap-1">
+                  Cumulative approved overtime
+                </div>
+              </div>
             </div>
 
             {/* Grid layout of Recharts Panels */}

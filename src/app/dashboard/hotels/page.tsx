@@ -321,20 +321,17 @@ export default function HotelsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Hotel Code *</label>
+                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Hotel Code (Optional)</label>
                   <input
                     type="text"
-                    placeholder="e.g. OXY001"
+                    placeholder="e.g. OXY001 (Leave empty to auto-generate)"
                     className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white uppercase"
                     {...register('hotelCode', {
-                      required: 'Hotel Code is required',
-                      minLength: { value: 3, message: 'Minimum 3 characters' },
-                      maxLength: { value: 20, message: 'Maximum 20 characters' },
                       pattern: {
-                        value: /^[a-zA-Z0-9-]+$/,
+                        value: /^[a-zA-Z0-9-]*$/,
                         message: 'Only letters, numbers, and hyphens'
                       },
-                      setValueAs: (v) => v.trim().toUpperCase()
+                      setValueAs: (v) => v ? v.trim().toUpperCase() : ''
                     })}
                   />
                   {errors.hotelCode && (

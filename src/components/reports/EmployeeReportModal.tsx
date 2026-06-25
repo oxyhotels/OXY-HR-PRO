@@ -237,13 +237,24 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
                   </div>
 
                   {/* Avg Hours */}
-                  <div className="bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl flex items-center justify-between col-span-2 md:col-span-2">
+                  <div className="bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl flex items-center justify-between col-span-2 md:col-span-1">
                     <div>
-                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Avg Hours per Shift</span>
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Avg Hours</span>
                       <span className="text-lg font-bold text-gold mt-1 block">{summary.averageWorkingHours} hrs/day</span>
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-gold/10 flex items-center justify-center text-gold">
                       <GoogleIcon name="hourglass_empty" size={18} />
+                    </div>
+                  </div>
+
+                  {/* Overtime Hours */}
+                  <div className="bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl flex items-center justify-between col-span-2 md:col-span-1">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Approved Overtime</span>
+                      <span className="text-lg font-bold text-purple-400 mt-1 block">{summary.totalOvertimeHours || 0} hrs</span>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                      <GoogleIcon name="more_time" size={18} />
                     </div>
                   </div>
 

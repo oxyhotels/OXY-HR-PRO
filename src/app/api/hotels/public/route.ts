@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { adaptRoute } from '@/lib/adaptRoute';
 import { Hotel } from '@/models/Hotel';
 import { Request, Response, NextFunction } from 'express';

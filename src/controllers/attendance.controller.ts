@@ -607,3 +607,159 @@ export const getAddressVerification = async (req: Request, res: Response, next: 
     next(error);
   }
 };
+
+// --- Overtime Feature ---
+
+export const requestOvertime = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) throw new ApiError(401, 'Unauthorized');
+    const { reason, expectedDuration } = req.body;
+
+    if (!reason || !expectedDuration) {
+      throw new ApiError(400, 'Reason and expected duration are required for overtime request.');
+    }
+
+    const todayStr = getLocalDateString();
+
+    const attendance = await Attendance.findOne({
+      employee: req.user._id,
+      date: todayStr,
+    });
+
+    if (!attendance) {
+      throw new ApiError(404, 'No attendance record found for today.');
+    }
+
+    if (!attendance.checkOut) {
+      throw new ApiError(400, 'You must Work-Out before requesting overtime.');
+    }
+
+    if (attendance.overtimeRequested) {
+      throw new ApiError(400, 'You have already requested overtime for today.');
+    }
+
+    attendance.overtimeRequested = true;
+    attendance.overtimeReason = reason;
+    
+    // Parse duration string to hours (e.g., '30 Minutes', '1 Hour', '2 Hours', 'Custom')
+    let hours = 0;
+    if (expectedDuration === '30 Minutes') hours = 0.5;
+    else if (expectedDuration === '1 Hour') hours = 1;
+    else if (expectedDuration === '2 Hours') hours = 2;
+    else if (expectedDuration === '3 Hours') hours = 3;
+    else if (expectedDuration === '4 Hours') hours = 4;
+    else if (expectedDuration === 'Custom') hours = 1; // Default for custom if no further input
+    else hours = parseFloat(expectedDuration) || 1;
+
+    attendance.overtimeHours = hours;
+    attendance.overtimeStatus = 'Pending';
+    
+    attendance.logs.push({
+      action: 'Overtime Requested',
+      time: new Date(),
+      notes: `Requested ${expectedDuration} for: ${reason}`
+    });
+
+    await attendance.save();
+
+    // Notify Root Admin
+    await createNotification({
+      recipientRole: 'ROOT_ADMIN',
+      title: 'New Overtime Request',
+      message: `${req.user.firstName} ${req.user.lastName} requested ${expectedDuration} of overtime.`,
+      type: 'info',
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Overtime request submitted successfully.',
+      data: attendance,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approveOvertime = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Only Root Admin can approve overtime.');
+    }
+
+    const { attendanceId } = req.body;
+
+    const attendance = await Attendance.findById(attendanceId).populate('employee');
+    if (!attendance) {
+      throw new ApiError(404, 'Attendance record not found.');
+    }
+
+    attendance.overtimeApproved = true;
+    attendance.overtimeStatus = 'Approved';
+    attendance.overtimeApprovedBy = req.user._id;
+    attendance.overtimeApprovedAt = new Date();
+
+    attendance.logs.push({
+      action: 'Overtime Approved',
+      time: new Date(),
+      notes: `Approved by ${req.user.firstName} ${req.user.lastName}`
+    });
+
+    await attendance.save();
+
+    await createNotification({
+      recipientId: attendance.employee._id.toString(),
+      title: 'Overtime Approved',
+      message: 'Your overtime request has been approved.',
+      type: 'success',
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Overtime approved successfully.',
+      data: attendance,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectOvertime = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Only Root Admin can reject overtime.');
+    }
+
+    const { attendanceId } = req.body;
+
+    const attendance = await Attendance.findById(attendanceId).populate('employee');
+    if (!attendance) {
+      throw new ApiError(404, 'Attendance record not found.');
+    }
+
+    attendance.overtimeStatus = 'Rejected';
+    attendance.overtimeApproved = false;
+    
+    attendance.logs.push({
+      action: 'Overtime Rejected',
+      time: new Date(),
+      notes: `Rejected by ${req.user.firstName} ${req.user.lastName}`
+    });
+
+    await attendance.save();
+
+    await createNotification({
+      recipientId: attendance.employee._id.toString(),
+      title: 'Overtime Rejected',
+      message: 'Your overtime request has been rejected.',
+      type: 'warning',
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Overtime rejected successfully.',
+      data: attendance,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -116,6 +116,13 @@ export default function DashboardPage() {
   const [workVideo, setWorkVideo] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Overtime states
+  const [overtimeAlertOpen, setOvertimeAlertOpen] = useState(false);
+  const [overtimeRequestOpen, setOvertimeRequestOpen] = useState(false);
+  const [overtimeReason, setOvertimeReason] = useState('');
+  const [overtimeDuration, setOvertimeDuration] = useState('1 Hour');
+  const [overtimeAlertShownToday, setOvertimeAlertShownToday] = useState(false);
+
   // Search & Select states for Root Admin overview
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -276,6 +283,38 @@ export default function DashboardPage() {
     }
   };
 
+  const handleOvertimeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setSubmitError(null);
+    try {
+      await api.post('/attendance/overtime/request', {
+        reason: overtimeReason,
+        expectedDuration: overtimeDuration
+      });
+      setFeedback({ type: 'success', message: 'Overtime request submitted successfully.' });
+      setOvertimeRequestOpen(false);
+      fetchDashboardData();
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to submit overtime request.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOvertimeApprovalAction = async (attendanceId: string, action: 'approve' | 'reject') => {
+    setActionLoading(true);
+    try {
+      await api.post(`/attendance/overtime/${action}`, { attendanceId });
+      setFeedback({ type: 'success', message: `Overtime ${action}d successfully.` });
+      fetchLiveAttendance();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || `Failed to ${action} overtime.` });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Dynamic clock and date updater
   useEffect(() => {
     const updateTime = () => {
@@ -287,6 +326,34 @@ export default function DashboardPage() {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // 12-hour Overtime Duty Alert check
+  useEffect(() => {
+    if (!todayAttendance || todayAttendance.checkOut || overtimeAlertShownToday) return;
+
+    const checkDuration = () => {
+      const checkInTime = new Date(todayAttendance.checkIn).getTime();
+      const now = new Date().getTime();
+      const diffMs = now - checkInTime;
+      const hours = diffMs / (1000 * 60 * 60);
+
+      if (hours > 12 && !overtimeAlertOpen) {
+        setOvertimeAlertOpen(true);
+        setOvertimeAlertShownToday(true);
+        // Play sound automatically
+        try {
+          const audio = new Audio('/work-out song.mp3');
+          audio.play().catch(e => console.error("Audio play failed:", e));
+        } catch(e) {
+          console.error("Audio error:", e);
+        }
+      }
+    };
+
+    checkDuration(); // Initial check
+    const interval = setInterval(checkDuration, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [todayAttendance, overtimeAlertOpen, overtimeAlertShownToday]);
 
   useEffect(() => {
     if (!user) return; // Wait until user is hydrated
@@ -1164,7 +1231,25 @@ export default function DashboardPage() {
                         <GoogleIcon name="check_circle" className="text-slate-500" size={24} />
                       </div>
                       <p className="text-slate-600 font-bold text-sm">Shift Ended</p>
-                      <p className="text-slate-400 text-[10px] mt-1">You have completed your duty for today</p>
+                      <p className="text-slate-400 text-[10px] mt-1 mb-3">You have completed your duty for today</p>
+                      
+                      {/* Overtime Request Section */}
+                      {todayAttendance.overtimeStatus === 'Approved' ? (
+                        <div className="bg-green-100 text-green-700 p-2 rounded flex items-center justify-center gap-2 font-bold text-xs">
+                          🟢 Overtime Active
+                        </div>
+                      ) : todayAttendance.overtimeStatus === 'Pending' ? (
+                        <div className="bg-amber-100 text-amber-700 p-2 rounded flex items-center justify-center gap-2 font-bold text-xs">
+                          ⏳ Overtime Requested
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setOvertimeRequestOpen(true)}
+                          className="w-full bg-[#0a1f5c] hover:bg-[#112d8a] text-gold font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                          Request Overtime
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1457,7 +1542,65 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
               {/* Updates Table Column */}
-              <div className="xl:col-span-2 space-y-4">
+              <div className="xl:col-span-2 space-y-6">
+                
+                {/* Overtime Requests Table */}
+                {filteredLogs.filter(log => log.overtimeRequested && log.overtimeStatus === 'Pending').length > 0 && (
+                  <div className="overflow-x-auto border border-amber-200 rounded-xl bg-amber-50/30">
+                    <div className="p-3 bg-amber-100 border-b border-amber-200 text-amber-900 font-bold uppercase text-xs flex items-center gap-2">
+                      <GoogleIcon name="more_time" size={16} /> Pending Overtime Requests
+                    </div>
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-amber-50 border-b border-amber-100 text-amber-800 uppercase tracking-wider font-semibold">
+                          <th className="p-3">Staff Details</th>
+                          <th className="p-3">Shift Date & Hours</th>
+                          <th className="p-3">Request Details</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-100 text-slate-700 bg-white">
+                        {filteredLogs.filter(log => log.overtimeRequested && log.overtimeStatus === 'Pending').map(log => (
+                          <tr key={log._id} className="hover:bg-amber-50/50 transition-colors">
+                            <td className="p-3">
+                              <div className="font-semibold text-slate-800">{log.employee?.firstName} {log.employee?.lastName}</div>
+                              <div className="text-[10px] text-slate-500 mt-0.5 uppercase font-semibold text-gold font-mono">{formatRole(log.employee?.role)}</div>
+                              <div className="text-slate-500 text-[10px] mt-0.5">Property: {log.hotel?.name || 'N/A'}</div>
+                            </td>
+                            <td className="p-3 font-mono text-slate-500">
+                              <div>{log.date}</div>
+                              <div className="text-[10.5px] font-bold text-slate-800 mt-1">Normal: {log.totalWorkingHours} hrs</div>
+                            </td>
+                            <td className="p-3 max-w-xs">
+                              <div className="text-[10.5px] font-bold text-[#0a1f5c]">Requested: {log.overtimeHours} hrs</div>
+                              <div className="text-[10px] text-slate-600 mt-1 italic">"{log.overtimeReason}"</div>
+                              <div className="text-[9px] text-slate-400 mt-1">
+                                Req Time: {log.logs?.find((l: any) => l.action === 'Overtime Requested')?.time ? new Date(log.logs.find((l: any) => l.action === 'Overtime Requested').time).toLocaleString() : '-'}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right space-x-2">
+                              <button
+                                onClick={() => handleOvertimeApprovalAction(log._id, 'approve')}
+                                disabled={actionLoading}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50 shadow-sm"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleOvertimeApprovalAction(log._id, 'reject')}
+                                disabled={actionLoading}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded transition-colors text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50 shadow-sm"
+                              >
+                                Reject
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto border border-slate-100 rounded-xl">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -2539,6 +2682,107 @@ export default function DashboardPage() {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 12-Hour Duty Duration Exceeded Alert Modal */}
+      {overtimeAlertOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-red-500 p-6 text-center">
+              <GoogleIcon name="warning" className="text-white text-5xl mb-2" />
+              <h2 className="text-2xl font-bold text-white uppercase tracking-wider">Duty Duration Exceeded</h2>
+            </div>
+            <div className="p-6 text-center space-y-4">
+              <p className="text-slate-700 font-medium">
+                You have completed more than 12 hours of duty.
+                <br />
+                Please Work-Out now or request Overtime approval.
+              </p>
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={() => {
+                    setOvertimeAlertOpen(false);
+                    setWorkOutModalOpen(true);
+                  }}
+                  className="flex-1 bg-[#0a1f5c] hover:bg-[#112d8a] text-white font-bold py-3 rounded-xl uppercase transition-colors cursor-pointer"
+                >
+                  Work-Out Now
+                </button>
+                <button
+                  onClick={() => {
+                    setOvertimeAlertOpen(false);
+                    // They must work out first.
+                    setFeedback({ type: 'error', message: 'You must Work-Out before requesting overtime.' });
+                  }}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl uppercase transition-colors cursor-pointer"
+                >
+                  Request Overtime
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overtime Request Modal */}
+      {overtimeRequestOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 relative animate-in zoom-in-95 duration-300">
+            <button
+              onClick={() => setOvertimeRequestOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <GoogleIcon name="close" size={24} />
+            </button>
+            <h2 className="text-xl font-bold text-[#0a1f5c] mb-4 uppercase tracking-wider flex items-center gap-2">
+              <GoogleIcon name="more_time" className="text-gold" /> Request Overtime
+            </h2>
+            
+            {submitError && (
+              <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm font-semibold border border-red-200">
+                {submitError}
+              </div>
+            )}
+
+            <form onSubmit={handleOvertimeRequest} className="space-y-4">
+              <div>
+                <label className="block text-slate-700 font-semibold text-xs mb-1.5 uppercase">Overtime Reason *</label>
+                <textarea
+                  required
+                  value={overtimeReason}
+                  onChange={e => setOvertimeReason(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:border-[#0a1f5c] focus:ring-1 focus:ring-[#0a1f5c] outline-none min-h-[100px] transition-all bg-slate-50"
+                  placeholder="Explain why you are requesting overtime..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold text-xs mb-1.5 uppercase">Expected Duration *</label>
+                <select
+                  required
+                  value={overtimeDuration}
+                  onChange={e => setOvertimeDuration(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:border-[#0a1f5c] focus:ring-1 focus:ring-[#0a1f5c] outline-none bg-slate-50 transition-all cursor-pointer"
+                >
+                  <option value="30 Minutes">30 Minutes</option>
+                  <option value="1 Hour">1 Hour</option>
+                  <option value="2 Hours">2 Hours</option>
+                  <option value="3 Hours">3 Hours</option>
+                  <option value="4 Hours">4 Hours</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="w-full bg-[#0a1f5c] hover:bg-[#112d8a] text-gold font-bold py-3.5 rounded-xl uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shadow-md mt-2"
+              >
+                {actionLoading ? 'Submitting...' : 'Send Approval Request'}
+              </button>
+            </form>
           </div>
         </div>
       )}
