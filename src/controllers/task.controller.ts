@@ -248,9 +248,10 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
         await createNotification({
           title: '📌 नया कार्य सौंपा गया है',
           message: `नया कार्य "${title}" आपके लिए असाइन किया गया है। कृपया कार्य स्वीकार करें।`,
-          type: 'info',
+          type: 'task',
           recipientId: assigneeId,
-          link: '/dashboard/tasks'
+          link: '/dashboard/tasks',
+          sender: req.user?._id?.toString()
         });
       }
     } catch (notifError) {
@@ -313,7 +314,9 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction):
     const tasks = await Task.find(filter)
       .populate('assignedTo', 'firstName lastName email department designation xp level accountabilityIndex employeeId photoUrl')
       .populate('assignedBy', 'firstName lastName email role')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean()
+      .limit(300);
 
     res.status(200).json({
       status: 'success',

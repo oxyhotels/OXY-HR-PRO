@@ -986,7 +986,7 @@ export default function AnalyticsPage() {
                   {selectedEmployee.photoUrl ? (
                     <img src={selectedEmployee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-xl">{selectedEmployee.firstName[0]}{selectedEmployee.lastName[0]}</span>
+                    <span className="text-xl">{selectedEmployee.firstName?.[0] || ''}{selectedEmployee.lastName?.[0] || ''}</span>
                   )}
                 </div>
                 <div>

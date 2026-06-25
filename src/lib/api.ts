@@ -32,6 +32,7 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
     '/auth/register',
     '/hotels/public',
     '/organization/public-departments',
+    '/organization/public-managers',
     '/hierarchy/invite',
     '/hierarchy/join',
     '/auth/invite-join'

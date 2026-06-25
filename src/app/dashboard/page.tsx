@@ -6,10 +6,12 @@ import { api } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatRole } from '../../lib/utils';
+import dynamic from 'next/dynamic';
 import GoogleIcon from '../../components/GoogleIcon';
-import WorkLogDrawer from '../../components/reports/WorkLogDrawer';
-import EmployeeReportModal from '../../components/reports/EmployeeReportModal';
-import AttendanceAnalytics from '../../components/reports/AttendanceAnalytics';
+
+const WorkLogDrawer = dynamic(() => import('../../components/reports/WorkLogDrawer'), { ssr: false });
+const EmployeeReportModal = dynamic(() => import('../../components/reports/EmployeeReportModal'), { ssr: false });
+const AttendanceAnalytics = dynamic(() => import('../../components/reports/AttendanceAnalytics'), { ssr: false });
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/reportExport';
 import {
   AreaChart,
@@ -57,6 +59,8 @@ export default function DashboardPage() {
   const [editRole, setEditRole] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
   const [editSalary, setEditSalary] = useState('');
+  const [staffOverview, setStaffOverview] = useState<any>(null);
+  const [showStaffActivityModal, setShowStaffActivityModal] = useState(false);
 
   // Dynamic shift date string and time clock
   const [currentDateStr, setCurrentDateStr] = useState<string>('June 13, 2026');
@@ -88,24 +92,14 @@ export default function DashboardPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const gpsWatchId = useRef<number | null>(null); // watchPosition ID for live GPS tracking
 
-  // Frontend Exemption check helper
-  const isExempt = (user: any): boolean => {
+  // Frontend Exemption check helper (Selfie Exemption Only)
+  const isSelfieExempt = (user: any): boolean => {
     if (!user) return false;
-    if (user.role === 'ROOT_ADMIN') return true;
-
-    const dept = (user.department || '').toLowerCase();
-    const role = (user.role || '').toLowerCase();
-
-    // HR Department
-    if (dept.includes('hr') || dept.includes('human resources') || role === 'hr_manager') {
+    // Central Office is exempt from selfies
+    const dept = (user.department || '').toUpperCase().trim();
+    if (dept === 'CENTRAL OFFICE') {
       return true;
     }
-
-    // IT Department
-    if (dept.includes('it') || dept.includes('information technology') || dept.includes('it services')) {
-      return true;
-    }
-
     return false;
   };
 
@@ -189,6 +183,16 @@ export default function DashboardPage() {
       console.error('Failed to fetch dashboard reports', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStaffOverview = async () => {
+    if (user?.role !== 'ROOT_ADMIN') return;
+    try {
+      const res = await api.get('/employees/status-overview');
+      setStaffOverview(res.data);
+    } catch (err) {
+      console.error('Failed to fetch staff overview', err);
     }
   };
 
@@ -401,6 +405,7 @@ export default function DashboardPage() {
         }
       };
       fetchHotelsList();
+      fetchStaffOverview();
     }
   }, [user, fetchGamificationPerformance]);
 
@@ -415,7 +420,8 @@ export default function DashboardPage() {
         }
       };
       fetchHotelsList();
-      setSelectedHotelId('');
+      const defaultHotelId = typeof user?.hotel === 'object' ? (user.hotel._id || user.hotel.id) : user?.hotel;
+      setSelectedHotelId(defaultHotelId as string || '');
     }
   }, [verificationModalOpen, verificationMode]);
 
@@ -550,7 +556,7 @@ export default function DashboardPage() {
       ctx.scale(-1, 1);
       ctx.drawImage(video, -w, 0, w, h);
       ctx.restore();
-      return canvas.toDataURL('image/jpeg', 0.85);
+      return canvas.toDataURL('image/webp', 0.7);
     } catch (e) {
       console.error('captureSelfie error:', e);
       return null;
@@ -650,21 +656,17 @@ export default function DashboardPage() {
       handleAttendanceAction(endpoint, actionName, {});
     } else {
       // Check-In Geolocation and Selfie Verification flow
-      const exempt = isExempt(user);
-      if (exempt) {
-        handleAttendanceAction(endpoint, actionName, {});
-      } else {
-        setVerificationMode('check-in');
-        setGpsCoords(null);
-        setGpsError(null);
-        setGpsIsIpBased(false);
-        setCameraError(null);
-        setCameraStarted(false);
-        setCapturedSelfie(null);
-        setVerificationModalOpen(true);
-        // Start live GPS watch immediately
-        setTimeout(() => startGPSWatch(), 100);
-      }
+      // Everyone must get GPS verification now.
+      setVerificationMode('check-in');
+      setGpsCoords(null);
+      setGpsError(null);
+      setGpsIsIpBased(false);
+      setCameraError(null);
+      setCameraStarted(false);
+      setCapturedSelfie(null);
+      setVerificationModalOpen(true);
+      // Start live GPS watch immediately
+      setTimeout(() => startGPSWatch(), 100);
     }
   };
 
@@ -696,51 +698,25 @@ export default function DashboardPage() {
       return;
     }
     setSubmitError(null);
-
-    const exempt = isExempt(user);
-    if (exempt) {
-      setActionLoading(true);
-      try {
-        await api.post('/attendance/check-out', {
-          workDescription,
-          workPictureUrl: workPicture || undefined,
-          workVideoUrl: workVideo || undefined,
-        });
-        setFeedback({ type: 'success', message: 'Checked out successfully with work update!' });
-        setWorkOutModalOpen(false);
-        setWorkDescription('');
-        setWorkPicture(null);
-        setWorkVideo(null);
-        await fetchDashboardData();
-        if (user?.role !== 'EMPLOYEE') {
-          fetchLiveAttendance();
-        }
-      } catch (err: any) {
-        setSubmitError(err.message || 'Check-out failed. Please try again.');
-      } finally {
-        setActionLoading(false);
-      }
-    } else {
-      // Save data temporarily and trigger Selfie/GPS verification modal
-      setTempCheckoutData({
-        workDescription,
-        workPictureUrl: workPicture || undefined,
-        workVideoUrl: workVideo || undefined,
-      });
-      setWorkOutModalOpen(false);
-      
-      // Open verification modal
-      setVerificationMode('check-out');
-      setGpsCoords(null);
-      setGpsError(null);
-      setGpsIsIpBased(false);
-      setCameraError(null);
-      setCameraStarted(false);
-      setCapturedSelfie(null);
-      setVerificationModalOpen(true);
-      // Start live GPS watch
-      setTimeout(() => startGPSWatch(), 100);
-    }
+    // Save data temporarily and trigger Verification modal (GPS/Selfie)
+    setTempCheckoutData({
+      workDescription,
+      workPictureUrl: workPicture || undefined,
+      workVideoUrl: workVideo || undefined,
+    });
+    setWorkOutModalOpen(false);
+    
+    // Open verification modal
+    setVerificationMode('check-out');
+    setGpsCoords(null);
+    setGpsError(null);
+    setGpsIsIpBased(false);
+    setCameraError(null);
+    setCameraStarted(false);
+    setCapturedSelfie(null);
+    setVerificationModalOpen(true);
+    // Start live GPS watch immediately
+    setTimeout(() => startGPSWatch(), 100);
   };
 
   const handleVerificationSubmit = async (videoElement: HTMLVideoElement | null) => {
@@ -768,7 +744,7 @@ export default function DashboardPage() {
         const ctx = canvas.getContext('2d');
         if (ctx && canvas.width > 0) {
           ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-          photoData = canvas.toDataURL('image/jpeg', 0.8);
+          photoData = canvas.toDataURL('image/webp', 0.7);
         }
       } catch (e) {
         console.error('Selfie frame capture error:', e);
@@ -831,8 +807,15 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-4 border-gold border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col space-y-6 animate-pulse p-4 md:p-8 w-full max-w-7xl mx-auto">
+        <div className="h-40 bg-slate-200 rounded-2xl w-full mb-6"></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="h-28 bg-slate-200 rounded-xl"></div>
+          <div className="h-28 bg-slate-200 rounded-xl"></div>
+          <div className="h-28 bg-slate-200 rounded-xl"></div>
+          <div className="h-28 bg-slate-200 rounded-xl"></div>
+        </div>
+        <div className="h-96 bg-slate-200 rounded-2xl w-full mt-4"></div>
       </div>
     );
   }
@@ -865,6 +848,8 @@ export default function DashboardPage() {
     .sort((a, b) => a.date.localeCompare(b.date))
   return (
     <div className="max-w-7xl mx-auto">
+
+
       {/* ═══ UNIVERSAL SHIFT STATUS CARD — Shows on ALL devices (desktop, tablet, mobile) ═══ */}
       {user?.role !== 'ROOT_ADMIN' && (
         <div style={{
@@ -1482,6 +1467,18 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {/* Analytics & Export Actions Toolbar */}
                 <div className="flex items-center gap-2 mr-2 border-r border-slate-200 pr-4">
+                  {/* Staff Activity Button */}
+                  {user?.role === 'ROOT_ADMIN' && staffOverview && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStaffActivityModal(true)}
+                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 hover:text-indigo-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                      title="staff-activity"
+                    >
+                      <GoogleIcon name="groups" size={14} />
+                      staff-activity
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowAnalytics(true)}
@@ -1643,7 +1640,7 @@ export default function DashboardPage() {
                                   </>
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-100 font-bold uppercase text-xs">
-                                    {log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}
+                                    {log.employee ? `${log.employee.firstName?.[0] || ''}${log.employee.lastName?.[0] || ''}` : '??'}
                                   </div>
                                 )}
                               </div>
@@ -2026,7 +2023,7 @@ export default function DashboardPage() {
                     {log.employee?.photoUrl ? (
                       <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" />
                     ) : (
-                      <span>{log.employee?.firstName[0]}{log.employee?.lastName[0]}</span>
+                      <span>{log.employee?.firstName?.[0] || ''}{log.employee?.lastName?.[0] || ''}</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2152,6 +2149,33 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* Hotel Selector Dropdown (Moved to top for visibility) */}
+            {verificationMode === 'check-in' && (
+              <div className="px-5 pt-4">
+                <label className="block text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5 transition-colors">
+                  🏨 Property / Hotel Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative group">
+                  <select
+                    required
+                    value={selectedHotelId}
+                    onChange={(e) => setSelectedHotelId(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 rounded-xl p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-[11px] font-semibold appearance-none cursor-pointer pr-10 transition-all shadow-sm dark:shadow-inner"
+                  >
+                    <option value="" className="text-slate-500 dark:text-slate-400">-- Select your working property --</option>
+                    {hotels.map((hotel: any) => (
+                      <option key={hotel._id} value={hotel._id} className="text-slate-900 bg-white dark:text-white dark:bg-slate-900 font-medium">
+                        {hotel.name} ({hotel.code?.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500 dark:text-slate-400 group-hover:text-blue-500 transition-colors">
+                    <GoogleIcon name="expand_more" size={16} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Status Row */}
             <div className="grid grid-cols-2 gap-3 px-5 pt-4 text-xs">
               
@@ -2251,15 +2275,23 @@ export default function DashboardPage() {
                     <p className="text-[8px] text-slate-500">GPS-Only mode — proceed below</p>
                   </>
                 ) : !cameraStarted ? (
-                  <>
-                    <p className="text-[10px] text-slate-400">Camera not started</p>
-                    <button
-                      onClick={() => startCamera(videoRef.current)}
-                      className="text-[9px] bg-blue-600/20 text-blue-300 border border-blue-600/40 rounded-lg px-2.5 py-1.5 w-fit cursor-pointer hover:bg-blue-600/30 font-bold flex items-center gap-1"
-                    >
-                      📷 Enable Camera
-                    </button>
-                  </>
+                  isSelfieExempt(user) ? (
+                    <>
+                      <p className="text-[10px] text-green-400 font-bold tracking-wide">✓ Selfie Not Required</p>
+                      <p className="text-[9px] text-slate-400">CENTRAL OFFICE users skip selfie</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-amber-500 font-bold tracking-wide">⚠ Camera Access Required</p>
+                      <button
+                        onClick={() => startCamera(videoRef.current)}
+                        className="mt-1 text-[11px] bg-blue-600 hover:bg-blue-500 text-white border-2 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] rounded-xl px-4 py-2 w-full cursor-pointer font-extrabold flex items-center justify-center gap-2 animate-pulse transition-all"
+                      >
+                        <GoogleIcon name="photo_camera" size={16} />
+                        Enable Camera
+                      </button>
+                    </>
+                  )
                 ) : (
                   <p className="text-[10px] text-slate-500">Loading camera...</p>
                 )}
@@ -2326,13 +2358,22 @@ export default function DashboardPage() {
                     <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center">
                       <span className="text-2xl opacity-40">📷</span>
                     </div>
-                    <div className="text-center">
-                      <p className="text-slate-400 text-xs font-semibold">Camera Not Active</p>
-                      <p className="text-slate-600 text-[10px] mt-1">Click "Enable Camera" above to start</p>
+                    <div className="text-center px-4">
+                      {isSelfieExempt(user) ? (
+                        <>
+                          <p className="text-green-400 text-sm font-bold mb-1">✓ Selfie Not Required</p>
+                          <p className="text-slate-400 text-xs mt-1">CENTRAL OFFICE users skip selfie verification.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-slate-300 text-sm font-bold mb-1">⚠ Camera Access Required</p>
+                          <p className="text-slate-400 text-xs mt-1">Please enable your camera and capture a clear selfie to start your duty.</p>
+                        </>
+                      )}
                     </div>
                     {gpsCoords && (
                       <p className="text-[9px] text-green-500/70 bg-green-950/20 border border-green-800/30 px-3 py-1.5 rounded-lg">
-                        ✓ GPS verified — you can check in without selfie
+                        ✓ GPS verified
                       </p>
                     )}
                   </div>
@@ -2395,33 +2436,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Hotel Selector Dropdown (Shown after Selfie Capture for Check-In) */}
-            {verificationMode === 'check-in' && capturedSelfie && (
-              <div className="px-5 pb-4 space-y-1.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
-                <label className="block text-slate-400 font-bold uppercase tracking-wider text-[9px]">
-                  🏨 Select Property/Hotel <span className="text-gold">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    required
-                    value={selectedHotelId}
-                    onChange={(e) => setSelectedHotelId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 focus:border-gold focus:outline-none text-xs appearance-none cursor-pointer pr-10"
-                  >
-                    <option value="" className="text-slate-600">-- Select property name and code --</option>
-                    {hotels.map((hotel: any) => (
-                      <option key={hotel._id} value={hotel._id} className="text-white bg-slate-950">
-                        {hotel.name} ({hotel.code?.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
-                    <GoogleIcon name="expand_more" size={14} />
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Action Buttons */}
             <div className="flex gap-3 px-5 pb-5 text-xs">
               <button
@@ -2440,7 +2454,7 @@ export default function DashboardPage() {
                 disabled={
                   actionLoading || 
                   !gpsCoords || 
-                  !capturedSelfie ||
+                  (!capturedSelfie && !isSelfieExempt(user)) ||
                   (verificationMode === 'check-in' && !selectedHotelId)
                 }
                 onClick={() => handleVerificationSubmit(videoRef.current)}
@@ -2488,7 +2502,7 @@ export default function DashboardPage() {
         isOpen={showAnalytics} 
         onClose={() => setShowAnalytics(false)} 
         user={user} 
-        hotels={hotels} 
+        hotels={hotels}
       />
 
       {/* Interactive 30-Day Employee Report Modal */}
@@ -2783,6 +2797,87 @@ export default function DashboardPage() {
                 {actionLoading ? 'Submitting...' : 'Send Approval Request'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Staff Activity Modal */}
+      {showStaffActivityModal && staffOverview && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-4" onClick={() => setShowStaffActivityModal(false)}>
+          <div 
+            className="bg-[#0a1631] border border-slate-700/50 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-800/80 flex justify-between items-center bg-slate-900/50">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                <GoogleIcon name="groups" className="text-indigo-400" size={20} />
+                Staff Activity Overview
+              </h2>
+              <button 
+                onClick={() => setShowStaffActivityModal(false)}
+                className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="close" size={18} />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* ACTIVE STAFF */}
+                <div className="bg-green-950/30 border border-green-500/30 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-green-400/50 transition-colors">
+                  <div className="flex items-center gap-2 text-green-400 font-bold uppercase tracking-wider text-xs mb-4">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                    Active Staff
+                  </div>
+                  <div className="text-5xl font-black text-white mb-3 tracking-tighter">{staffOverview.activeStaff?.total ?? 0}</div>
+                  <div className="flex justify-between text-xs text-slate-300 border-t border-green-900/50 pt-3 font-semibold relative z-10">
+                    <span>Employees: <span className="text-green-400 font-extrabold">{staffOverview.activeStaff?.employees ?? 0}</span></span>
+                    <span>Managers: <span className="text-green-400 font-extrabold">{staffOverview.activeStaff?.managers ?? 0}</span></span>
+                  </div>
+                </div>
+
+                {/* DUTY OFF STAFF */}
+                <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-slate-500/50 transition-colors">
+                  <div className="flex items-center gap-2 text-slate-300 font-bold uppercase tracking-wider text-xs mb-4">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                    Duty Off Staff
+                  </div>
+                  <div className="text-5xl font-black text-white mb-3 tracking-tighter">{staffOverview.dutyOffStaff?.total ?? 0}</div>
+                  <div className="flex justify-between text-xs text-slate-300 border-t border-slate-700/60 pt-3 font-semibold relative z-10">
+                    <span>Employees: <span className="text-slate-200 font-extrabold">{staffOverview.dutyOffStaff?.employees ?? 0}</span></span>
+                    <span>Managers: <span className="text-slate-200 font-extrabold">{staffOverview.dutyOffStaff?.managers ?? 0}</span></span>
+                  </div>
+                </div>
+
+                {/* TOTAL STAFF */}
+                <div className="bg-blue-950/30 border border-blue-500/30 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-blue-400/50 transition-colors">
+                  <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-wider text-xs mb-4">
+                    <GoogleIcon name="groups" size={18} />
+                    Total Staff
+                  </div>
+                  <div className="text-5xl font-black text-white mb-3 tracking-tighter">{staffOverview.totalStaff?.total ?? 0}</div>
+                  <div className="flex justify-between text-xs text-slate-300 border-t border-blue-900/50 pt-3 font-semibold relative z-10">
+                    <span>Active: <span className="text-blue-300 font-extrabold">{staffOverview.activeStaff?.total ?? 0}</span></span>
+                    <span>Inactive: <span className="text-slate-400 font-extrabold">{staffOverview.dutyOffStaff?.total ?? 0}</span></span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-300 mt-2 font-semibold relative z-10">
+                    <span>Employees: <span className="text-blue-300 font-extrabold">{staffOverview.totalStaff?.employees ?? 0}</span></span>
+                    <span>Managers: <span className="text-blue-300 font-extrabold">{staffOverview.totalStaff?.managers ?? 0}</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-800/80 bg-slate-900/50 text-right">
+              <button 
+                onClick={() => setShowStaffActivityModal(false)}
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors border border-slate-700 shadow-sm"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

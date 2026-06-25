@@ -146,6 +146,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [docModalOpen, setDocModalOpen] = useState(false);
+  const [viewDocsModalOpen, setViewDocsModalOpen] = useState(false);
   const [activeEmployee, setActiveEmployee] = useState<EmployeeProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -343,6 +344,11 @@ export default function EmployeesPage() {
     setActiveEmployee(emp);
     resetDoc({ name: '', fileUrl: '' });
     setDocModalOpen(true);
+  };
+
+  const handleOpenViewDocsModal = (emp: EmployeeProfile) => {
+    setActiveEmployee(emp);
+    setViewDocsModalOpen(true);
   };
 
   const onSubmitDoc = async (values: any) => {
@@ -564,7 +570,7 @@ export default function EmployeesPage() {
                   <th className="p-4">Role / Title</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Base Salary</th>
-                  <th className="p-4">Docs</th>
+                  <th className="p-4">DOCS</th>
                   {(canManage || employees.some(emp => emp._id === user?.id)) && <th className="p-4 text-right">Actions</th>}
                 </tr>
               </thead>
@@ -577,7 +583,7 @@ export default function EmployeesPage() {
                           {emp.photoUrl ? (
                             <img src={emp.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                           ) : (
-                            <span>{emp.firstName[0]}{emp.lastName[0]}</span>
+                            <span>{emp.firstName?.[0] || ''}{emp.lastName?.[0] || ''}</span>
                           )}
                         </div>
                         <div>
@@ -622,11 +628,16 @@ export default function EmployeesPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400 font-semibold">{emp.documents?.length || 0} files</span>
+                        <button
+                          onClick={() => handleOpenViewDocsModal(emp)}
+                          className="bg-slate-800 hover:bg-slate-700 text-gold hover:text-gold-light border border-gold/30 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors whitespace-nowrap"
+                        >
+                          [ View Docs ]
+                        </button>
                         {canManage && (
                           <button
                             onClick={() => handleOpenDocModal(emp)}
-                            className="p-1 hover:bg-slate-800 text-gold hover:text-gold-light rounded transition-colors cursor-pointer"
+                            className="p-1 hover:bg-slate-800 text-gold hover:text-gold-light rounded transition-colors cursor-pointer ml-2"
                             title="Add Document"
                           >
                             <GoogleIcon name="note_add" size={14} />
@@ -1070,6 +1081,83 @@ export default function EmployeesPage() {
           }}
         />
       )}
+      {/* View Docs Modal */}
+      {viewDocsModalOpen && activeEmployee && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0a1631] border border-slate-700/50 rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-slate-800">
+              <div>
+                <h3 className="font-extrabold text-white text-lg flex items-center gap-2">
+                  <GoogleIcon name="folder_shared" size={24} className="text-gold" />
+                  Employee Documents
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Viewing documents for <strong className="text-white">{activeEmployee.firstName} {activeEmployee.lastName}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setViewDocsModalOpen(false);
+                  setActiveEmployee(null);
+                }}
+                className="text-slate-400 hover:text-white p-2 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              >
+                <GoogleIcon name="close" size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-900/50">
+              {(!activeEmployee.documents || activeEmployee.documents.length === 0) ? (
+                <div className="text-center text-slate-500 py-16 bg-slate-950/40 rounded-xl border border-slate-800/60 shadow-inner">
+                  <div className="flex justify-center mb-4">
+                    <GoogleIcon name="folder_off" size={48} className="opacity-50 text-slate-600" />
+                  </div>
+                  <p className="text-lg font-semibold text-slate-400">No documents found</p>
+                  <p className="text-sm mt-2 max-w-sm mx-auto">This employee hasn't uploaded any documents yet, or they haven't been synchronized from their profile.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeEmployee.documents.map((doc, idx) => {
+                    const isImage = doc.fileUrl?.match(/\.(jpeg|jpg|gif|png|webp)$/i) || doc.fileUrl?.startsWith('data:image/');
+                    return (
+                      <div key={idx} className="bg-[#0f172a] border border-slate-700/50 hover:border-gold/30 rounded-xl p-4 flex flex-col gap-3 transition-colors group/card shadow-lg shadow-black/20">
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-white text-sm group-hover/card:text-gold transition-colors truncate pr-2" title={doc.name || `Document ${idx + 1}`}>
+                            {doc.name || `Document ${idx + 1}`}
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-mono bg-slate-800/50 px-2 py-1 rounded-md shrink-0 border border-slate-700">
+                            {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </div>
+                        {isImage ? (
+                          <div className="relative w-full aspect-video rounded-lg bg-slate-900/80 border border-slate-800 overflow-hidden group">
+                            <img src={doc.fileUrl} alt={doc.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                              <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="bg-gold hover:bg-gold-light text-slate-900 px-4 py-2 rounded-lg font-bold text-xs shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                                View Full Size
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex flex-col items-center justify-center bg-slate-900/80 border border-slate-800 rounded-lg py-8 group-hover/card:bg-slate-800/50 transition-colors">
+                            <div className="bg-slate-800 p-3 rounded-full mb-3 group-hover/card:bg-blue-600/20 transition-colors">
+                              <GoogleIcon name="description" size={32} className="text-slate-400 group-hover/card:text-blue-400 transition-colors" />
+                            </div>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-4 font-semibold">Document File</p>
+                            <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="bg-blue-600/20 hover:bg-blue-500 border border-blue-500/50 hover:border-blue-500 text-blue-400 hover:text-white px-5 py-2 rounded-lg font-bold text-xs transition-all shadow-lg hover:shadow-blue-500/20">
+                              View / Download
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1107,7 +1195,7 @@ const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; o
       const { latitude, longitude, address } = employee.homeLocation!;
 
       // Initialize Map
-      mapInstance = L.map('home-location-map').setView([latitude, longitude], 15);
+      mapInstance = L.map('home-location-map').setView([latitude || 0, longitude || 0], 15);
       mapRef.current = mapInstance;
 
       // Add OpenStreetMap tile layer
@@ -1123,7 +1211,7 @@ const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; o
           <div style="font-family: sans-serif; color: #1e293b; min-width: 200px;">
             <strong style="color: #0a1f5c; font-size: 13px;">🏠 Home Location</strong><br/>
             <strong>Employee:</strong> ${fullName}<br/>
-            <strong>Coordinates:</strong> ${latitude.toFixed(5)}, ${longitude.toFixed(5)}<br/>
+            <strong>Coordinates:</strong> ${latitude?.toFixed(5) || 'N/A'}, ${longitude?.toFixed(5) || 'N/A'}<br/>
             <strong>Address:</strong> ${address}
           </div>
         `)
@@ -1180,7 +1268,7 @@ const HomeLocationModal = ({ employee, onClose }: { employee: EmployeeProfile; o
           </div>
           <div className="flex flex-col justify-between items-start md:items-end">
             <div className="text-right space-y-1">
-              <span className="font-mono text-slate-200 font-bold block">GPS: {latitude.toFixed(6)}°, {longitude.toFixed(6)}°</span>
+              <span className="font-mono text-slate-200 font-bold block">GPS: {latitude?.toFixed(6) || 'N/A'}°, {longitude?.toFixed(6) || 'N/A'}°</span>
               {locationVerified && (
                 <span className="inline-flex items-center gap-1 bg-green-950/40 border border-green-800/40 text-green-400 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400" />

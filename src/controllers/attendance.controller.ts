@@ -480,15 +480,17 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
     const queryBuilder = Attendance.find(filter)
       .populate('employee', 'firstName lastName email department designation aadhaarNumber panNumber shift photoUrl role')
       .populate('hotel', 'name hotelCode')
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .lean();
 
     if (req.query.all === 'true' && !req.query.employeeId) {
       queryBuilder.limit(100);
     }
 
     const logs = await queryBuilder;
+    console.log(`[DEBUG] getHotelAttendance returning ${logs.length} logs for url all=${req.query.all}`);
 
-    const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel');
+    const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel').lean();
     const managerMap: any = {};
     managers.forEach((m) => {
       if (m.hotel) {
@@ -502,7 +504,7 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
     });
 
     const logsJson = logs.map(log => {
-      const obj = log.toObject() as any;
+      const obj = log as any;
       const hotelId = obj.hotel?._id?.toString() || obj.hotel?.toString();
       obj.manager = managerMap[hotelId] || null;
       return obj;
@@ -541,7 +543,9 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
     const logs = await Attendance.find(filter)
       .populate('employee', 'firstName lastName email department designation role photoUrl')
       .populate('hotel', 'name hotelCode')
-      .sort({ checkIn: -1 });
+      .sort({ checkIn: -1 })
+      .lean()
+      .limit(200);
 
     res.status(200).json({
       status: 'success',
@@ -579,7 +583,9 @@ export const getLocationHistory = async (req: Request, res: Response, next: Next
     const logs = await Attendance.find(filter)
       .populate('employee', 'firstName lastName email department designation role photoUrl')
       .populate('hotel', 'name hotelCode')
-      .sort({ date: -1, checkIn: -1 });
+      .sort({ date: -1, checkIn: -1 })
+      .lean()
+      .limit(300);
 
     res.status(200).json({
       status: 'success',
@@ -667,7 +673,9 @@ export const requestOvertime = async (req: Request, res: Response, next: NextFun
       recipientRole: 'ROOT_ADMIN',
       title: 'New Overtime Request',
       message: `${req.user.firstName} ${req.user.lastName} requested ${expectedDuration} of overtime.`,
-      type: 'info',
+      type: 'approval',
+      actionRequired: true,
+      sender: req.user?._id?.toString(),
     });
 
     res.status(200).json({

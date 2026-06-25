@@ -1,14 +1,9 @@
 export const DEPARTMENTS = [
-  "Property Department",
-  "IT Department",
-  "HR Department",
-  "Accounts Department",
-  "Marketing Department",
-  "Purchase Department",
-  "Security Department",
-  "Engineering Department",
-  "Reservation Department",
-  "Admin Department"
+  "CENTRAL TEAM",
+  "IT TEAM",
+  "CENTRAL OFFICE",
+  "PROPERTY",
+  "OTHER"
 ] as const;
 
 export type Department = typeof DEPARTMENTS[number];

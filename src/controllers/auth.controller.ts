@@ -514,11 +514,12 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     if (finalStatus === 'Pending') {
       // Trigger notification to ROOT_ADMIN
       await createNotification({
-        title: 'New Registration Request',
-        message: `New signup request from ${firstName} ${lastName} (${generatedEmail}) for role ${finalRole}.`,
-        type: 'info',
+        title: '🔔 New Approval Request',
+        message: `Employee: ${firstName} ${lastName}\nAction Required: Approve or Reject\nRole: ${finalRole}`,
+        type: 'approval',
         link: '/dashboard/employees',
-        recipientRole: 'ROOT_ADMIN'
+        recipientRole: 'ROOT_ADMIN',
+        actionRequired: true
       });
 
       res.status(201).json({

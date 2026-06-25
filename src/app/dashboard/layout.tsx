@@ -14,6 +14,7 @@ import TaskDeadlineAlert from '@/components/TaskDeadlineAlert';
 import { useCommunityStore } from '../../store/communityStore';
 import ThemeToggle from '@/components/ThemeToggle';
 import QRScannerModal from '@/components/QRScannerModal';
+import GlobalNotificationManager from '@/components/GlobalNotificationManager';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Notifications states
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationTab, setNotificationTab] = useState<'all' | 'unread' | 'approval' | 'task' | 'community' | 'call'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [showPermissionBanner, setShowPermissionBanner] = useState(false);
@@ -184,12 +186,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     socketConn.on('new_notification', (notification: any) => {
       setNotifications(prev => [notification, ...prev]);
       window.dispatchEvent(new CustomEvent('new_notification', { detail: notification }));
-      try {
-        const audio = new Audio('/alerm sound.mp3');
-        audio.play().catch(e => console.log('Error playing notification sound:', e));
-      } catch (err) {
-        console.error(err);
-      }
     });
 
     socketConn.on('incoming_call', (call: any) => {
@@ -368,7 +364,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          setProfilePhoto(canvas.toDataURL('image/jpeg', 0.8));
+          setProfilePhoto(canvas.toDataURL('image/webp', 0.7));
         } else {
           setProfilePhoto(base64);
         }
@@ -677,37 +673,71 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
-                  <div className="p-3 border-b border-slate-800 flex justify-between items-center">
-                    <h3 className="text-xs font-bold text-white">Notifications</h3>
-                    <button onClick={handleMarkAllAsRead} className="text-[10px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark All Read</button>
+                <div className="absolute right-0 mt-2 w-96 bg-[#0a1631]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col max-h-[80vh]">
+                  <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center shrink-0">
+                    <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                      <GoogleIcon name="notifications" className="text-gold" size={16} />
+                      Notification Center
+                    </h3>
+                    <button onClick={handleMarkAllAsRead} className="text-[10px] text-slate-400 hover:text-gold uppercase font-bold cursor-pointer transition-colors bg-slate-800 px-2 py-1 rounded">Mark All Read</button>
                   </div>
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 text-xs italic">All caught up!</div>
-                  ) : (
-                    notifications.map((n: any) => {
-                      const ni = getNotificationIcon(n.type);
-                      return (
-                        <div key={n._id} className={`p-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors ${!n.read ? 'bg-gold/5' : ''}`}>
-                          <div className="flex items-start gap-2.5">
-                            <span className={`p-1.5 rounded-lg ${ni.color}`}>
-                              <GoogleIcon name={ni.icon} size={14} />
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[11px] text-slate-200 font-semibold truncate">{n.title}</p>
-                              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <span className="text-[9px] text-slate-600 font-mono">{new Date(n.createdAt).toLocaleDateString()}</span>
-                                {!n.read && (
-                                  <button onClick={() => handleMarkAsRead(n._id)} className="text-[9px] text-gold hover:text-gold-light uppercase font-bold cursor-pointer">Mark Read</button>
-                                )}
+                  
+                  {/* Tabs */}
+                  <div className="flex overflow-x-auto scrollbar-none border-b border-slate-800 bg-slate-900/30 shrink-0 px-2 py-1 gap-1">
+                    {['all', 'unread', 'approval', 'task', 'community', 'call'].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setNotificationTab(tab as any)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors cursor-pointer ${
+                          notificationTab === tab
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="overflow-y-auto flex-1 p-2 space-y-1">
+                    {notifications.filter(n => {
+                      if (notificationTab === 'all') return true;
+                      if (notificationTab === 'unread') return !n.read;
+                      return n.type === notificationTab;
+                    }).length === 0 ? (
+                      <div className="p-8 text-center flex flex-col items-center gap-2">
+                         <GoogleIcon name="done_all" className="text-slate-600" size={32} />
+                         <span className="text-slate-500 text-xs italic font-semibold">All caught up!</span>
+                      </div>
+                    ) : (
+                      notifications.filter(n => {
+                        if (notificationTab === 'all') return true;
+                        if (notificationTab === 'unread') return !n.read;
+                        return n.type === notificationTab;
+                      }).map((n: any) => {
+                        const ni = getNotificationIcon(n.type);
+                        return (
+                          <div key={n._id} className={`p-3 rounded-xl border transition-colors ${!n.read ? 'bg-blue-900/20 border-blue-500/30' : 'bg-slate-900/40 border-slate-800/50 hover:bg-slate-800/80'}`}>
+                            <div className="flex items-start gap-3">
+                              <span className={`p-2 rounded-xl shrink-0 ${ni.color}`}>
+                                <GoogleIcon name={ni.icon} size={16} />
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-[11px] font-bold truncate ${!n.read ? 'text-white' : 'text-slate-300'}`}>{n.title}</p>
+                                <p className={`text-[10px] mt-1 line-clamp-2 ${!n.read ? 'text-slate-300' : 'text-slate-500'}`}>{n.message}</p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-[9px] text-slate-500 font-mono font-semibold">{new Date(n.createdAt).toLocaleString()}</span>
+                                  {!n.read && (
+                                    <button onClick={() => handleMarkAsRead(n._id)} className="text-[9px] bg-slate-800 hover:bg-slate-700 text-gold px-2 py-1 rounded uppercase font-bold cursor-pointer transition-colors">Mark Read</button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -715,6 +745,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
+          <GlobalNotificationManager />
           {children}
           <TaskNotificationPopup />
           <TaskDeadlineAlert />

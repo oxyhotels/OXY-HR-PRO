@@ -15,6 +15,7 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -275,12 +276,15 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
                       <table className="w-full text-xs text-left">
                         <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider sticky top-0 text-[10px]">
                           <tr>
+                            <th className="px-4 py-3">Property</th>
                             <th className="px-4 py-3">Date</th>
                             <th className="px-4 py-3 text-center">Status</th>
                             <th className="px-4 py-3 text-center">In</th>
                             <th className="px-4 py-3 text-center">Out</th>
                             <th className="px-4 py-3 text-center">Work Time</th>
                             <th className="px-4 py-3 text-center">Break</th>
+                            <th className="px-4 py-3 text-center">Location</th>
+                            <th className="px-4 py-3 text-center">Evidence</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850 font-sans">
@@ -323,12 +327,41 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
 
                             return (
                               <tr key={log._id} className="hover:bg-slate-900/40 transition-colors">
+                                <td className="px-4 py-3 text-slate-300 font-bold truncate max-w-[120px]" title={log.hotel?.name || 'N/A'}>
+                                  {log.hotel?.name || <span className="text-slate-600">N/A</span>}
+                                </td>
                                 <td className="px-4 py-3 font-mono text-slate-300 font-semibold">{log.date}</td>
                                 <td className="px-4 py-3 text-center">{statusBadge}</td>
                                 <td className="px-4 py-3 text-center font-mono text-slate-400">{checkInTime}</td>
                                 <td className="px-4 py-3 text-center font-mono text-slate-400">{checkOutTime}</td>
                                 <td className="px-4 py-3 text-center font-mono text-gold font-semibold">{workingHours} hrs</td>
                                 <td className="px-4 py-3 text-center font-mono text-slate-400">{log.totalBreakMinutes || 0}m</td>
+                                <td className="px-4 py-3 text-center">
+                                  {log.checkInLatitude && log.checkInLongitude ? (
+                                    <a 
+                                      href={`https://www.google.com/maps/search/?api=1&query=${log.checkInLatitude},${log.checkInLongitude}`} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-400 hover:text-blue-300 transition-colors flex items-center justify-center gap-1 text-[10px]"
+                                    >
+                                      <GoogleIcon name="location_on" size={14} /> View
+                                    </a>
+                                  ) : (
+                                    <span className="text-slate-600 text-[10px]">-</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {log.checkInPhoto || log.selfieUrl ? (
+                                    <button 
+                                      onClick={() => setPreviewImage(log.checkInPhoto || log.selfieUrl)}
+                                      className="w-8 h-8 rounded-full border-2 border-slate-700 hover:border-gold object-cover mx-auto overflow-hidden transition-all cursor-pointer"
+                                    >
+                                      <img src={log.checkInPhoto || log.selfieUrl} alt="Selfie Evidence" className="w-full h-full object-cover" />
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-600 text-[10px]">-</span>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })}
@@ -398,6 +431,19 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
         </div>
 
       </div>
+
+      {/* Enlarged Image Evidence Preview modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex items-center justify-center p-4" 
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[85vh] w-auto h-auto flex flex-col items-center">
+            <button className="absolute top-[-35px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded cursor-pointer transition-colors">✕ Close</button>
+            <img src={previewImage} alt="Evidence preview" className="max-w-full max-h-[80vh] rounded shadow-2xl object-contain border border-gold/20" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

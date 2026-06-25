@@ -792,7 +792,7 @@ export default function AttendancePage() {
                               {log.employee?.photoUrl ? (
                                 <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                               ) : (
-                                <span>{log.employee ? `${log.employee.firstName[0]}${log.employee.lastName[0]}` : '??'}</span>
+                                <span>{log.employee ? `${log.employee.firstName?.[0] || ''}${log.employee.lastName?.[0] || ''}` : '??'}</span>
                               )}
                             </div>
                             <div>
@@ -1038,7 +1038,7 @@ export default function AttendancePage() {
                       {log.employee.photoUrl ? (
                         <img src={log.employee.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <span>{log.employee.firstName[0]}{log.employee.lastName[0]}</span>
+                        <span>{log.employee.firstName?.[0] || ''}{log.employee.lastName?.[0] || ''}</span>
                       )}
                     </div>
                     <div>

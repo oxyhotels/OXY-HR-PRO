@@ -223,9 +223,10 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         await createNotification({
           title: 'New Group Assignment',
           message: `You have been added to a new group: ${name}`,
-          type: 'info',
+          type: 'community',
           link: '/dashboard/community',
           recipientId: member.user.toString(),
+          sender: req.user._id.toString(),
         }).catch(err => console.error('Failed to create group notification', err));
 
         if (io) {
@@ -276,9 +277,12 @@ export const getGroupMessages = async (req: Request, res: Response, next: NextFu
       .populate('sender', 'firstName lastName photoUrl role department')
       .populate('parentMessage')
       .populate('appreciation.recipient', 'firstName lastName photoUrl role department')
-      .sort({ createdAt: 1 }) // Chronological order
+      .sort({ createdAt: -1 }) // Newest first for pagination
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    messages.reverse(); // Reverse back to chronological order for UI
 
     res.status(200).json({
       status: 'success',
@@ -404,11 +408,13 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
       const notif = await Notification.create({
         recipient: member.user,
+        sender: req.user?._id,
         title,
         message: messageText,
         type,
         link: `/dashboard/community?groupId=${groupId}`
       });
+      const populatedNotif = await notif.populate('sender', 'firstName lastName photoUrl role');
 
       // Check online status via Socket.IO adapter
       const io = getIO();
@@ -424,7 +430,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
       if (isOnline) {
         if (io) {
-          io.to(`user_${memberIdStr}`).emit('new_notification', notif);
+          io.to(`user_${memberIdStr}`).emit('new_notification', populatedNotif);
         }
       } else {
         await sendPushNotification(memberIdStr, {
@@ -705,11 +711,14 @@ export const startCallSession = async (req: Request, res: Response, next: NextFu
     for (const mId of otherMembers) {
       const notif = await Notification.create({
         recipient: mId,
+        sender: req.user?._id,
         title: callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call',
         message: `${callerName} started a group ${callType} call in "${group.name}"`,
         type: 'call',
+        actionRequired: true, // Calls require Accept/Decline action
         link: `/dashboard/community?groupId=${groupId}&callId=${callSession._id}`
       });
+      const populatedNotif = await notif.populate('sender', 'firstName lastName photoUrl role');
 
       // Emit notification/call to user
       const io = getIO();
@@ -718,7 +727,7 @@ export const startCallSession = async (req: Request, res: Response, next: NextFu
 
       if (isOnline) {
         if (io) {
-          io.to(`user_${mId}`).emit('new_notification', notif);
+          io.to(`user_${mId}`).emit('new_notification', populatedNotif);
           io.to(`user_${mId}`).emit('incoming_call', {
             callId: callSession._id,
             groupId: group._id,
@@ -1103,9 +1112,10 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
     await createNotification({
       title: 'New Group Assignment',
       message: `You have been added to a new group: ${group.name}`,
-      type: 'info',
+      type: 'community',
       link: '/dashboard/community',
       recipientId: userId,
+      sender: req.user?._id?.toString(),
     }).catch(err => console.error('Failed to create group notification', err));
 
     res.status(200).json({

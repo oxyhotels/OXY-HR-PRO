@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import PwaRegister from "../components/PwaRegister";
 import PerformancePanel from "@/components/PerformancePanel";
 import ContentAreaWrapper from "@/components/ContentAreaWrapper";
+import QueryProvider from "@/components/QueryProvider";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -156,11 +157,13 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col font-sans">
         <PwaRegister />
         <PerformancePanel />
-        <div className="flex-1 flex flex-col">
-          <ContentAreaWrapper>
-            {children}
-          </ContentAreaWrapper>
-        </div>
+        <QueryProvider>
+          <div className="flex-1 flex flex-col">
+            <ContentAreaWrapper>
+              {children}
+            </ContentAreaWrapper>
+          </div>
+        </QueryProvider>
         <Footer />
       </body>
     </html>

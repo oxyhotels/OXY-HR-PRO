@@ -106,7 +106,7 @@ export default function MobileProfilePage() {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          setPhoto(canvas.toDataURL('image/jpeg', 0.8));
+          setPhoto(canvas.toDataURL('image/webp', 0.7));
         } else {
           setPhoto(base64);
         }
@@ -258,7 +258,7 @@ export default function MobileProfilePage() {
           {photo ? (
             <img src={photo} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-xl text-gold uppercase">{firstName[0]}{lastName[0]}</span>
+            <span className="text-xl text-gold uppercase">{firstName?.[0] || ''}{lastName?.[0] || ''}</span>
           )}
           <label className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
             <GoogleIcon name="photo_camera" size={18} className="text-white" />

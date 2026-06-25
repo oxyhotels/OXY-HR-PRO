@@ -228,7 +228,7 @@ export default function TrackingPage() {
           <div style="font-family: system-ui, sans-serif; min-width: 220px; padding: 4px;">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
               <div style="width: 36px; height: 36px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #334155; font-size: 12px;">
-                ${session.employee.firstName[0]}${session.employee.lastName[0]}
+                ${session.employee.firstName?.[0] || ''}${session.employee.lastName?.[0] || ''}
               </div>
               <div>
                 <div style="font-weight: 600; color: #0f172a; font-size: 13px;">${session.employee.firstName} ${session.employee.lastName}</div>

@@ -43,11 +43,40 @@ interface Task {
   completionRemark?: string;
   evidenceUrl?: string;
   responses: any[];
+  taskWorkSessions?: {
+    startedAt: string;
+    endedAt?: string;
+    duration?: number;
+    updateMessage?: string;
+    evidenceImage?: string;
+  }[];
+  totalWorkedMinutes?: number;
+  latestUpdate?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 type KanbanColumn = 'todo' | 'inProgress' | 'hold' | 'completed' | 'rejected';
+
+const LiveTimer = ({ startedAt }: { startedAt: string }) => {
+  const [duration, setDuration] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const start = new Date(startedAt).getTime();
+      const now = new Date().getTime();
+      const diffMins = Math.floor((now - start) / 60000);
+      const h = Math.floor(diffMins / 60);
+      const m = diffMins % 60;
+      setDuration(`${h}h ${m}m`);
+    };
+    update();
+    const interval = setInterval(update, 60000); // update every minute
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  return <span className="font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px] animate-pulse">Live: {duration}</span>;
+};
 
 export default function MyTasksPage() {
   const { user } = useAuthStore();
@@ -57,7 +86,7 @@ export default function MyTasksPage() {
   const [activeColumn, setActiveColumn] = useState<KanbanColumn>('todo');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
-  const [actionType, setActionType] = useState<'hold' | 'reject' | 'complete' | 'progress' | 'updateStatus' | null>(null);
+
   const [remark, setRemark] = useState('');
   const [progress, setProgress] = useState(0);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -135,6 +164,19 @@ export default function MyTasksPage() {
     }
   };
 
+  type ActionType = 'accept' | 'hold' | 'reject' | 'progress' | 'complete' | 'updateStatus' | 'pauseSession';
+  const [actionType, setActionType] = useState<ActionType | null>(null);
+
+  const startWorkSession = async (taskId: string) => {
+    try {
+      await api.post(`/tasks/${taskId}/work-session`, { action: 'start' });
+      fetchMyTasks();
+    } catch (error) {
+      console.error('Failed to start session', error);
+      alert('Failed to start session');
+    }
+  };
+
   const handleAction = async () => {
     if (!selectedTask || !actionType) return;
     setSubmitting(true);
@@ -158,9 +200,18 @@ export default function MyTasksPage() {
         payload.photoUrl = photo;
       }
 
-      const endpoint = actionType === 'updateStatus' ? 'update-status' : (actionType === 'progress' ? 'progress' : actionType);
-      await api.post(`/tasks/${selectedTask._id}/${endpoint}`, payload);
-      await fetchMyTasks();
+      if (actionType === 'pauseSession') {
+        await api.post(`/tasks/${selectedTask._id}/work-session`, {
+          action: 'pause',
+          updateMessage: remark,
+          evidenceImage: photo
+        });
+      } else if (actionType === 'updateStatus') {
+        await api.post(`/tasks/${selectedTask._id}/update-status`, payload);
+      } else {
+        await api.post(`/tasks/${selectedTask._id}/${actionType}`, payload);
+      }
+
       setShowActionModal(false);
       setSelectedTask(null);
       setActionType(null);
@@ -338,6 +389,56 @@ export default function MyTasksPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Work Session Tracker */}
+                {task.status === 'In_Progress' && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex justify-between items-center">
+                      Work Session Tracker
+                      {task.totalWorkedMinutes !== undefined && task.totalWorkedMinutes > 0 && (
+                        <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[9px]">
+                          Total: {Math.floor(task.totalWorkedMinutes / 60)}h {task.totalWorkedMinutes % 60}m
+                        </span>
+                      )}
+                    </h4>
+                    
+                    {(() => {
+                      const activeSession = task.taskWorkSessions?.find(s => !s.endedAt);
+                      return activeSession ? (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center bg-slate-50 px-2 py-1.5 rounded border border-slate-100">
+                            <span className="text-[10px] text-slate-500 font-semibold">Current Session</span>
+                            <LiveTimer startedAt={activeSession.startedAt} />
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setActionType('pauseSession');
+                              setRemark('');
+                              setPhoto(null);
+                              setShowActionModal(true);
+                            }}
+                            className="w-full flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-amber-200 shadow-sm"
+                          >
+                            <GoogleIcon name="pause" size={16} /> Pause Work
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startWorkSession(task._id);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-[0_4px_12px_rgba(37,99,235,0.2)]"
+                        >
+                          <GoogleIcon name="play_arrow" size={16} /> 
+                          {task.taskWorkSessions?.length ? 'Resume Work' : 'Start Work'}
+                        </button>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Quick Actions */}
                 <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2">
@@ -619,11 +720,11 @@ export default function MyTasksPage() {
             )}
 
             {/* Action Form */}
-            {(actionType === 'hold' || actionType === 'reject' || actionType === 'complete') && (
+            {(actionType === 'hold' || actionType === 'reject' || actionType === 'complete' || actionType === 'pauseSession') && (
               <div className="space-y-4">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-2 text-xs uppercase tracking-wider">
-                    {actionType === 'hold' ? 'Hold Reason' : actionType === 'reject' ? 'Rejection Reason' : 'Completion Note'} *
+                    {actionType === 'hold' ? 'Hold Reason' : actionType === 'reject' ? 'Rejection Reason' : actionType === 'pauseSession' ? 'Progress Update Message' : 'Completion Note'} *
                   </label>
                   <textarea
                     rows={4}
@@ -635,15 +736,17 @@ export default function MyTasksPage() {
                         ? 'Please provide reason for holding this task...'
                         : actionType === 'reject'
                         ? 'Please provide reason for rejection...'
+                        : actionType === 'pauseSession'
+                        ? 'Describe your work progress...'
                         : 'Add completion notes...'
                     }
                   />
                 </div>
 
-                {(actionType === 'hold' || actionType === 'complete') && (
+                {(actionType === 'hold' || actionType === 'complete' || actionType === 'pauseSession') && (
                   <div>
                     <label className="block text-slate-700 font-semibold mb-2 text-xs uppercase tracking-wider">
-                      {actionType === 'hold' ? 'Photo (Optional)' : 'Evidence Photo'}
+                      {actionType === 'hold' || actionType === 'pauseSession' ? 'Photo (Optional)' : 'Evidence Photo'}
                     </label>
                     <input
                       type="file"
@@ -770,12 +873,18 @@ export default function MyTasksPage() {
                   <>
                     <GoogleIcon name="check" size={14} />
                     {actionType === 'hold'
-                      ? 'Hold Task'
+                      ? 'Submit Hold'
                       : actionType === 'reject'
-                      ? 'Reject Task'
+                      ? 'Submit Rejection'
                       : actionType === 'complete'
-                      ? 'Complete Task'
-                      : 'Update Progress'}
+                      ? 'Submit Completion'
+                      : actionType === 'pauseSession'
+                      ? 'Pause Session'
+                      : actionType === 'progress'
+                      ? 'Update Progress'
+                      : actionType === 'updateStatus'
+                      ? 'Confirm Update'
+                      : 'Confirm'}
                   </>
                 )}
               </button>

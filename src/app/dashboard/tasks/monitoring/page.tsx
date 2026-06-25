@@ -454,7 +454,7 @@ export default function TaskMonitoringPage() {
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center border border-slate-200">
                           <span className="text-[9px] font-bold text-blue-700">
-                            {assignee.firstName[0]}{assignee.lastName[0]}
+                            {assignee.firstName?.[0] || ''}{assignee.lastName?.[0] || ''}
                           </span>
                         </div>
                       )}
@@ -752,7 +752,7 @@ export default function TaskMonitoringPage() {
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                           <span className="text-sm font-bold text-blue-700">
-                            {assignee.firstName[0]}{assignee.lastName[0]}
+                            {assignee.firstName?.[0] || ''}{assignee.lastName?.[0] || ''}
                           </span>
                         </div>
                       )}

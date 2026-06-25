@@ -4,8 +4,8 @@ import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
 import { syncUserDepartmentGroups, addUserToGlobalGroup } from './community.controller';
+import { Attendance } from '@/models/Attendance';
 import { diffFields, logAuditTrail } from '@/utils/audit';
-
 const validateShiftDetails = (body: any) => {
   if (body.isCustom) {
     if (!body.startTime) {
@@ -561,6 +561,78 @@ export const approveSignup = async (req: Request, res: Response, next: NextFunct
       status: 'success',
       message: `User signup approved successfully as ${employee.role}`,
       data: { employee },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStaffOverview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (req.user?.role !== 'ROOT_ADMIN') {
+      throw new ApiError(403, 'Permission denied. Only Root Admin can view overall staff status.');
+    }
+
+    const todayDateStr = new Date().toISOString().split('T')[0];
+
+    // Fetch all employees/managers (excluding ROOT_ADMIN and Pending users if needed, but let's include active only for active tracking)
+    // Actually, Total Staff includes all registered, maybe active and terminated. Let's fetch all users.
+    const allUsers = await User.find({
+      role: { $in: ['EMPLOYEE', 'HR_MANAGER', 'DEPT_MANAGER', 'HOTEL_ADMIN'] },
+      status: 'Active'
+    }).select('_id role status');
+
+    const totalEmployeesCount = allUsers.filter(u => u.role === 'EMPLOYEE').length;
+    const totalManagersCount = allUsers.filter(u => u.role !== 'EMPLOYEE').length;
+    const totalStaffCount = totalEmployeesCount + totalManagersCount;
+
+    // Fetch today's attendances
+    const todayAttendances = await Attendance.find({
+      date: todayDateStr,
+      employee: { $in: allUsers.map(u => u._id) }
+    }).select('employee checkOut status');
+
+    let activeEmployees = 0;
+    let activeManagers = 0;
+    let dutyOffEmployees = 0;
+    let dutyOffManagers = 0;
+
+    allUsers.forEach(user => {
+      const attendance = todayAttendances.find(a => a.employee.toString() === user._id.toString());
+      
+      let isActive = false;
+      if (attendance && !attendance.checkOut && attendance.status === 'Present') {
+        isActive = true;
+      }
+
+      if (user.role === 'EMPLOYEE') {
+        if (isActive) activeEmployees++;
+        else dutyOffEmployees++;
+      } else {
+        if (isActive) activeManagers++;
+        else dutyOffManagers++;
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        totalStaff: {
+          total: totalStaffCount,
+          employees: totalEmployeesCount,
+          managers: totalManagersCount
+        },
+        activeStaff: {
+          total: activeEmployees + activeManagers,
+          employees: activeEmployees,
+          managers: activeManagers
+        },
+        dutyOffStaff: {
+          total: dutyOffEmployees + dutyOffManagers,
+          employees: dutyOffEmployees,
+          managers: dutyOffManagers
+        }
+      }
     });
   } catch (error) {
     next(error);

@@ -172,5 +172,6 @@ const CommunityMessageSchema = new Schema<ICommunityMessage>(
 );
 
 CommunityMessageSchema.index({ group: 1, createdAt: -1 });
+CommunityMessageSchema.index({ sender: 1 });
 
 export const CommunityMessage = models.CommunityMessage || model<ICommunityMessage>('CommunityMessage', CommunityMessageSchema);

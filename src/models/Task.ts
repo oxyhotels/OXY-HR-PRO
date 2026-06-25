@@ -66,6 +66,19 @@ export interface ITask extends Document {
     createdAt: Date;
   }[];
 
+  // ✅ NEW: Work Session Tracking
+  taskWorkSessions: {
+    startedAt: Date;
+    endedAt?: Date;
+    duration?: number; // in minutes
+    updateMessage?: string;
+    evidenceImage?: string;
+    updatedBy: Schema.Types.ObjectId;
+    updatedAt: Date;
+  }[];
+  totalWorkedMinutes: number;
+  latestUpdate?: string;
+
   viewCount: number;
   acceptedAt?: Date;
   completedAt?: Date;
@@ -148,6 +161,19 @@ const TaskSchema = new Schema<ITask>(
       createdAt: { type: Date, default: Date.now }
     }],
 
+    // ✅ NEW: Work Session Tracking
+    taskWorkSessions: [{
+      startedAt: { type: Date, required: true },
+      endedAt: { type: Date },
+      duration: { type: Number },
+      updateMessage: { type: String },
+      evidenceImage: { type: String },
+      updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+      updatedAt: { type: Date, default: Date.now }
+    }],
+    totalWorkedMinutes: { type: Number, default: 0 },
+    latestUpdate: { type: String },
+
     viewCount: { type: Number, default: 0 },
     acceptedAt: { type: Date },
     completedAt: { type: Date },
@@ -172,5 +198,9 @@ TaskSchema.index({ hotel: 1, assignedTo: 1 });
 TaskSchema.index({ hotel: 1, status: 1 });
 TaskSchema.index({ hotel: 1, assignedDepartments: 1 });
 TaskSchema.index({ assignedBy: 1, createdAt: -1 });
+// Performance Indexes
+TaskSchema.index({ dueDate: 1 });
+TaskSchema.index({ assignedTo: 1 });
+TaskSchema.index({ status: 1 });
 
 export const Task = models.Task || model<ITask>('Task', TaskSchema);

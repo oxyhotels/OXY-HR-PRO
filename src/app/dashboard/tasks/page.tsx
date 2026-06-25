@@ -33,6 +33,16 @@ interface Task {
     timestamp: string;
     evidenceUrl?: string;
   }[];
+  taskWorkSessions?: {
+    startedAt: string;
+    endedAt?: string;
+    duration?: number;
+    updateMessage?: string;
+    evidenceImage?: string;
+    updatedAt: string;
+  }[];
+  totalWorkedMinutes?: number;
+  latestUpdate?: string;
   viewCount: number;
   createdAt: string;
 }
@@ -353,6 +363,31 @@ export default function TasksPage() {
                   </div>
                 </div>
               )}
+
+              {(task.totalWorkedMinutes !== undefined && task.totalWorkedMinutes > 0) || task.latestUpdate ? (
+                <div className="mt-3 pt-3 border-t border-slate-100 bg-blue-50/50 rounded-b-xl -mx-5 -mb-5 px-5 pb-5 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Work Progress</span>
+                    {task.totalWorkedMinutes !== undefined && task.totalWorkedMinutes > 0 && (
+                      <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                        {Math.floor(task.totalWorkedMinutes / 60)}h {task.totalWorkedMinutes % 60}m
+                      </span>
+                    )}
+                  </div>
+                  {task.latestUpdate && (
+                    <div className="text-[10px] text-slate-700 bg-white p-2 rounded border border-slate-200 line-clamp-2">
+                      <span className="font-semibold text-slate-400 block mb-0.5">Latest Update:</span>
+                      {task.latestUpdate}
+                    </div>
+                  )}
+                  {task.taskWorkSessions && task.taskWorkSessions.length > 0 && task.taskWorkSessions[task.taskWorkSessions.length - 1].evidenceImage && (
+                    <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1">
+                      <GoogleIcon name="image" size={12} />
+                      Has Evidence Image
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -754,6 +789,45 @@ function TaskDetailModal({ task, onClose, onAction, isManager }: { task: Task; o
                     </span>
                     {resp.reason && <span className="text-slate-600 text-[10px]">Reason: {resp.reason}</span>}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {task.taskWorkSessions && task.taskWorkSessions.length > 0 && (
+          <div className="border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Work Timeline</h4>
+              <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+                Total Worked: {task.totalWorkedMinutes ? `${Math.floor(task.totalWorkedMinutes / 60)}h ${task.totalWorkedMinutes % 60}m` : '0m'}
+              </span>
+            </div>
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+              {task.taskWorkSessions.map((session, idx) => (
+                <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                    <span className="font-bold text-blue-700 text-xs">Session #{idx + 1}</span>
+                    <span className="text-xs font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                      {session.duration ? `${Math.floor(session.duration / 60)}h ${session.duration % 60}m` : 'Active'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 mb-3 font-mono flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                    <div className="flex items-center gap-1"><GoogleIcon name="play_circle" size={12}/> {new Date(session.startedAt).toLocaleString()}</div>
+                    {session.endedAt && <div className="flex items-center gap-1"><GoogleIcon name="stop_circle" size={12}/> {new Date(session.endedAt).toLocaleString()}</div>}
+                  </div>
+                  {session.updateMessage && (
+                    <div className="text-xs text-slate-700 bg-white p-2 rounded-lg border border-slate-100 mb-2">
+                      <span className="font-semibold block mb-1 text-[10px] uppercase text-slate-400">Update:</span>
+                      {session.updateMessage}
+                    </div>
+                  )}
+                  {session.evidenceImage && (
+                    <div className="mt-2">
+                      <span className="font-semibold block mb-1 text-[10px] uppercase text-slate-400">Evidence:</span>
+                      <img src={session.evidenceImage} alt="Work session evidence" className="w-full max-w-[200px] h-32 object-cover rounded-lg border border-slate-200" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
