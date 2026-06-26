@@ -199,9 +199,7 @@ export default function DashboardPage() {
   const fetchLiveAttendance = async () => {
     setAttendanceLoading(true);
     try {
-      const url = (user?.role === 'ROOT_ADMIN' || user?.role === 'HOTEL_ADMIN' || user?.role === 'HR_MANAGER') 
-        ? '/attendance/hotel?all=true' 
-        : '/attendance/hotel';
+      const url = '/attendance/hotel';
       const res = await api.get(url);
       setLiveAttendance(res.data.logs || []);
     } catch (err) {

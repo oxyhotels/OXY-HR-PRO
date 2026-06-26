@@ -115,7 +115,10 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
           {
             $or: [
               { hotel: userHotel },
-              { type: 'GlobalGroup' }
+              { type: 'GlobalGroup' },
+              { hotel: null },
+              { hotel: { $exists: false } },
+              { 'members.user': userId }
             ]
           }
         ]
