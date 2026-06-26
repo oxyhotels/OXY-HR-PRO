@@ -141,7 +141,11 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
             const errData = JSON.parse(retryText);
             retryErr = errData.message || retryErr;
           } catch (e) {
-            retryErr = `HTTP Error ${retryRes.status}: ${retryText || retryRes.statusText}`;
+            if (retryText.trim().startsWith('<')) {
+              retryErr = `HTTP Error ${retryRes.status}: ${retryRes.statusText || 'Endpoint not found'}`;
+            } else {
+              retryErr = `HTTP Error ${retryRes.status}: ${retryText || retryRes.statusText}`;
+            }
           }
           throw new Error(retryErr);
         }
@@ -160,7 +164,11 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
           const errorData = JSON.parse(responseText);
           errorMessage = errorData.message || errorMessage;
         } catch (e) {
-          errorMessage = `HTTP Error ${response.status}: ${responseText || response.statusText}`;
+          if (responseText.trim().startsWith('<')) {
+            errorMessage = `HTTP Error ${response.status}: ${response.statusText || 'Endpoint not found'}`;
+          } else {
+            errorMessage = `HTTP Error ${response.status}: ${responseText || response.statusText}`;
+          }
         }
         throw new Error(errorMessage);
       }

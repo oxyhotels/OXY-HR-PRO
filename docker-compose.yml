@@ -49,7 +49,7 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+      - NEXT_PUBLIC_API_URL=https://www.oxyhotel.in/api
     depends_on:
       - backend
     networks:

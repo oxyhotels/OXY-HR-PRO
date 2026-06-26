@@ -318,10 +318,19 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction):
       .lean()
       .limit(300);
 
+    const safeTasks = tasks.map((t: any) => ({
+      ...t,
+      responses: t.responses || [],
+      taskWorkSessions: t.taskWorkSessions || [],
+      assignedTo: t.assignedTo || [],
+      assignedDepartments: t.assignedDepartments || [],
+      checklist: t.checklist || [],
+    }));
+
     res.status(200).json({
       status: 'success',
-      results: tasks.length,
-      data: { tasks },
+      results: safeTasks.length,
+      data: { tasks: safeTasks },
     });
   } catch (error) {
     next(error);

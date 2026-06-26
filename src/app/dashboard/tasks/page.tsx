@@ -355,7 +355,7 @@ export default function TasksPage() {
                 )}
               </div>
 
-              {task.responses.length > 0 && (
+              {task.responses && task.responses.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-100">
                   <div className="flex items-center gap-2 text-[10px] text-slate-600">
                     <GoogleIcon name="history" size={14} />
@@ -768,7 +768,7 @@ function TaskDetailModal({ task, onClose, onAction, isManager }: { task: Task; o
           </div>
         </div>
 
-        {task.responses.length > 0 && (
+        {task.responses && task.responses.length > 0 && (
           <div className="border-t border-slate-200 pt-4">
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Response History</h4>
             <div className="space-y-2 max-h-60 overflow-y-auto">
