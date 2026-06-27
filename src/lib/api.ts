@@ -103,18 +103,11 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
             } else {
               isRefreshing = false;
               useAuthStore.getState().clearAuth();
-              // Only redirect if we're on a dashboard page
-              if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
-                window.location.href = '/login';
-              }
               throw new Error('Session expired - please login again');
             }
           } catch (refreshErr) {
             isRefreshing = false;
             useAuthStore.getState().clearAuth();
-            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
-              window.location.href = '/login';
-            }
             throw refreshErr;
           }
         }

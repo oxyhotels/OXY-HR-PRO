@@ -98,7 +98,110 @@ const SearchableDropdown = ({
     </div>
   );
 };
+const ReportingManagerDropdown = ({
+  managers,
+  value,
+  onChange,
+  disabled
+}: {
+  managers: any[];
+  value: any;
+  onChange: (val: any) => void;
+  disabled?: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const filtered = managers.filter((mgr) => {
+    const name = `${mgr.firstName || ''} ${mgr.lastName || ''}`.toLowerCase();
+    const code = (mgr.managerCode || mgr.employeeCode || '').toLowerCase();
+    const dept = (mgr.department || '').toLowerCase();
+    const prop = (mgr.hotel?.name || '').toLowerCase();
+    const term = searchTerm.toLowerCase();
+    return name.includes(term) || code.includes(term) || dept.includes(term) || prop.includes(term);
+  });
+
+  const getDisplayText = (mgr: any) => {
+    if (!mgr) return 'Select Reporting Manager...';
+    const name = `${mgr.firstName || ''} ${mgr.lastName || ''}`.trim();
+    const code = mgr.managerCode || mgr.employeeCode || 'N/A';
+    const dept = mgr.department || 'N/A';
+    const prop = mgr.hotel?.name || 'N/A';
+    return `${name} (${code}) – ${dept} – ${prop}`;
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <label className="block text-slate-400 font-semibold mb-1">Reporting Manager</label>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full bg-slate-950/60 border rounded py-1.5 px-3 text-white flex justify-between items-center cursor-pointer outline-none transition-all ${
+          disabled ? 'opacity-40 cursor-not-allowed border-slate-800' : 'border-slate-800 hover:border-gold/60 focus:border-gold'
+        }`}
+      >
+        <span className={value ? 'text-white text-xs truncate mr-2' : 'text-slate-500 text-xs truncate mr-2'}>
+          {value ? getDisplayText(value) : 'Select Reporting Manager...'}
+        </span>
+        <ChevronDown size={12} className="text-slate-500 shrink-0" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1.5 bg-[#0b1424] border border-slate-800 rounded shadow-xl max-h-60 flex flex-col overflow-hidden animate-in fade-in duration-200">
+          <div className="p-2 border-b border-slate-800 flex items-center gap-1.5 bg-slate-950/60">
+            <Search size={12} className="text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search by name, code, dept, property..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent text-white border-none outline-none text-xs placeholder:text-slate-600 focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 max-h-48 py-1">
+            {filtered.map((mgr) => {
+              const isSelected = value && value._id === mgr._id;
+              return (
+                <div
+                  key={mgr._id}
+                  onClick={() => {
+                    onChange(mgr);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`px-3 py-2 text-xs text-slate-300 hover:bg-gold/10 hover:text-white cursor-pointer transition-colors border-b border-slate-800/30 last:border-0 ${
+                    isSelected ? 'bg-gold/15 text-gold font-bold' : ''
+                  }`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold text-[13px]">{`${mgr.firstName || ''} ${mgr.lastName || ''}`} <span className="text-slate-500 font-normal">({mgr.managerCode || mgr.employeeCode || 'N/A'})</span></span>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">{mgr.department || 'N/A'} • {mgr.hotel?.name || 'N/A'}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="px-3 py-3 text-xs text-slate-500 text-center italic">
+                No managers found matching your search.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 const registerSchema = z.object({
@@ -112,6 +215,12 @@ const registerSchema = z.object({
   category: z.string().optional(),
   designation: z.string().optional(),
   role: z.string().optional(),
+  reportingManager: z.string().optional(),
+  reportingManagerId: z.string().optional(),
+  reportingManagerName: z.string().optional(),
+  reportingManagerCode: z.string().optional(),
+  reportingManagerDepartment: z.string().optional(),
+  reportingManagerProperty: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -129,6 +238,11 @@ const employeeRegisterSchema = z.object({
   role: z.string().default('EMPLOYEE'),
   employeeId: z.string().optional(),
   reportingManager: z.string().optional(),
+  reportingManagerId: z.string().optional(),
+  reportingManagerName: z.string().optional(),
+  reportingManagerCode: z.string().optional(),
+  reportingManagerDepartment: z.string().optional(),
+  reportingManagerProperty: z.string().optional(),
   employmentType: z.string().optional(),
   designation: z.string().optional(),
   salary: z.string().optional(),
@@ -535,6 +649,12 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
       category: '',
       designation: '',
       role: '',
+      reportingManager: '',
+      reportingManagerId: '',
+      reportingManagerName: '',
+      reportingManagerCode: '',
+      reportingManagerDepartment: '',
+      reportingManagerProperty: '',
     },
   });
 
@@ -573,6 +693,11 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
       emergencyContactRelation: '',
       emergencyContactPhone: '',
       joiningDate: '',
+      reportingManagerId: '',
+      reportingManagerName: '',
+      reportingManagerCode: '',
+      reportingManagerDepartment: '',
+      reportingManagerProperty: '',
     },
   });
   const empSignupErrors = empSignupErrorsRaw as any;
@@ -587,9 +712,12 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
         setValueEmpSignup('department', deptName);
         setValueEmpSignup('property', hotelId);
         setValueEmpSignup('reportingManager', inviteData.managerId?._id || '');
+        setValueEmpSignup('reportingManagerId', inviteData.managerId?._id || '');
       } else {
         setValueSignup('department', deptName);
         setValueSignup('property', hotelId);
+        setValueSignup('reportingManager', inviteData.managerId?._id || '');
+        setValueSignup('reportingManagerId', inviteData.managerId?._id || '');
       }
     }
   }, [inviteData, setValueSignup, setValueEmpSignup]);
@@ -597,9 +725,11 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
   // Watchers for dynamic dropdown logic — default to '' to prevent undefined flowing into helpers
   const selectedDeptSignup = watchSignup('department') ?? '';
   const selectedCategorySignup = watchSignup('category') ?? '';
+  const signupValues = watchSignup();
 
   const selectedDeptEmpSignup = watchEmpSignup('department') ?? '';
   const selectedCategoryEmpSignup = watchEmpSignup('category') ?? '';
+  const empSignupValues = watchEmpSignup();
 
   // Clear dependent fields when department changes
   useEffect(() => {
@@ -1016,6 +1146,25 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
                 </div>
               )}
 
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="col-span-2">
+                  <ReportingManagerDropdown
+                    managers={publicManagers}
+                    value={publicManagers.find(m => m._id === signupValues.reportingManager)}
+                    onChange={(val) => {
+                      setValueSignup('reportingManager', val?._id || '');
+                      setValueSignup('reportingManagerId', val?._id || '');
+                      setValueSignup('reportingManagerName', val ? `${val.firstName} ${val.lastName}` : '');
+                      setValueSignup('reportingManagerCode', val?.managerCode || val?.employeeCode || '');
+                      setValueSignup('reportingManagerDepartment', val?.department || '');
+                      setValueSignup('reportingManagerProperty', val?.hotel?.name || '');
+                    }}
+                    disabled={!!inviteData && !!inviteData.managerId}
+                  />
+                  {signupErrors.reportingManager && <p className="text-red-400 text-[9px] mt-0.5">{signupErrors.reportingManager.message}</p>}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Role (Optional)</label>
                 <div className="relative">
@@ -1431,20 +1580,20 @@ export default function SignUpForms({ onRegisterSuccess, inviteData }: SignUpFor
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1">Reporting Manager (Optional)</label>
-                <select
+              <div className="col-span-2">
+                <ReportingManagerDropdown
+                  managers={publicManagers}
+                  value={publicManagers.find(m => m._id === empSignupValues.reportingManager)}
+                  onChange={(val) => {
+                    setValueEmpSignup('reportingManager', val?._id || '');
+                    setValueEmpSignup('reportingManagerId', val?._id || '');
+                    setValueEmpSignup('reportingManagerName', val ? `${val.firstName} ${val.lastName}` : '');
+                    setValueEmpSignup('reportingManagerCode', val?.managerCode || val?.employeeCode || '');
+                    setValueEmpSignup('reportingManagerDepartment', val?.department || '');
+                    setValueEmpSignup('reportingManagerProperty', val?.hotel?.name || '');
+                  }}
                   disabled={!!inviteData && !!inviteData.managerId}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded py-1.5 px-3 text-white focus:outline-none focus:border-gold disabled:opacity-50 cursor-pointer"
-                  {...registerEmpSignup('reportingManager')}
-                >
-                  <option value="" className="bg-slate-950 text-slate-400">Select Manager</option>
-                  {publicManagers.map((m) => (
-                    <option key={m._id} value={m._id} className="bg-slate-950 text-white">
-                      {m.firstName} {m.lastName} {m.designation ? `(${m.designation})` : ''}
-                    </option>
-                  ))}
-                </select>
+                />
                 {empSignupErrors.reportingManager?.message && <p className="text-red-400 text-[9px] mt-0.5">{empSignupErrors.reportingManager.message}</p>}
               </div>
               <div>

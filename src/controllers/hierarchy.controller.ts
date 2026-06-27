@@ -116,8 +116,8 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
 export const getOrganizations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     registerModels();
-    const orgs = await Organization.find().sort({ name: 1 });
-    const departments = await Department.find().populate('manager', 'firstName lastName email').sort({ name: 1 });
+    const orgs = await Organization.find().sort({ name: 1 }).lean();
+    const departments = await Department.find().populate('manager', 'firstName lastName email').sort({ name: 1 }).lean();
 
     res.status(200).json({
       status: 'success',

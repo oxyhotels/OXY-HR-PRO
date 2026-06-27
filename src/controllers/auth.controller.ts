@@ -362,7 +362,12 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       joiningDate,
       documents,
       homeLocation,
-      inviteCode
+      inviteCode,
+      reportingManagerId,
+      reportingManagerName,
+      reportingManagerCode,
+      reportingManagerDepartment,
+      reportingManagerProperty
     } = req.body;
 
     if (!fullName || !phone || !password) {
@@ -434,6 +439,11 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     let finalHotelId = hotel?._id;
     let finalDepartment = department;
     let finalReportingManager = reportingManager;
+    let finalReportingManagerId = reportingManagerId;
+    let finalReportingManagerName = reportingManagerName;
+    let finalReportingManagerCode = reportingManagerCode;
+    let finalReportingManagerDepartment = reportingManagerDepartment;
+    let finalReportingManagerProperty = reportingManagerProperty;
     let invitedById = undefined;
 
     if (inviteCode) {
@@ -455,6 +465,15 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       finalReportingManager = invite.managerId;
       invitedById = invite.managerId;
       finalStatus = 'Active';
+
+      const mgrDoc = await User.findById(invite.managerId).populate('hotel', 'name');
+      if (mgrDoc) {
+        finalReportingManagerId = mgrDoc._id.toString();
+        finalReportingManagerName = `${mgrDoc.firstName} ${mgrDoc.lastName}`;
+        finalReportingManagerCode = mgrDoc.managerCode || mgrDoc.employeeCode || '';
+        finalReportingManagerDepartment = mgrDoc.department || '';
+        finalReportingManagerProperty = (mgrDoc.hotel as any)?.name || '';
+      }
     }
 
     let finalEmployeeId = employeeId;
@@ -480,6 +499,11 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       employeeCode: finalRole !== 'DEPT_MANAGER' && finalRole !== 'HOTEL_ADMIN' ? finalEmployeeId : undefined,
       managerCode: finalRole === 'DEPT_MANAGER' || finalRole === 'HOTEL_ADMIN' ? finalEmployeeId : undefined,
       reportingManager: finalReportingManager,
+      reportingManagerId: finalReportingManagerId,
+      reportingManagerName: finalReportingManagerName,
+      reportingManagerCode: finalReportingManagerCode,
+      reportingManagerDepartment: finalReportingManagerDepartment,
+      reportingManagerProperty: finalReportingManagerProperty,
       invitedById,
       employmentType,
       designation,

@@ -9,7 +9,8 @@ const getPublicManagers = async (req: Request, res: Response, next: NextFunction
       role: { $in: ['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'] },
       status: { $ne: 'Inactive' }
     })
-      .select('_id firstName lastName designation')
+      .select('_id firstName lastName designation department employeeId employeeCode managerCode hotel')
+      .populate('hotel', 'name')
       .lean();
 
     res.status(200).json({

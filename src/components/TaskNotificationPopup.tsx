@@ -86,7 +86,7 @@ export default function TaskNotificationPopup() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Effect to play alarm when a pending task is loaded for manager/employee
   useEffect(() => {
@@ -115,7 +115,7 @@ export default function TaskNotificationPopup() {
         }
       }
     }
-  }, [showPopup, pendingTasks, playedTasks, user]);
+  }, [showPopup, pendingTasks, playedTasks, user?.id, user?.role]);
 
   useEffect(() => {
     fetchPendingTasks();

@@ -7,11 +7,14 @@ export default function PwaRegister() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
+  const swRegistered = React.useRef(false);
 
   useEffect(() => {
     // 1. Register service worker as early as possible
     const registerServiceWorker = () => {
+      if (swRegistered.current) return;
       if ('serviceWorker' in navigator) {
+        swRegistered.current = true;
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {
             console.log('[PWA] ServiceWorker registered with scope:', reg.scope);

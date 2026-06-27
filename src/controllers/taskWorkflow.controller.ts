@@ -620,20 +620,23 @@ export const getMyTasks = async (req: Request, res: Response, next: NextFunction
     const filter: any = {
       isDeleted: { $ne: true },
       $or: [
-        { assignedTo: userId },
-        { assignedDepartments: user.department }
+        { assignedTo: userId }
       ]
     };
 
-    // If user is ROOT_ADMIN, show all tasks
-    if (user.role === 'ROOT_ADMIN') {
-      delete filter.$or;
-      filter.hotel = user.hotel;
-    } else {
-      filter.hotel = user.hotel;
+    if (user.department) {
+      if (user.role !== 'ROOT_ADMIN') {
+        filter.$or.push({
+          assignedDepartments: user.department,
+          hotel: user.hotel
+        });
+      } else {
+        filter.$or.push({ assignedDepartments: user.department });
+      }
     }
 
     const tasks = await Task.find(filter)
+      .populate('hotel', 'name')
       .populate('assignedTo', 'firstName lastName email department designation')
       .populate('assignedBy', 'firstName lastName email role')
       .sort({ createdAt: -1 });

@@ -94,6 +94,11 @@ export interface IUser extends Document {
   rootAdminId?: Schema.Types.ObjectId;
   employeeCode?: string;
   managerCode?: string;
+  reportingManagerId?: string;
+  reportingManagerName?: string;
+  reportingManagerCode?: string;
+  reportingManagerDepartment?: string;
+  reportingManagerProperty?: string;
   editAuditLog?: {
     updatedBy: string;
     role: string;
@@ -122,6 +127,11 @@ const UserSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     employeeId: { type: String, trim: true },
     reportingManager: { type: String, trim: true },
+    reportingManagerId: { type: String, trim: true },
+    reportingManagerName: { type: String, trim: true },
+    reportingManagerCode: { type: String, trim: true },
+    reportingManagerDepartment: { type: String, trim: true },
+    reportingManagerProperty: { type: String, trim: true },
     employmentType: { type: String, trim: true },
     status: { type: String, enum: ['Pending', 'Active', 'OnLeave', 'Terminated', 'Basic Registered'], default: 'Active' },
     shift: { type: String, default: 'General Shift (09:00 AM - 05:00 PM)' },

@@ -13,15 +13,10 @@ const WorkLogDrawer = dynamic(() => import('../../components/reports/WorkLogDraw
 const EmployeeReportModal = dynamic(() => import('../../components/reports/EmployeeReportModal'), { ssr: false });
 const AttendanceAnalytics = dynamic(() => import('../../components/reports/AttendanceAnalytics'), { ssr: false });
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/reportExport';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid
-} from 'recharts';
+const DashboardHoursChart = dynamic(() => import('../../components/charts/DashboardHoursChart'), { 
+  ssr: false, 
+  loading: () => <div className="w-full h-56 mt-2 bg-slate-100 animate-pulse rounded-xl"></div> 
+});
 
 interface Stats {
   totalEmployees: number;
@@ -139,7 +134,7 @@ export default function DashboardPage() {
   };
 
   const fetchGamificationPerformance = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
     try {
       const profilePromise = api.get('/gamification/my-profile');
       const leaderboardPromise = api.get('/gamification/leaderboard?scope=month&limit=100');
@@ -156,10 +151,10 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Failed to fetch gamification performance', err);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Fetch dashboard numbers
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const statsPromise = api.get('/reports/dashboard');
       const attPromise = api.get('/attendance/me').catch(err => {
@@ -184,9 +179,9 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchStaffOverview = async () => {
+  const fetchStaffOverview = useCallback(async () => {
     if (user?.role !== 'ROOT_ADMIN') return;
     try {
       const res = await api.get('/employees/status-overview');
@@ -194,9 +189,9 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Failed to fetch staff overview', err);
     }
-  };
+  }, [user?.role]);
 
-  const fetchLiveAttendance = async () => {
+  const fetchLiveAttendance = useCallback(async () => {
     setAttendanceLoading(true);
     try {
       const url = '/attendance/hotel';
@@ -207,7 +202,7 @@ export default function DashboardPage() {
     } finally {
       setAttendanceLoading(false);
     }
-  };
+  }, []);
 
   const handleCSVExport = () => {
     exportToCSV(filteredLogs, 'work_updates_report.csv');
@@ -221,7 +216,7 @@ export default function DashboardPage() {
     exportToPDF(filteredLogs, 'OXY Hotels HRMS - Employee Work Updates Report', 'work_updates_report.pdf');
   };
 
-  const fetchPendingUsers = async () => {
+  const fetchPendingUsers = useCallback(async () => {
     if (user?.role !== 'ROOT_ADMIN' && user?.role !== 'HOTEL_ADMIN') return;
     try {
       const res = await api.get('/employees/pending/list');
@@ -238,7 +233,7 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Failed to fetch pending signups', err);
     }
-  };
+  }, [user?.role]);
 
   const handleOnboardingAction = async (userId: string, action: 'approve' | 'reject') => {
     setActionLoading(true);
@@ -405,7 +400,7 @@ export default function DashboardPage() {
       fetchHotelsList();
       fetchStaffOverview();
     }
-  }, [user, fetchGamificationPerformance]);
+  }, [user?.role, fetchDashboardData, fetchGamificationPerformance, fetchPendingUsers, fetchLiveAttendance, fetchStaffOverview]);
 
   useEffect(() => {
     if (verificationModalOpen && verificationMode === 'check-in') {
@@ -431,7 +426,7 @@ export default function DashboardPage() {
       fetchLiveAttendance();
     }, 10000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.role, fetchLiveAttendance]);
 
   useEffect(() => {
     if (!selectedStaffId) {
@@ -1759,26 +1754,7 @@ export default function DashboardPage() {
                           <GoogleIcon name="progress_activity" size={24} className="text-gold animate-spin-icon" />
                         </div>
                       ) : chartData.length > 0 ? (
-                        <div className="w-full h-56 mt-2">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.4}/>
-                                  <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                              <XAxis dataKey="date" stroke="#64748b" fontSize={9} tickLine={false} />
-                              <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', fontSize: '10px', color: '#111827' }}
-                                labelStyle={{ color: '#D4AF37', fontWeight: 'bold' }}
-                              />
-                              <Area type="monotone" dataKey="hours" name="Work Hours" stroke="#D4AF37" strokeWidth={2} fillOpacity={1} fill="url(#colorHours)" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        </div>
+                        <DashboardHoursChart chartData={chartData} />
                       ) : (
                         <div className="text-center py-16 text-slate-400 italic text-[11px]">
                           No historical check-out hours logged for this staff member.

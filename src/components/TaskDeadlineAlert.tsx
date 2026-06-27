@@ -124,7 +124,7 @@ export default function TaskDeadlineAlert() {
     checkDeadlines();
     const interval = setInterval(checkDeadlines, 60000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.id, user?.role]);
 
   if (!showModal || alertTasks.length === 0) return null;
 

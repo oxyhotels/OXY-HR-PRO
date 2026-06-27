@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import GoogleIcon from '@/components/GoogleIcon';
 import { useRouter } from 'next/navigation';
+import PropertyReportsTab from '@/components/property/PropertyReportsTab';
 
 interface TaskUpdate {
   status: string;
@@ -37,6 +38,19 @@ interface Task {
     lastName: string;
     email: string;
   };
+  assignedTo?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    department?: string;
+    designation?: string;
+  }[];
+  hotel?: {
+    _id: string;
+    name: string;
+  };
+  department?: string;
   taskUpdates: TaskUpdate[];
   latestRemark?: string;
   holdReason?: string;
@@ -86,6 +100,7 @@ export default function MyTasksPage() {
   const [activeColumn, setActiveColumn] = useState<KanbanColumn>('todo');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'reports'>('tasks');
 
   const [remark, setRemark] = useState('');
   const [progress, setProgress] = useState(0);
@@ -295,16 +310,37 @@ export default function MyTasksPage() {
           <h1 className="text-2xl font-bold text-slate-900">My Tasks</h1>
           <p className="text-slate-500 text-xs mt-1">Track and manage your assigned tasks</p>
         </div>
-        <button
-          onClick={() => router.push('/dashboard/tasks')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-        >
-          <GoogleIcon name="view_list" size={18} />
-          All Tasks
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-200 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'tasks' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+            >
+              Tasks
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'reports' ? 'bg-gold text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+            >
+              <GoogleIcon name="folder" size={14} />
+              REPORT
+            </button>
+          </div>
+          <button
+            onClick={() => router.push('/dashboard/tasks')}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer ml-2 h-[32px]"
+          >
+            <GoogleIcon name="view_list" size={18} />
+            All Tasks
+          </button>
+        </div>
       </div>
 
-      {/* Kanban Board */}
+      {activeTab === 'reports' ? (
+        <PropertyReportsTab />
+      ) : (
+        <>
+          {/* Kanban Board */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
           {columns.map(col => (
@@ -374,14 +410,70 @@ export default function MyTasksPage() {
                 )}
 
                 <div className="space-y-2 text-[10px] text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <GoogleIcon name="schedule" size={14} />
-                    <span>Due: {new Date(task.dueDate).toLocaleDateString()} {task.dueTime && `at ${task.dueTime}`}</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="schedule" size={14} />
+                      <span className="truncate" title={`Due: ${new Date(task.dueDate).toLocaleDateString()} ${task.dueTime ? `at ${task.dueTime}` : ''}`}>
+                        Due: {new Date(task.dueDate).toLocaleDateString()} {task.dueTime && `at ${task.dueTime}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="calendar_today" size={14} />
+                      <span className="truncate" title={`Created: ${new Date(task.createdAt).toLocaleDateString()}`}>
+                        Created: {new Date(task.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <GoogleIcon name="person" size={14} />
-                    <span>By: {task.assignedBy?.firstName} {task.assignedBy?.lastName}</span>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="person_outline" size={14} />
+                      <span className="truncate" title={`By: ${task.assignedBy?.firstName} ${task.assignedBy?.lastName}`}>
+                        By: {task.assignedBy?.firstName} {task.assignedBy?.lastName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="person" size={14} />
+                      <span className="truncate" title={`To: ${task.assignedTo && task.assignedTo.length > 0 ? task.assignedTo.map(u => u.firstName).join(', ') : 'Unassigned'}`}>
+                        To: {task.assignedTo && task.assignedTo.length > 0 ? task.assignedTo.map(u => u.firstName).join(', ') : 'Unassigned'}
+                      </span>
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {(task.department || (task.assignedTo && task.assignedTo[0]?.department)) && (
+                      <div className="flex items-center gap-1.5">
+                        <GoogleIcon name="corporate_fare" size={14} />
+                        <span className="truncate" title={`Dept: ${task.department || task.assignedTo?.[0]?.department}`}>
+                          Dept: {task.department || task.assignedTo?.[0]?.department}
+                        </span>
+                      </div>
+                    )}
+                    {task.hotel && (
+                      <div className="flex items-center gap-1.5">
+                        <GoogleIcon name="business" size={14} />
+                        <span className="truncate" title={`Prop: ${task.hotel.name}`}>
+                          Prop: {task.hotel.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="update" size={14} />
+                      <span className="truncate" title={`Updated: ${new Date(task.updatedAt).toLocaleTimeString()}`}>
+                        Updated: {new Date(task.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <GoogleIcon name="attachment" size={14} />
+                      <span className="truncate">
+                        Attachments: {(task.evidenceUrl ? 1 : 0) + (task.taskUpdates?.filter(u => u.evidenceUrl).length || 0) + (task.responses?.filter(r => r.evidenceUrl).length || 0)}
+                      </span>
+                    </div>
+                  </div>
+
                   {task.latestRemark && (
                     <div className="flex items-start gap-2 mt-2 p-2 bg-slate-50 rounded-lg">
                       <GoogleIcon name="comment" size={14} className="mt-0.5" />
@@ -891,6 +983,8 @@ export default function MyTasksPage() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
