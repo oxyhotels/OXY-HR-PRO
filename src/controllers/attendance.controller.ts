@@ -460,7 +460,17 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
     const filter: any = {};
 
     if (req.user?.role !== 'ROOT_ADMIN') {
-      filter.hotel = req.user?.hotel;
+      const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
+      const myEmployeeIds = myEmployees.map(e => e._id);
+      
+      if (myEmployeeIds.length > 0) {
+         filter.$or = [
+           { hotel: req.user?.hotel || null },
+           { employee: { $in: myEmployeeIds } }
+         ];
+      } else {
+         filter.hotel = req.user?.hotel;
+      }
     } else if (req.query.hotelId) {
       filter.hotel = req.query.hotelId;
     }
@@ -523,12 +533,21 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
 export const getLiveAttendance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const filter: any = {};
-    
-    if (req.user?.role !== 'ROOT_ADMIN') {
-      filter.hotel = req.user?.hotel;
-    } else if (req.query.hotelId) {
-      filter.hotel = req.query.hotelId;
-    }
+        if (req.user?.role !== 'ROOT_ADMIN') {
+        const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
+        const myEmployeeIds = myEmployees.map(e => e._id);
+        
+        if (myEmployeeIds.length > 0) {
+           filter.$or = [
+             { hotel: req.user?.hotel || null },
+             { employee: { $in: myEmployeeIds } }
+           ];
+        } else {
+           filter.hotel = req.user?.hotel;
+        }
+      } else if (req.query.hotelId) {
+        filter.hotel = req.query.hotelId;
+      }
 
     if (req.query.employeeId) {
       filter.employee = req.query.employeeId;
@@ -567,7 +586,17 @@ export const getLocationHistory = async (req: Request, res: Response, next: Next
     };
 
     if (req.user?.role !== 'ROOT_ADMIN') {
-      filter.hotel = req.user?.hotel;
+      const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
+      const myEmployeeIds = myEmployees.map(e => e._id);
+      
+      if (myEmployeeIds.length > 0) {
+         filter.$or = [
+           { hotel: req.user?.hotel || null },
+           { employee: { $in: myEmployeeIds } }
+         ];
+      } else {
+         filter.hotel = req.user?.hotel;
+      }
     } else if (req.query.hotelId) {
       filter.hotel = req.query.hotelId;
     }

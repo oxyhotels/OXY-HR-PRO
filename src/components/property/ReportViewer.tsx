@@ -122,26 +122,32 @@ export default function ReportViewer({ category, reports, userRole, onRefresh, o
                   {/* Files Grid */}
                   <div className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {report.files.map((file: any, idx: number) => (
-                      <div key={idx} className="group relative aspect-square rounded-lg border border-slate-700 overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
-                        {file.fileUrl.startsWith('data:image/') || file.fileUrl.includes('.jpg') || file.fileUrl.includes('.png') ? (
-                          <img src={file.fileUrl} alt={file.fileName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="flex flex-col items-center p-3 text-center">
-                            <GoogleIcon name="description" size={32} className="text-slate-400 mb-2" />
-                            <span className="text-[10px] text-slate-500 break-all line-clamp-2">{file.fileName}</span>
+                      <div key={idx} className="flex flex-col gap-2">
+                        <div className="group relative aspect-square rounded-lg border border-slate-700 overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
+                          {file.fileUrl.startsWith('data:image/') || file.fileUrl.includes('.jpg') || file.fileUrl.includes('.png') ? (
+                            <img src={file.fileUrl} alt={file.fileName} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center p-3 text-center">
+                              <GoogleIcon name="description" size={32} className="text-slate-400 mb-2" />
+                              <span className="text-[10px] text-slate-500 break-all line-clamp-2">{file.fileName}</span>
+                            </div>
+                          )}
+                          
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <a 
+                              href={file.fileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-400 transition-colors"
+                              title="View / Download"
+                            >
+                              <GoogleIcon name="visibility" size={16} />
+                            </a>
                           </div>
-                        )}
-                        
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <a 
-                            href={file.fileUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-400 transition-colors"
-                            title="View / Download"
-                          >
-                            <GoogleIcon name="visibility" size={16} />
-                          </a>
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full mb-0.5 max-w-full truncate">{report.hotelName}</span>
+                          <span className="text-[9px] text-slate-400">{formatDate(file.uploadedAt || report.createdAt)}</span>
                         </div>
                       </div>
                     ))}

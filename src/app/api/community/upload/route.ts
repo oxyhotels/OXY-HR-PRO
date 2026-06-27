@@ -7,6 +7,30 @@ import { User } from '@/models/User';
 import { connectDB } from '@/config/db';
 import crypto from 'crypto';
 
+// Increase body size limit for large video/document uploads (100MB)
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60s timeout for large uploads
+
+// Allowed MIME types for community uploads
+const ALLOWED_TYPES = [
+  // Images
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/bmp', 'image/tiff',
+  // Videos
+  'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo', 'video/mpeg', 'video/3gpp',
+  // Audio
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/webm',
+  // Documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain', 'text/csv',
+  'application/zip', 'application/x-rar-compressed', 'application/x-zip-compressed',
+];
+
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
@@ -44,11 +68,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'error', message: 'No file provided' }, { status: 400 });
     }
 
-    // 3. Save buffer to public workspace
+    // 3. Validate file type
+    const mimeType = file.type || 'application/octet-stream';
+    const isAllowed = ALLOWED_TYPES.some(t => mimeType.startsWith(t) || mimeType === t);
+    if (!isAllowed) {
+      return NextResponse.json({
+        status: 'error',
+        message: `File type "${mimeType}" is not supported. Please upload images, videos, audio, or documents.`
+      }, { status: 400 });
+    }
+
+    // 4. Save buffer to public workspace
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const filename = `${crypto.randomUUID()}_${file.name.replace(/\s+/g, '_')}`;
+    // Sanitize filename
+    const ext = file.name.split('.').pop() || 'bin';
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${crypto.randomUUID()}_${safeName}`;
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'community');
 
     // Ensure directory exists
@@ -61,13 +98,9 @@ export async function POST(request: NextRequest) {
 
     // Determine type category
     let typeCategory: 'image' | 'video' | 'audio' | 'document' = 'document';
-    if (file.type.startsWith('image/')) {
-      typeCategory = 'image';
-    } else if (file.type.startsWith('video/')) {
-      typeCategory = 'video';
-    } else if (file.type.startsWith('audio/')) {
-      typeCategory = 'audio';
-    }
+    if (mimeType.startsWith('image/')) typeCategory = 'image';
+    else if (mimeType.startsWith('video/')) typeCategory = 'video';
+    else if (mimeType.startsWith('audio/')) typeCategory = 'audio';
 
     return NextResponse.json({
       status: 'success',
@@ -75,7 +108,8 @@ export async function POST(request: NextRequest) {
         fileUrl,
         name: file.name,
         fileType: typeCategory,
-        fileSize: file.size
+        fileSize: file.size,
+        mimeType
       }
     });
   } catch (error: any) {

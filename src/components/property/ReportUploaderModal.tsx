@@ -27,11 +27,24 @@ export default function ReportUploaderModal({ category, onClose, onSubmit }: Rep
     setIsDragging(false);
   };
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+  
   const processFiles = (files: FileList | null) => {
     if (!files) return;
     const newFiles: any[] = [];
     
     Array.from(files).forEach((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`⚠ File "${file.name}" is too large. Maximum size allowed is 10MB.`);
+        return;
+      }
+      
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        alert(`⚠ Unsupported file format for "${file.name}". Please upload JPG, PNG, WEBP, or PDF.`);
+        return;
+      }
+      
       // Create preview
       const preview = URL.createObjectURL(file);
       newFiles.push({ file, preview, name: file.name });
@@ -84,9 +97,9 @@ export default function ReportUploaderModal({ category, onClose, onSubmit }: Rep
       setTimeout(() => {
         onClose();
       }, 500);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload failed', err);
-      alert('Upload failed. Please try again.');
+      // The parent component handles the error alert with meaningful message
     } finally {
       setIsUploading(false);
     }

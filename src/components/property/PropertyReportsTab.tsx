@@ -30,11 +30,11 @@ export default function PropertyReportsTab() {
     setLoading(true);
     try {
       let url = '/property-reports?';
-      if (user?.role === 'ROOT_ADMIN' && filterHotelId) {
+      if (filterHotelId) {
         url += `hotelId=${filterHotelId}`;
       }
       const res = await api.get(url);
-      setReports(res?.data?.reports || []);
+      setReports(res?.reports || []);
     } catch (err) {
       console.error('Failed to load reports', err);
     } finally {
@@ -43,10 +43,18 @@ export default function PropertyReportsTab() {
   };
 
   const fetchHotels = async () => {
-    if (user?.role !== 'ROOT_ADMIN') return;
     try {
       const res = await api.get('/hotels/public');
-      setHotels(res.data.hotels || []);
+      let availableHotels = res.data.hotels || res.data.data?.hotels || [];
+      if (user?.role !== 'ROOT_ADMIN' && user?.hotel) {
+        availableHotels = availableHotels.filter((h: any) => h._id === user.hotel);
+      }
+      setHotels(availableHotels);
+      
+      // Auto-select for non-admin or if only one hotel available
+      if (availableHotels.length > 0 && !filterHotelId) {
+        setFilterHotelId(availableHotels[0]._id);
+      }
     } catch (err) {
       console.error('Failed to load hotels', err);
     }
@@ -62,12 +70,39 @@ export default function PropertyReportsTab() {
 
   const handleUploadSubmit = async (payload: any) => {
     try {
-      await api.post('/property-reports', payload);
+      const selectedHotel = hotels.find(h => h._id === filterHotelId);
+      if (!selectedHotel) {
+        alert("⚠ Please select a Property before uploading any report.");
+        return;
+      }
+
+      const finalPayload = {
+        ...payload,
+        hotelId: selectedHotel._id,
+        hotelName: selectedHotel.name,
+        hotelCode: selectedHotel.hotelCode,
+        reportType: payload.category,
+        uploadedBy: (user as any)?._id || user?.id,
+        uploadedByRole: user?.role,
+        department: user?.department || 'GENERAL',
+      };
+
+      await api.post('/property-reports', finalPayload);
       await fetchReports();
-    } catch (err) {
+      alert("✅ Upload successful!");
+    } catch (err: any) {
       console.error('Error submitting report:', err);
+      alert(err.response?.data?.error || err.message || 'Upload failed. Please try again.');
       throw err;
     }
+  };
+
+  const openUploadModal = (catId: string) => {
+    if (!filterHotelId) {
+      alert("⚠ Please select a Property before uploading any report.");
+      return;
+    }
+    setUploadCategory(catId);
   };
 
   // Group reports by category for counts
@@ -97,24 +132,22 @@ export default function PropertyReportsTab() {
         </p>
       </div>
 
-      {user?.role === 'ROOT_ADMIN' && (
-        <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-4">
-          <label className="text-sm font-semibold text-slate-300">Filter by Property:</label>
-          <select
-            value={filterHotelId}
-            onChange={(e) => setFilterHotelId(e.target.value)}
-            className="bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-white focus:border-gold outline-none min-w-[250px]"
-          >
-            <option value="">All Properties</option>
-            {hotels.map(h => (
-              <option key={h._id} value={h._id}>{h.name}</option>
-            ))}
-          </select>
-          <button onClick={fetchReports} className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-gold flex items-center justify-center transition-colors">
-            <GoogleIcon name="refresh" size={18} />
-          </button>
-        </div>
-      )}
+      <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-4">
+        <label className="text-sm font-semibold text-slate-300">Filter by Property:</label>
+        <select
+          value={filterHotelId}
+          onChange={(e) => setFilterHotelId(e.target.value)}
+          className="bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-white focus:border-gold outline-none min-w-[250px]"
+        >
+          {user?.role === 'ROOT_ADMIN' && <option value="">All Properties</option>}
+          {hotels.map(h => (
+            <option key={h._id} value={h._id}>{h.name}</option>
+          ))}
+        </select>
+        <button onClick={fetchReports} className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-gold flex items-center justify-center transition-colors">
+          <GoogleIcon name="refresh" size={18} />
+        </button>
+      </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -147,7 +180,7 @@ export default function PropertyReportsTab() {
 
               <div className="grid grid-cols-2 gap-3 mt-auto">
                 <button
-                  onClick={() => setUploadCategory(cat.id)}
+                  onClick={() => openUploadModal(cat.id)}
                   className="py-2.5 rounded-lg bg-gold hover:bg-gold-light text-slate-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <GoogleIcon name="upload" size={16} />

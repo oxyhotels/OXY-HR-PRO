@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { adaptRoute } from '@/lib/adaptRoute';
 import { Department } from '@/models/Department';
 import { DEPARTMENTS } from '@/constants/departments';

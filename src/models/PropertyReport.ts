@@ -3,11 +3,13 @@ import mongoose, { Schema, Document, model, models } from 'mongoose';
 export interface IPropertyReport extends Document {
   hotelId: Schema.Types.ObjectId;
   hotelName: string;
+  hotelCode: string;
   employeeId: Schema.Types.ObjectId;
   employeeName: string;
   managerId: Schema.Types.ObjectId;
   department: string;
-  category: string; // DAILY_SALES_REPORT, CASHBOOK, POLICE_REPORT, AD_PHOTO, METER_READING_PHOTO
+  category: string; // Used as reportType in frontend (DAILY_SALES_REPORT, CASHBOOK, etc)
+  reportType: string;
   taskId?: Schema.Types.ObjectId;
   files: {
     fileUrl: string;
@@ -25,11 +27,13 @@ const PropertyReportSchema = new Schema<IPropertyReport>(
   {
     hotelId: { type: Schema.Types.ObjectId, ref: 'Hotel', required: true, index: true },
     hotelName: { type: String, required: true },
+    hotelCode: { type: String, required: true },
     employeeId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     employeeName: { type: String, required: true },
     managerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     department: { type: String, required: true, index: true },
     category: { type: String, required: true, index: true },
+    reportType: { type: String },
     taskId: { type: Schema.Types.ObjectId, ref: 'Task' },
     files: [
       {

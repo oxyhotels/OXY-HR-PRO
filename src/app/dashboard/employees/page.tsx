@@ -71,6 +71,8 @@ interface EmployeeProfile {
     role: string;
     date: string;
   }[];
+  reportingManagerId?: string;
+  reportingManagerName?: string;
 }
 
 const convert24To12 = (time24: string): string => {
@@ -144,6 +146,7 @@ export default function EmployeesPage() {
   const { user } = useAuthStore();
   const [employees, setEmployees] = useState<EmployeeProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publicManagers, setPublicManagers] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [viewDocsModalOpen, setViewDocsModalOpen] = useState(false);
@@ -161,6 +164,20 @@ export default function EmployeesPage() {
   // Home Location Modal states
   const [homeLocationModalOpen, setHomeLocationModalOpen] = useState(false);
   const [homeLocationEmployee, setHomeLocationEmployee] = useState<EmployeeProfile | null>(null);
+
+  useEffect(() => {
+    const fetchManagers = async () => {
+      try {
+        const res = await api.get('/organization/public-managers');
+        if (res?.data?.managers) {
+          setPublicManagers(res.data.managers);
+        }
+      } catch (err) {
+        console.error('Failed to load active managers', err);
+      }
+    };
+    fetchManagers();
+  }, []);
 
   // Fetch hotels for Root Admin
   useEffect(() => {
@@ -270,6 +287,7 @@ export default function EmployeesPage() {
       department: '',
       designation: '',
       phone: '',
+      reportingManagerId: '',
       baseSalary: 2500,
       bankName: '',
       accountNo: '',
@@ -310,6 +328,7 @@ export default function EmployeesPage() {
       department: emp.department || '',
       designation: emp.designation || '',
       phone: emp.phone || '',
+      reportingManagerId: emp.reportingManagerId || '',
       baseSalary: emp.salaryDetails?.baseSalary || 0,
       bankName: emp.bankDetails?.bankName || '',
       accountNo: emp.bankDetails?.accountNo || '',
@@ -428,6 +447,8 @@ export default function EmployeesPage() {
       role: user?.role === 'EMPLOYEE' ? (activeEmployee?.role || 'EMPLOYEE') : values.role,
       department: user?.role === 'EMPLOYEE' ? (activeEmployee?.department || '') : values.department,
       designation: user?.role === 'EMPLOYEE' ? (activeEmployee?.designation || '') : values.designation,
+      reportingManagerId: values.reportingManagerId,
+      reportingManagerName: publicManagers.find(m => m._id === values.reportingManagerId) ? `${publicManagers.find(m => m._id === values.reportingManagerId).firstName} ${publicManagers.find(m => m._id === values.reportingManagerId).lastName}` : '',
       phone: values.phone,
       aadhaarNumber: values.aadhaarNumber,
       panNumber: values.panNumber,
@@ -786,8 +807,22 @@ export default function EmployeesPage() {
                   />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">Reporting Manager</label>
+                  <select
+                    {...register('reportingManagerId')}
+                    disabled={user?.role === 'EMPLOYEE'}
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-gold"
+                  >
+                    <option value="">Select Manager</option>
+                    {publicManagers.map((m) => (
+                      <option key={m._id} value={m._id}>
+                        {m.firstName} {m.lastName} ({m.hotel?.name || 'Central'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-slate-400 font-semibold mb-1 uppercase tracking-wider">User Role</label>
                   <select

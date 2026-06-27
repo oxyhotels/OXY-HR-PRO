@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore, ZustandGroup, ZustandMessage, ZustandSocialPost, ZustandKnowledgeItem } from '@/store/communityStore';
@@ -117,6 +118,9 @@ const renderMessageContent = (content?: string) => {
   );
 };
 
+// ─── Toast Notification System ───────────────────────────────────────────────
+type Toast = { id: string; type: 'success' | 'error' | 'info'; message: string };
+
 export default function CommunityHubPage() {
   const { user } = useAuthStore();
   const store = useCommunityStore();
@@ -189,6 +193,15 @@ export default function CommunityHubPage() {
   const [editGroupDesc, setEditGroupDesc] = useState('');
   const [editGroupIcon, setEditGroupIcon] = useState('');
   const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // ─── Toast helpers ───────────────────────────────────────────────────────────
+  const showToast = useCallback((type: Toast['type'], message: string) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+  }, []);
 
   useEffect(() => {
     if (store.activeGroup) {
@@ -273,6 +286,25 @@ export default function CommunityHubPage() {
       useCommunityStore.getState().fetchGroups();
       playAlarm(true);
     });
+
+    // ─── Real-time group metadata updates (name, icon, description, members) ──
+    newSocket.on('group_updated', (updatedGroup: ZustandGroup) => {
+      useCommunityStore.setState(state => ({
+        groups: state.groups.map(g => g._id === updatedGroup._id ? { ...g, ...updatedGroup } : g),
+        activeGroup: state.activeGroup?._id === updatedGroup._id
+          ? { ...state.activeGroup, ...updatedGroup }
+          : state.activeGroup
+      }));
+    });
+
+    newSocket.on('group_removed', ({ groupId }: { groupId: string }) => {
+      useCommunityStore.setState(state => ({
+        groups: state.groups.filter(g => g._id !== groupId),
+        activeGroup: state.activeGroup?._id === groupId ? null : state.activeGroup,
+        messages: state.activeGroup?._id === groupId ? [] : state.messages
+      }));
+    });
+
     newSocket.on('user_typing_start', ({ groupId, userId, name }: any) => useCommunityStore.getState().setTyping(groupId, userId, name, true));
     newSocket.on('user_typing_stop', ({ groupId, userId }: any) => useCommunityStore.getState().setTyping(groupId, userId, '', false));
     
@@ -392,15 +424,20 @@ export default function CommunityHubPage() {
   const handleAddMember = async (userId: string) => {
     if (!store.activeGroup) return;
     try {
+      // api.ts returns the raw JSON body: { status: 'success', data: { group } }
       const res = await api.post(`/community/groups/${store.activeGroup._id}/members`, { userId });
-      if (res.data.status === 'success') {
-        store.selectGroup(res.data.data.group);
+      if (res?.status === 'success') {
+        // Update active group with returned data, then refresh full group list
+        store.selectGroup(res.data.group);
+        await store.fetchGroups();
         setAddMemberSearchTerm('');
+        showToast('success', '✅ Member Added Successfully');
       } else {
-        alert(res.data.message || 'Failed to add member');
+        showToast('error', res?.message || 'Failed to add member');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Failed to add member');
+      const msg = err?.message || 'Failed to add member';
+      showToast('error', msg);
     }
   };
 
@@ -408,14 +445,17 @@ export default function CommunityHubPage() {
     if (!store.activeGroup) return;
     try {
       const res = await api.delete(`/community/groups/${store.activeGroup._id}/members/${userId}`);
-      if (res.data.status === 'success') {
-        store.selectGroup(res.data.data.group);
+      if (res?.status === 'success') {
+        store.selectGroup(res.data.group);
+        await store.fetchGroups();
         setShowRemoveConfirmId(null);
+        showToast('success', 'Member Removed Successfully');
       } else {
-        alert(res.data.message || 'Failed to remove member');
+        showToast('error', res?.message || 'Failed to remove member');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Failed to remove member');
+      const msg = err?.message || 'Failed to remove member';
+      showToast('error', msg);
     }
   };
 
@@ -423,34 +463,54 @@ export default function CommunityHubPage() {
     if (!store.activeGroup) return;
     try {
       const res = await api.put(`/community/groups/${store.activeGroup._id}/members/${userId}/role`, { role: newRole });
-      if (res.data.status === 'success') {
-        store.selectGroup(res.data.data.group);
+      if (res?.status === 'success') {
+        store.selectGroup(res.data.group);
+        await store.fetchGroups();
+        showToast('success', `Member role updated to ${newRole}`);
       } else {
-        alert(res.data.message || 'Failed to update member role');
+        showToast('error', res?.message || 'Failed to update member role');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Failed to update member role');
+      const msg = err?.message || 'Failed to update member role';
+      showToast('error', msg);
     }
   };
 
   const handleUpdateGroupSettings = async () => {
     if (!store.activeGroup || !editGroupName.trim()) return;
     setIsUpdatingGroup(true);
+    // Capture current state BEFORE async call to avoid stale closure
+    const prevGroupIcon = store.activeGroup.groupIcon || '';
+    const prevGroupName = store.activeGroup.name || '';
     try {
+      // api.ts returns the raw JSON body: { status: 'success', data: { group } }
       const res = await api.put(`/community/groups/${store.activeGroup._id}`, {
         name: editGroupName,
         description: editGroupDesc,
         groupIcon: editGroupIcon
       });
-      if (res.data.status === 'success') {
-        store.selectGroup(res.data.data.group);
+      if (res?.status === 'success') {
+        const updatedGroup = res.data.group;
+        // Update active group then refresh groups list
+        store.selectGroup(updatedGroup);
+        await store.fetchGroups();
         setRightSidebarTab('info');
-        store.fetchGroups();
+        // Show specific success messages based on what changed
+        const iconChanged = editGroupIcon !== prevGroupIcon;
+        const nameChanged = editGroupName !== prevGroupName;
+        if (iconChanged && nameChanged) {
+          showToast('success', 'Group Settings Updated Successfully');
+        } else if (iconChanged) {
+          showToast('success', 'Group Icon Updated Successfully');
+        } else {
+          showToast('success', 'Group Name Updated Successfully');
+        }
       } else {
-        alert(res.data.message || 'Failed to update group');
+        showToast('error', res?.message || 'Failed to update group settings');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Failed to update group');
+      const msg = err?.message || 'Failed to update group settings';
+      showToast('error', msg);
     } finally {
       setIsUpdatingGroup(false);
     }
@@ -471,11 +531,11 @@ export default function CommunityHubPage() {
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit');
+      showToast('error', 'File size exceeds 5MB limit');
       return;
     }
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.type)) {
-      alert('Unsupported file format. Please upload JPG, PNG, WEBP, or SVG.');
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      showToast('error', 'Unsupported format. Please use JPG, PNG, WEBP, or SVG.');
       return;
     }
     try {
@@ -485,8 +545,9 @@ export default function CommunityHubPage() {
       } else {
         setEditGroupIcon(uploadedUrl);
       }
-    } catch (err) {
-      alert('File upload failed');
+      showToast('info', 'Icon uploaded — click Save Settings to apply.');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Icon upload failed');
     }
   };
 
@@ -494,7 +555,9 @@ export default function CommunityHubPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit');
+      showToast('error', 'File size exceeds 5MB limit');
+      // Reset the input so the same file can be selected again after dismissal
+      e.target.value = '';
       return;
     }
     try {
@@ -504,8 +567,11 @@ export default function CommunityHubPage() {
       } else {
         setEditGroupIcon(uploadedUrl);
       }
-    } catch (err) {
-      alert('File upload failed');
+      showToast('info', 'Icon uploaded — click Save Settings to apply.');
+    } catch (err: any) {
+      showToast('error', err?.message || 'Icon upload failed');
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -548,16 +614,47 @@ export default function CommunityHubPage() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !store.activeGroup) return;
-    const formData = new FormData();
-    formData.append('file', file);
+    const files = e.target.files;
+    if (!files || files.length === 0 || !store.activeGroup) return;
+    
+    const MAX_SIZE_MB = 50; // 50MB limit for videos/docs
+    const uploadedAttachments: any[] = [];
+    setIsUploadingFile(true);
+
     try {
-      const res = await fetch('/api/community/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${useAuthStore.getState().accessToken}` }, body: formData });
-      const data = await res.json();
-      if (data.status === 'success') await store.sendMessage(store.activeGroup._id, { attachments: [data.data] });
-      else alert(data.message || 'Upload failed');
-    } catch (err) { alert('Upload failed'); }
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+          showToast('error', `"${file.name}" exceeds ${MAX_SIZE_MB}MB limit`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/community/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${useAuthStore.getState().accessToken}` },
+          body: formData
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+          uploadedAttachments.push(data.data);
+        } else {
+          showToast('error', data.message || `Failed to upload ${file.name}`);
+        }
+      }
+
+      if (uploadedAttachments.length > 0) {
+        await store.sendMessage(store.activeGroup._id, { attachments: uploadedAttachments });
+        showToast('success', `${uploadedAttachments.length === 1 ? 'File' : `${uploadedAttachments.length} files`} shared successfully!`);
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Upload failed. Please try again.');
+    } finally {
+      setIsUploadingFile(false);
+      e.target.value = ''; // Reset so same file can be re-selected
+    }
   };
 
   const triggerAudioRecord = () => {
@@ -665,6 +762,27 @@ export default function CommunityHubPage() {
 
   return (
     <div className="flex flex-col text-slate-100 relative h-[calc(100dvh-7rem)] sm:h-[calc(100vh-7rem)] min-h-[400px]">
+
+      {/* ─── Toast Notification Stack ─────────────────────────────────────── */}
+      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl backdrop-blur-md min-w-[260px] max-w-xs animate-in slide-in-from-right duration-300 pointer-events-auto ${
+              toast.type === 'success'
+                ? 'bg-[#0d1b2a]/95 border-green-500/40 text-green-300'
+                : toast.type === 'error'
+                ? 'bg-[#1a0d0d]/95 border-red-500/40 text-red-300'
+                : 'bg-[#0d1224]/95 border-gold/40 text-gold'
+            }`}
+          >
+            {toast.type === 'success' && <CheckCircle size={16} className="text-green-400 flex-shrink-0" />}
+            {toast.type === 'error' && <XCircle size={16} className="text-red-400 flex-shrink-0" />}
+            {toast.type === 'info' && <AlertCircle size={16} className="text-gold flex-shrink-0" />}
+            <p className="text-xs font-semibold leading-snug">{toast.message}</p>
+          </div>
+        ))}
+      </div>
 
       {/* Incoming Call Overlay */}
       {incomingCallData && (
@@ -871,13 +989,39 @@ export default function CommunityHubPage() {
                                 <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.isDeleted ? <span className="italic opacity-60">🗑 Message deleted</span> : renderMessageContent(msg.content)}</p>
                                 {msg.attachments?.length > 0 && (
                                   <div className="mt-2 space-y-1.5 border-t border-slate-700/40 pt-2">
-                                    {msg.attachments.map((f: any, fi: number) => (
-                                      f.fileType === 'image' ? <img key={fi} src={f.fileUrl} alt={f.name} className="max-h-32 w-auto rounded-lg object-cover border border-slate-800" /> :
-                                      f.fileType === 'video' ? <video key={fi} src={f.fileUrl} controls className="max-h-32 w-auto rounded-lg border border-slate-800" /> :
-                                      <a key={fi} href={f.fileUrl} download className="flex items-center gap-2 bg-slate-900/40 p-2 rounded text-[10px] text-slate-300 hover:text-white">
-                                        <Paperclip size={10} className="text-gold flex-shrink-0" /><span className="truncate flex-1">{f.name}</span><Download size={10} className="flex-shrink-0" />
-                                      </a>
-                                    ))}
+                                    {msg.attachments.map((f: any, fi: number) => {
+                                      if (f.fileType === 'image') return (
+                                        <a key={fi} href={f.fileUrl} target="_blank" rel="noopener noreferrer">
+                                          <img src={f.fileUrl} alt={f.name} className="max-h-48 max-w-xs w-auto rounded-xl object-cover border border-slate-800 hover:opacity-90 transition-opacity cursor-zoom-in" />
+                                        </a>
+                                      );
+                                      if (f.fileType === 'video') return (
+                                        <video key={fi} src={f.fileUrl} controls className="max-h-48 max-w-xs w-auto rounded-xl border border-slate-800" />
+                                      );
+                                      if (f.fileType === 'audio') return (
+                                        <div key={fi} className="flex flex-col gap-1 bg-slate-900/50 border border-slate-800 rounded-xl p-2 min-w-[200px]">
+                                          <p className="text-[9px] text-slate-400 truncate font-bold">🎵 {f.name}</p>
+                                          <audio controls className="w-full h-8" style={{ maxWidth: '250px' }}>
+                                            <source src={f.fileUrl} />
+                                          </audio>
+                                        </div>
+                                      );
+                                      // Document / generic file
+                                      const docIcons: Record<string, string> = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📑', pptx: '📑', zip: '🗜️', rar: '🗜️', txt: '📃', csv: '📊' };
+                                      const ext = (f.name || '').split('.').pop()?.toLowerCase() || '';
+                                      const icon = docIcons[ext] || '📎';
+                                      const sizeMb = f.fileSize ? (f.fileSize / 1024 / 1024).toFixed(1) : null;
+                                      return (
+                                        <a key={fi} href={f.fileUrl} download={f.name} className="flex items-center gap-2 bg-slate-900/40 border border-slate-800 hover:border-gold/30 p-2 rounded-xl max-w-[260px] transition-all group">
+                                          <span className="text-base flex-shrink-0">{icon}</span>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-slate-300 font-semibold truncate">{f.name}</p>
+                                            {sizeMb && <p className="text-[8px] text-slate-500">{sizeMb} MB</p>}
+                                          </div>
+                                          <Download size={11} className="text-slate-500 group-hover:text-gold flex-shrink-0 transition-colors" />
+                                        </a>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -927,6 +1071,12 @@ export default function CommunityHubPage() {
                         <span className="text-[10px] text-red-400 font-bold">{audioRecording ? `🎤 Recording ${audioTimer}s` : `📹 Recording ${videoTimer}s`}</span>
                       </div>
                     )}
+                    {isUploadingFile && (
+                      <div className="flex items-center gap-2 bg-gold/10 border border-gold/20 rounded-lg px-3 py-1.5 mb-2 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-gold animate-ping flex-shrink-0" />
+                        <span className="text-[10px] text-gold font-bold">⏫ Uploading file... please wait</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
                         <button onClick={triggerAudioRecord} className={`p-1.5 rounded-lg text-slate-400 hover:text-gold transition-colors ${audioRecording ? 'bg-red-500/20 text-red-400' : 'hover:bg-slate-800'}`} title="Voice Note"><Mic size={14} /></button>
@@ -944,7 +1094,21 @@ export default function CommunityHubPage() {
                           className="flex-1 bg-transparent border-none outline-none text-xs text-slate-300 py-2.5 placeholder-slate-600 min-w-0"
                         />
                         <div className="flex items-center gap-0.5 flex-shrink-0">
-                          <label className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-gold transition-colors cursor-pointer" title="Attach"><Paperclip size={13} /><input type="file" onChange={handleFileUpload} className="hidden" /></label>
+                          {/* Image upload button */}
+                          <label className={`p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer ${isUploadingFile ? 'text-gold animate-pulse' : 'text-slate-500 hover:text-gold'}`} title="Send Image">
+                            <ImageIcon size={13} />
+                            <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" disabled={isUploadingFile} />
+                          </label>
+                          {/* Video upload button */}
+                          <label className={`p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer hidden sm:block ${isUploadingFile ? 'text-gold animate-pulse' : 'text-slate-500 hover:text-gold'}`} title="Send Video">
+                            <Video size={13} />
+                            <input type="file" accept="video/*" onChange={handleFileUpload} className="hidden" disabled={isUploadingFile} />
+                          </label>
+                          {/* All files / Document upload button */}
+                          <label className={`p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer ${isUploadingFile ? 'text-gold animate-pulse' : 'text-slate-500 hover:text-gold'}`} title="Attach File (any type)">
+                            <Paperclip size={13} />
+                            <input type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar" multiple onChange={handleFileUpload} className="hidden" disabled={isUploadingFile} />
+                          </label>
                           <button onClick={() => setShowPollModal(true)} className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-gold transition-colors" title="Poll"><BarChart2 size={13} /></button>
                           <button onClick={() => setShowEventModal(true)} className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-gold transition-colors hidden md:block" title="Event"><Calendar size={13} /></button>
                           {['ROOT_ADMIN', 'HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user?.role || '') && (

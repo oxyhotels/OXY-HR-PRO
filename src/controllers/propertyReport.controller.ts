@@ -3,12 +3,15 @@ import PropertyReport from '@/models/PropertyReport';
 import { User } from '@/models/User';
 
 export const createPropertyReport = async (req: any, res: Response) => {
-  const { category, files, remarks, taskId } = req.body;
+  const { category, reportType, files, remarks, taskId, hotelId, hotelName, hotelCode, department, uploadedBy, uploadedByRole, property, uploadDate, organizationId, createdBy } = req.body;
   const user = req.user;
 
   if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-  // Allow all users to upload reports (previously restricted to PROPERTY/ROOT_ADMIN)
+  // 1. Enforce hotelId strictly as per requirements
+  if (!hotelId) {
+    return res.status(400).json({ success: false, error: 'hotelId is required. Please select a property before uploading.' });
+  }
 
   if (!files || !Array.isArray(files) || files.length === 0) {
     return res.status(400).json({ success: false, error: 'No files provided' });
@@ -20,24 +23,21 @@ export const createPropertyReport = async (req: any, res: Response) => {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
 
-  if (!fullUser.hotel && user.role !== 'ROOT_ADMIN') {
-     return res.status(400).json({ success: false, error: 'User does not belong to a property/hotel.' });
-  }
-
-  const hotelId = fullUser.hotel?._id || req.body.hotelId; // Root admins might pass hotelId
-  const hotelName = fullUser.hotel?.name || req.body.hotelName || 'Unknown Hotel';
-  
   // Use reportingManagerId from User model (from recent updates) or fallback to parentManagerId
   const managerId = fullUser.reportingManagerId || fullUser.parentManagerId || user.id;
 
+  const actualCategory = reportType || category;
+
   const report = await PropertyReport.create({
     hotelId,
-    hotelName,
+    hotelName: hotelName || fullUser.hotel?.name || 'Unknown Hotel',
+    hotelCode: hotelCode || 'UNKNOWN',
     employeeId: user.id,
     employeeName: `${fullUser.firstName} ${fullUser.lastName}`,
     managerId,
-    department: fullUser.department || 'GENERAL',
-    category,
+    department: department || fullUser.department || 'GENERAL',
+    category: actualCategory,
+    reportType: actualCategory,
     taskId,
     files,
     remarks,
@@ -55,19 +55,17 @@ export const getPropertyReports = async (req: any, res: Response) => {
   let query: any = {};
 
   if (user.role === 'ROOT_ADMIN') {
-    // Root Admin sees all, can filter by hotelId
     if (hotelId) query.hotelId = hotelId;
-  } else if (['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user.role)) {
-    // Manager sees only their hotel
-    query.hotelId = user.hotel;
-    if (user.department === 'PROPERTY' && user.role === 'DEPT_MANAGER') {
-      // Property Manager sees their hotel
-    } else {
-      // If they are not property dept and not Root Admin, we might restrict them, but let's just restrict by hotel
-    }
   } else {
-    // Employee sees only their own
-    query.employeeId = user.id;
+    if (hotelId && user.hotel && hotelId !== user.hotel.toString()) {
+      return res.status(403).json({ success: false, error: 'Unauthorized property access.' });
+    }
+    query.hotelId = user.hotel;
+    
+    // Non-managers only see their own reports
+    if (!['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user.role)) {
+      query.employeeId = user.id;
+    }
   }
 
   if (category) query.category = category;
