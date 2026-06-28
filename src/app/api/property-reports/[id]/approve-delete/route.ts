@@ -1,4 +1,4 @@
-import { adaptRoute } from '@/lib/apiAdapter';
+import { adaptRoute } from '@/lib/adaptRoute';
 import { authMiddleware } from '@/middlewares/auth.middleware';
 import { approveDeleteReport } from '@/controllers/propertyReport.controller';
 
