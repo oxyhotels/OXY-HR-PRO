@@ -5,6 +5,7 @@ import { User } from '@/models/User';
 import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
 import { getIO } from '@/lib/socket';
+import { incrementActivity, incrementActivityForMany } from '@/utils/activityBadge';
 
 const normalizeAssignedToIds = (assignedTo: any): string[] => {
   if (!assignedTo) return [];
@@ -160,6 +161,19 @@ export const holdTask = async (req: Request, res: Response, next: NextFunction):
     task.holdReason = reason.trim();
     task.latestRemark = reason.trim();
 
+    // Auto-end active work session
+    const activeSessionIndex = task.taskWorkSessions?.findIndex((s: any) => !s.endedAt);
+    if (activeSessionIndex !== -1 && activeSessionIndex !== undefined) {
+      const activeSession = task.taskWorkSessions[activeSessionIndex];
+      const endedAt = new Date();
+      activeSession.endedAt = endedAt;
+      const diffMs = endedAt.getTime() - activeSession.startedAt.getTime();
+      const durationMins = Math.floor(diffMs / 60000);
+      activeSession.duration = durationMins;
+      activeSession.updatedAt = new Date();
+      task.totalWorkedMinutes = (task.totalWorkedMinutes || 0) + durationMins;
+    }
+
     // Add to taskHistory
     task.taskHistory.push({
       action: 'Hold',
@@ -235,6 +249,19 @@ export const rejectTask = async (req: Request, res: Response, next: NextFunction
     // Update status
     task.status = 'Rejected';
     task.latestRemark = reason.trim();
+
+    // Auto-end active work session
+    const activeSessionIndex = task.taskWorkSessions?.findIndex((s: any) => !s.endedAt);
+    if (activeSessionIndex !== -1 && activeSessionIndex !== undefined) {
+      const activeSession = task.taskWorkSessions[activeSessionIndex];
+      const endedAt = new Date();
+      activeSession.endedAt = endedAt;
+      const diffMs = endedAt.getTime() - activeSession.startedAt.getTime();
+      const durationMins = Math.floor(diffMs / 60000);
+      activeSession.duration = durationMins;
+      activeSession.updatedAt = new Date();
+      task.totalWorkedMinutes = (task.totalWorkedMinutes || 0) + durationMins;
+    }
 
     // Add to taskHistory
     task.taskHistory.push({
@@ -318,6 +345,19 @@ export const completeTask = async (req: Request, res: Response, next: NextFuncti
     if (evidenceUrl || photo) {
       task.evidenceUrl = evidenceUrl || photo;
       task.evidenceType = evidenceType || 'photo';
+    }
+
+    // Auto-end active work session
+    const activeSessionIndex = task.taskWorkSessions?.findIndex((s: any) => !s.endedAt);
+    if (activeSessionIndex !== -1 && activeSessionIndex !== undefined) {
+      const activeSession = task.taskWorkSessions[activeSessionIndex];
+      const endedAt = new Date();
+      activeSession.endedAt = endedAt;
+      const diffMs = endedAt.getTime() - activeSession.startedAt.getTime();
+      const durationMins = Math.floor(diffMs / 60000);
+      activeSession.duration = durationMins;
+      activeSession.updatedAt = new Date();
+      task.totalWorkedMinutes = (task.totalWorkedMinutes || 0) + durationMins;
     }
 
     // Add to taskHistory
@@ -476,6 +516,21 @@ export const updateTaskProgress = async (req: Request, res: Response, next: Next
     task.progress = progressNum;
     task.status = newStatus;
     task.latestRemark = remark || `Progress updated to ${progressNum}%`;
+
+    // Auto-end active work session if task is being completed
+    if (newStatus === 'Completed') {
+      const activeSessionIndex = task.taskWorkSessions?.findIndex((s: any) => !s.endedAt);
+      if (activeSessionIndex !== -1 && activeSessionIndex !== undefined) {
+        const activeSession = task.taskWorkSessions[activeSessionIndex];
+        const endedAt = new Date();
+        activeSession.endedAt = endedAt;
+        const diffMs = endedAt.getTime() - activeSession.startedAt.getTime();
+        const durationMins = Math.floor(diffMs / 60000);
+        activeSession.duration = durationMins;
+        activeSession.updatedAt = new Date();
+        task.totalWorkedMinutes = (task.totalWorkedMinutes || 0) + durationMins;
+      }
+    }
 
     // Add to taskHistory
     task.taskHistory.push({

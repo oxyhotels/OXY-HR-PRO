@@ -6,12 +6,13 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 import { useCommunityStore, ZustandGroup, ZustandMessage, ZustandSocialPost, ZustandKnowledgeItem } from '@/store/communityStore';
 import { api } from '@/lib/api';
-import { DEPARTMENTS } from '@/constants/departments';
+import { useSearchParams } from 'next/navigation';
+
 import {
   MessageSquare, Send, Plus, FileText, Image as ImageIcon, Video, Mic,
   Calendar, Trophy, Search, Award, Sparkles, Play, Pause, Lightbulb,
   BookOpen, Download, BarChart2, Paperclip, Check, CheckCheck, CheckSquare,
-  Users, VideoOff, PhoneCall, Phone, PhoneOff, ArrowLeft, X
+  Users, VideoOff, PhoneCall, Phone, PhoneOff, ArrowLeft, X, Edit2, Trash2
 } from 'lucide-react';
 
 let alarmAudio: HTMLAudioElement | null = null;
@@ -124,10 +125,11 @@ type Toast = { id: string; type: 'success' | 'error' | 'info'; message: string }
 export default function CommunityHubPage() {
   const { user } = useAuthStore();
   const store = useCommunityStore();
+  const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<'chat' | 'social' | 'knowledge' | 'analytics'>('chat');
   const [mobileShowSidebar, setMobileShowSidebar] = useState(true);
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typedMessage, setTypedMessage] = useState('');
   const [replyMessage, setReplyMessage] = useState<ZustandMessage | null>(null);
@@ -195,6 +197,8 @@ export default function CommunityHubPage() {
   const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   // ─── Toast helpers ───────────────────────────────────────────────────────────
   const showToast = useCallback((type: Toast['type'], message: string) => {
@@ -228,6 +232,19 @@ export default function CommunityHubPage() {
       if (res?.data?.departments) setDepartmentsList(res.data.departments);
     }).catch(console.error);
   }, []);
+
+  // Handle URL groupId parameter for auto-selection
+  useEffect(() => {
+    const groupId = searchParams?.get('groupId');
+    if (groupId && store.groups.length > 0) {
+      const group = store.groups.find(g => g._id === groupId);
+      if (group && store.activeGroup?._id !== groupId) {
+        store.selectGroup(group);
+        store.markGroupRead(group._id);
+        setMobileShowSidebar(false);
+      }
+    }
+  }, [searchParams, store.groups, store.activeGroup]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
@@ -456,6 +473,36 @@ export default function CommunityHubPage() {
     } catch (err: any) {
       const msg = err?.message || 'Failed to remove member';
       showToast('error', msg);
+    }
+  };
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!confirm('Are you sure you want to delete this message?')) return;
+    try {
+      const res = await api.delete(`/community/messages/${msgId}`);
+      if (res?.status === 'success') {
+        showToast('success', 'Message deleted');
+      } else {
+        showToast('error', res?.message || 'Failed to delete message');
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to delete message');
+    }
+  };
+
+  const handleEditMessageSubmit = async (msgId: string) => {
+    if (!editingContent.trim()) return;
+    try {
+      const res = await api.put(`/community/messages/${msgId}`, { content: editingContent });
+      if (res?.status === 'success') {
+        showToast('success', 'Message updated');
+        setEditingMessageId(null);
+        setEditingContent('');
+      } else {
+        showToast('error', res?.message || 'Failed to update message');
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'Failed to update message');
     }
   };
 
@@ -875,7 +922,7 @@ export default function CommunityHubPage() {
             </div>
 
             {/* Chat Pane */}
-            <div className={`flex-1 flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden min-w-0 ${!mobileShowSidebar ? 'flex' : 'hidden'} sm:flex`}>
+            <div className={`flex-1 flex-col bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden min-w-0 ${!mobileShowSidebar && !showRightSidebar ? 'flex' : 'hidden'} sm:flex`}>
               {store.activeGroup ? (
                 <>
                   {/* Chat Header */}
@@ -981,12 +1028,28 @@ export default function CommunityHubPage() {
                                 <div className="absolute bottom-1 left-0 right-0 text-center bg-black/50 py-0.5"><span className="text-[7px] text-white font-mono">VIDEO</span></div>
                               </div>
                             ) : (
-                              <div className={`px-3.5 py-2.5 rounded-2xl text-xs text-left ${
+                              <div className={`px-3.5 py-2.5 rounded-2xl text-xs text-left group/msg relative ${
                                 isMe ? 'bg-gold text-slate-dark rounded-br-sm font-medium shadow-md' :
                                 isMentioned ? 'bg-[#1b223c] text-gold border border-gold/40 rounded-bl-sm shadow-[0_0_12px_rgba(212,175,55,0.2)] font-semibold' :
                                 'bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700/60'
                               }`}>
-                                <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.isDeleted ? <span className="italic opacity-60">🗑 Message deleted</span> : renderMessageContent(msg.content)}</p>
+                                {isMe && !msg.isDeleted && (
+                                  <div className="absolute top-1 -left-12 flex gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                                    <button onClick={() => { setEditingMessageId(msg._id); setEditingContent(msg.content || ''); }} className="p-1 bg-slate-800 text-slate-400 hover:text-gold rounded shadow-md"><Edit2 size={10} /></button>
+                                    <button onClick={() => handleDeleteMessage(msg._id)} className="p-1 bg-red-950 text-red-400 hover:text-red-200 rounded shadow-md"><Trash2 size={10} /></button>
+                                  </div>
+                                )}
+                                {editingMessageId === msg._id ? (
+                                  <div className="flex flex-col gap-1 min-w-[200px]">
+                                    <textarea autoFocus value={editingContent} onChange={e => setEditingContent(e.target.value)} className="bg-slate-900/50 text-slate-200 p-1.5 rounded text-xs w-full outline-none border border-slate-700" rows={2} />
+                                    <div className="flex justify-end gap-1">
+                                      <button onClick={() => setEditingMessageId(null)} className="text-[9px] px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded">Cancel</button>
+                                      <button onClick={() => handleEditMessageSubmit(msg._id)} className="text-[9px] px-1.5 py-0.5 bg-gold text-slate-900 rounded font-bold">Save</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.isDeleted ? <span className="italic opacity-60">🗑 Message deleted</span> : renderMessageContent(msg.content)} {msg.isEdited && !msg.isDeleted && <span className="text-[8px] opacity-60 ml-1 italic">(edited)</span>}</p>
+                                )}
                                 {msg.attachments?.length > 0 && (
                                   <div className="mt-2 space-y-1.5 border-t border-slate-700/40 pt-2">
                                     {msg.attachments.map((f: any, fi: number) => {
@@ -1082,16 +1145,21 @@ export default function CommunityHubPage() {
                         <button onClick={triggerAudioRecord} className={`p-1.5 rounded-lg text-slate-400 hover:text-gold transition-colors ${audioRecording ? 'bg-red-500/20 text-red-400' : 'hover:bg-slate-800'}`} title="Voice Note"><Mic size={14} /></button>
                         <button onClick={triggerVideoRecord} className={`p-1.5 rounded-lg text-slate-400 hover:text-gold transition-colors ${videoRecording ? 'bg-red-500/20 text-red-400' : 'hover:bg-slate-800'}`} title="Video Message"><Video size={14} /></button>
                       </div>
-                      <div className="flex-1 flex items-center bg-slate-950/70 border border-slate-800/80 rounded-xl px-3 gap-1 min-w-0">
-                        <input
-                          ref={inputRef}
-                          type="text"
+                      <div className="flex-1 flex items-center bg-slate-950/70 border border-slate-800/80 rounded-xl px-3 py-1 gap-1 min-w-0">
+                        <textarea
+                          ref={inputRef as any}
                           value={typedMessage}
                           onChange={e => setTypedMessage(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendTextMessage(); } }}
-                          placeholder={audioRecording ? `Recording... ${audioTimer}s` : videoRecording ? `Recording video... ${videoTimer}s` : 'Type a message...'}
+                          placeholder={audioRecording ? `Recording... ${audioTimer}s` : videoRecording ? `Recording video... ${videoTimer}s` : 'Type a message... (Enter for new line)'}
                           disabled={audioRecording || videoRecording}
-                          className="flex-1 bg-transparent border-none outline-none text-xs text-slate-300 py-2.5 placeholder-slate-600 min-w-0"
+                          rows={1}
+                          className="flex-1 bg-transparent border-none outline-none text-xs text-slate-300 py-1.5 placeholder-slate-600 min-w-0 resize-none max-h-32"
+                          style={{ minHeight: '36px' }}
+                          onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+                          }}
                         />
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           {/* Image upload button */}

@@ -149,12 +149,33 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
 export const getEmployees = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const filter: any = {};
+    const currentUser = req.user;
 
-    // Tenancy scoping: Root Admin sees all or filters by hotel query. Everyone else only sees their hotel's employees.
-    if (req.user?.role !== 'ROOT_ADMIN') {
-      filter.hotel = req.user?.hotel;
-    } else if (req.query.hotelId) {
-      filter.hotel = req.query.hotelId;
+    if (!currentUser) throw new ApiError(401, 'Unauthorized');
+
+    const isRoot = currentUser.role === 'ROOT_ADMIN';
+    const isCentral = currentUser.department === 'Central Team';
+    const isHotelAdmin = currentUser.role === 'HOTEL_ADMIN' || currentUser.role === 'HR_MANAGER';
+
+    // 1. Root and Central Team see all properties
+    if (isRoot || isCentral) {
+      if (req.query.hotelId) {
+        filter.hotel = req.query.hotelId;
+      }
+    } else {
+      // 2. Everyone else is scoped to their own property
+      filter.hotel = currentUser.hotel;
+
+      // 3. If not an Admin/HR, must be a Reporting Manager
+      if (!isHotelAdmin) {
+        const subCount = await User.countDocuments({ reportingManagerId: currentUser._id });
+        if (subCount > 0) {
+          filter.reportingManagerId = currentUser._id;
+        } else {
+          // Employee / Manager with no subordinates -> Return empty list
+          return res.status(200).json({ status: 'success', results: 0, data: { employees: [] } });
+        }
+      }
     }
 
     if (req.query.department) {
@@ -280,10 +301,30 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
     }
 
     await employee.save();
-
     await syncUserDepartmentGroups(employee);
 
     if (req.user && originalUser) {
+      // ✅ Trigger Automatic Hierarchy Synchronization if manager changed
+      const oldManagerId = originalUser.reportingManagerId;
+      const newManagerId = employee.reportingManagerId;
+      if (oldManagerId !== newManagerId && newManagerId) {
+        try {
+          const { syncHierarchyOnManagerChange } = await import('@/controllers/hierarchy.controller');
+          await syncHierarchyOnManagerChange(employee._id.toString(), oldManagerId || null, newManagerId, req.user._id.toString());
+          
+          // Emit socket event to trigger real-time UI refresh for new and old manager
+          if ((global as any).io) {
+            (global as any).io.emit('reporting_manager_updated', {
+              employeeId: employee._id.toString(),
+              oldManagerId,
+              newManagerId
+            });
+          }
+        } catch (syncErr) {
+          console.error('Failed to sync hierarchy automatically:', syncErr);
+        }
+      }
+
       const isEmployee = originalUser.role === 'EMPLOYEE';
       const fieldsToTrack = isEmployee
         ? [

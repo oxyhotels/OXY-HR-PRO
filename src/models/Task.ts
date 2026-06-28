@@ -1,5 +1,5 @@
 import { Schema, model, models, Document } from 'mongoose';
-import { DEPARTMENTS } from '@/constants/departments';
+
 
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 export type TaskStatus = 'Pending' | 'To_Do' | 'Accepted' | 'In_Progress' | 'Completed' | 'On_Hold' | 'Rejected'; // ✅ Added To_Do

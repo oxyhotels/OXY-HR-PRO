@@ -103,44 +103,50 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
             } else {
               isRefreshing = false;
               useAuthStore.getState().clearAuth();
+              onRefreshed(null);
               throw new Error('Session expired - please login again');
             }
           } catch (refreshErr) {
             isRefreshing = false;
             useAuthStore.getState().clearAuth();
+            onRefreshed(null);
             throw refreshErr;
           }
         }
 
         // Wait for refresh to finish and retry
-        const retryPromise = new Promise((resolve) => {
-          subscribeTokenRefresh((newToken) => {
-            headers.set('Authorization', `Bearer ${newToken}`);
-            resolve(
-              fetch(`${BASE_URL}${endpoint}`, {
-                ...options,
-                headers,
-                credentials: options.credentials || 'include',
-              })
-            );
+        const retryPromise = new Promise((resolve, reject) => {
+          subscribeTokenRefresh(async (newToken) => {
+            if (!newToken) {
+              reject(new Error('Session expired - please login again'));
+              return;
+            }
+            const newHeaders = new Headers(config.headers);
+            newHeaders.set('Authorization', `Bearer ${newToken}`);
+
+            const retryRes = await fetch(`${BASE_URL}${endpoint}`, {
+              ...config,
+              headers: newHeaders,
+            });
+            resolve(retryRes);
           });
         });
 
         const retryRes = (await retryPromise) as Response;
         if (!retryRes.ok) {
-          const retryText = await retryRes.text().catch(() => '');
           let retryErr = 'Request failed after refresh';
           try {
-            const errData = JSON.parse(retryText);
-            retryErr = errData.message || retryErr;
-          } catch (e) {
-            if (retryText.trim().startsWith('<')) {
-              retryErr = `HTTP Error ${retryRes.status}: ${retryRes.statusText || 'Endpoint not found'}`;
-            } else {
-              retryErr = `HTTP Error ${retryRes.status}: ${retryText || retryRes.statusText}`;
+            const retryText = await retryRes.text();
+            try {
+              const errData = JSON.parse(retryText);
+              retryErr = String(errData.message || errData.error || retryText);
+            } catch (e) {
+              retryErr = String(retryText || retryRes.statusText);
             }
+          } catch (e) {
+            retryErr = `HTTP Error ${retryRes.status}`;
           }
-          throw new Error(retryErr);
+          throw new Error(String(retryErr));
         }
         if (retryRes.status === 240 || retryRes.status === 204) {
           return null;
@@ -151,19 +157,19 @@ export const apiRequest = async (endpoint: string, options: RequestOptions = {})
       }
 
       if (!response.ok) {
-        const responseText = await response.text().catch(() => '');
         let errorMessage = 'Something went wrong';
         try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-          if (responseText.trim().startsWith('<')) {
-            errorMessage = `HTTP Error ${response.status}: ${response.statusText || 'Endpoint not found'}`;
-          } else {
-            errorMessage = `HTTP Error ${response.status}: ${responseText || response.statusText}`;
+          const responseText = await response.text();
+          try {
+            const errorData = JSON.parse(responseText);
+            errorMessage = String(errorData.message || errorData.error || responseText);
+          } catch (e) {
+            errorMessage = String(responseText || response.statusText);
           }
+        } catch (e) {
+          errorMessage = `HTTP Error ${response.status}`;
         }
-        throw new Error(errorMessage);
+        throw new Error(String(errorMessage));
       }
 
       if (response.status === 240 || response.status === 204) {

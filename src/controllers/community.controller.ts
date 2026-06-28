@@ -7,6 +7,7 @@ import { ApiError } from '@/utils/ApiError';
 import { CallSession } from '@/models/CallSession';
 import { Notification } from '@/models/Notification';
 import { getIO } from '@/lib/socket';
+import { incrementActivityForMany } from '@/utils/activityBadge';
 import mongoose from 'mongoose';
 import { PushToken } from '@/models/PushToken';
 import { CallLog } from '@/models/CallLog';
@@ -449,6 +450,12 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Realtime Socket Broadcast
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('new_message', populatedMessage);
+    }
+
+    // Increment activity badge for all recipients
+    const recipientIds = groupMembers.map((m: any) => m.user.toString());
+    if (recipientIds.length > 0) {
+      await incrementActivityForMany(recipientIds, 'Community', 1);
     }
 
     res.status(201).json({

@@ -29,8 +29,8 @@ export const handleWorkSession = async (req: Request, res: Response, next: NextF
       throw new ApiError(404, 'Task not found');
     }
 
-    if (task.status !== 'In_Progress') {
-      throw new ApiError(400, 'Work sessions can only be tracked for IN-PROGRESS tasks');
+    if (task.status !== 'In_Progress' && task.status !== 'Paused') {
+      throw new ApiError(400, 'Work sessions can only be tracked for IN-PROGRESS or PAUSED tasks');
     }
 
     if (action === 'start') {
@@ -48,6 +48,8 @@ export const handleWorkSession = async (req: Request, res: Response, next: NextF
         updatedBy: userId,
         updatedAt: new Date()
       });
+
+      task.status = 'In_Progress'; // Ensure status is In_Progress when resuming
 
       await task.save();
       emitTaskUpdate(task, 'TASK_UPDATED');
@@ -77,6 +79,8 @@ export const handleWorkSession = async (req: Request, res: Response, next: NextF
       if (updateMessage) {
         task.latestUpdate = updateMessage;
       }
+      
+      task.status = 'Paused'; // Change status to Paused when a session is paused
 
       await task.save();
       emitTaskUpdate(task, 'TASK_UPDATED');

@@ -197,13 +197,13 @@ export const useHierarchyStore = create<HierarchyState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const params = new URLSearchParams();
-      if (filters.departmentId) params.append('departmentId', filters.departmentId);
-      if (filters.hotelId) params.append('hotelId', filters.hotelId);
-      if (filters.managerId) params.append('managerId', filters.managerId);
-      if (filters.search) params.append('search', filters.search);
+      if (filters?.departmentId) params.append('departmentId', String(filters.departmentId));
+      if (filters?.hotelId) params.append('hotelId', String(filters.hotelId));
+      if (filters?.managerId) params.append('managerId', String(filters.managerId));
+      if (filters?.search) params.append('search', String(filters.search));
 
       const res = await api.get(`/organization/tree?${params.toString()}`);
-      set({ tree: res.data.tree || [] });
+      set({ tree: res?.data?.tree || [] });
     } catch (err: any) {
       set({ error: err.message || 'Failed to fetch hierarchy tree chart' });
     } finally {

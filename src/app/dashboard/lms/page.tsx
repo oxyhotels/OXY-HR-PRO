@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import { DEPARTMENTS } from '@/constants/departments';
+
 import {
   BookOpen, Award, CheckCircle2, Play, ChevronRight, GraduationCap,
   ArrowRight, ShieldAlert, Search, Filter, Plus, Trash2, Edit,
@@ -226,7 +226,7 @@ export default function LmsPage() {
 
   // Predefined lists
   const categoriesList = ['All', 'Safety Training', 'Guest Relations', 'Kitchen Hygiene', 'Housekeeping', 'F&B Operations', 'General Compliance'];
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {

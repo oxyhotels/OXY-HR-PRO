@@ -1,5 +1,5 @@
 import { Schema, model, models, Document } from 'mongoose';
-import { DEPARTMENTS } from '@/constants/departments';
+
 
 export interface IKnowledgeItem extends Document {
   title: string;

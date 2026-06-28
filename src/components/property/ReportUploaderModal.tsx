@@ -5,12 +5,13 @@ import GoogleIcon from '../GoogleIcon';
 interface ReportUploaderModalProps {
   category: string;
   onClose: () => void;
-  onSubmit: (payload: { category: string; files: any[]; remarks: string }) => Promise<void>;
+  onSubmit: (payload: { category: string; reportDate: string; files: any[]; remarks: string }) => Promise<void>;
 }
 
 export default function ReportUploaderModal({ category, onClose, onSubmit }: ReportUploaderModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<{ file: File; preview: string; name: string }[]>([]);
   const [remarks, setRemarks] = useState('');
+  const [reportDate, setReportDate] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -77,7 +78,14 @@ export default function ReportUploaderModal({ category, onClose, onSubmit }: Rep
   };
 
   const handleSubmit = async () => {
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) {
+      alert("Please upload a document.");
+      return;
+    }
+    if (!reportDate) {
+      alert("Please select Report Date.");
+      return;
+    }
     
     setIsUploading(true);
     setUploadProgress(10); // Start progress
@@ -91,7 +99,7 @@ export default function ReportUploaderModal({ category, onClose, onSubmit }: Rep
         setUploadProgress(10 + Math.floor(((i + 1) / selectedFiles.length) * 40)); // Progress up to 50% during conversion
       }
 
-      await onSubmit({ category, files: processedFiles, remarks });
+      await onSubmit({ category, reportDate, files: processedFiles, remarks });
       
       setUploadProgress(100);
       setTimeout(() => {
@@ -125,6 +133,17 @@ export default function ReportUploaderModal({ category, onClose, onSubmit }: Rep
         </div>
 
         <div className="p-5 overflow-y-auto max-h-[70vh]">
+          {/* Report Date */}
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Report Date <span className="text-red-400">*</span></label>
+            <input
+              type="date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-gold"
+            />
+          </div>
+
           {/* Drag & Drop Area */}
           <div
             onDragOver={handleDragOver}

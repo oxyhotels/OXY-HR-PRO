@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { adaptRoute } from '@/lib/adaptRoute';
 import { getNotifications, markAllAsRead } from '@/controllers/notification.controller';
 import { authMiddleware } from '@/middlewares/auth.middleware';

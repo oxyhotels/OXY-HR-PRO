@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import GoogleIcon from '../GoogleIcon';
-import { DEPARTMENTS } from '@/constants/departments';
+
 import {
   ResponsiveContainer,
   PieChart,
@@ -42,7 +42,7 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '../../../lib/api';
-import { DEPARTMENTS } from '@/constants/departments';
+
 import { useAuthStore } from '../../../store/authStore';
 import {
   Search, Calendar, Filter, User, Award, Users, AlertTriangle, ShieldAlert, Check, X,
@@ -34,7 +34,7 @@ export default function AnalyticsPage() {
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [hotels, setHotels] = useState<any[]>([]);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {

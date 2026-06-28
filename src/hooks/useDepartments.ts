@@ -1,28 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { DEPARTMENTS as STATIC_DEPARTMENTS } from '@/constants/departments';
 
 export function useDepartments() {
-  const [departments, setDepartments] = useState<string[]>([...STATIC_DEPARTMENTS]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        const res = await api.get('/organization/public-departments');
-        if (res?.data?.departments) {
-          setDepartments(res.data.departments);
-        } else if (res?.departments) {
-          setDepartments(res.departments);
-        }
-      } catch (error) {
-        console.error('Failed to fetch departments:', error);
-      } finally {
-        setLoading(false);
+  const { data: departments, isLoading: loading, error, refetch } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const res = await api.get('/organization/public-departments');
+      if (res?.data?.departments) {
+        return res.data.departments as string[];
+      } else if (res?.departments) {
+        return res.departments as string[];
       }
-    };
-    fetchDepartments();
-  }, []);
+      return [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true,
+  });
 
-  return { departments, loading };
+  return { departments: departments || [], loading, error, refetch };
 }

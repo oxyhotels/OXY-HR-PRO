@@ -15,6 +15,9 @@ import { useCommunityStore } from '../../store/communityStore';
 import ThemeToggle from '@/components/ThemeToggle';
 import QRScannerModal from '@/components/QRScannerModal';
 import GlobalNotificationManager from '@/components/GlobalNotificationManager';
+import NotificationCenterModal from '@/components/NotificationCenterModal';
+import { useActivityBadges } from '@/hooks/useActivityBadges';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -32,10 +35,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Notifications states
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<'all' | 'unread' | 'approval' | 'task' | 'community' | 'call'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
-
   const [showPermissionBanner, setShowPermissionBanner] = useState(false);
+
+  // Activity Badges
+  const { badges } = useActivityBadges();
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -216,6 +222,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } catch (err) {
         console.error(err);
       }
+    });
+
+    socketConn.on('hierarchy_updated', (data: any) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Socket] Hierarchy Updated:', data);
+      }
+      window.dispatchEvent(new CustomEvent('hierarchy_updated', { detail: data }));
     });
 
     socketConn.on('disconnect', (reason) => {
@@ -452,16 +465,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/login');
   };
 
-  // Navigation items
   const menuItems = [
     { name: 'Profile', icon: 'account_circle', href: '/dashboard/profile' },
     { name: 'Dashboard', icon: 'dashboard', href: '/dashboard' },
+    { name: 'Community', icon: 'forum', href: '/dashboard/community' },
     { name: 'Attendance', icon: 'fingerprint', href: '/dashboard/attendance' },
     { name: 'Employees', icon: 'group', href: '/dashboard/employees' },
-    { name: 'Leaves', icon: 'calendar_today', href: '/dashboard/leaves' },
-    { name: 'Payroll', icon: 'payments', href: '/dashboard/payroll' },
     { name: 'Tasks', icon: 'fact_check', href: '/dashboard/tasks' },
     { name: 'My Tasks', icon: 'assignment', href: '/dashboard/tasks/my-tasks' },
+    { name: 'Leaves', icon: 'calendar_today', href: '/dashboard/leaves' },
+    { name: 'Payroll', icon: 'payments', href: '/dashboard/payroll' },
     { name: 'Task Monitoring', icon: 'monitor', href: '/dashboard/tasks/monitoring' },
     { name: 'Performance', icon: 'leaderboard', href: '/dashboard/performance' },
     { name: 'Reports', icon: 'description', href: '/dashboard/reports' },
@@ -471,7 +484,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Compliance', icon: 'verified', href: '/dashboard/compliance' },
     { name: 'Hotels', icon: 'hotel', href: '/dashboard/hotels' },
     { name: 'Hierarchy', icon: 'account_tree', href: '/dashboard/hierarchy' },
-    { name: 'Community', icon: 'forum', href: '/dashboard/community' },
     { name: 'Notifications', icon: 'notifications', href: '/dashboard/notifications' },
     { name: 'Employee Tracking', icon: 'my_location', href: '/dashboard/tracking' },
   ];
@@ -543,18 +555,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-700/30">
           {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href;
+            const badgeCount = badges[item.name] || 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all ${
+                onClick={(e) => {
+                  if (item.name === 'Notifications') {
+                    e.preventDefault();
+                    setIsNotificationCenterOpen(true);
+                  }
+                }}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all relative ${
                   isActive
                     ? 'bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] font-bold shadow-md'
                     : 'text-slate-300 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <GoogleIcon name={item.icon} size={18} />
-                {item.name}
+                <div className="flex items-center gap-3">
+                  <GoogleIcon name={item.icon} size={18} />
+                  {item.name}
+                </div>
+                <AnimatePresence mode="popLayout">
+                  {badgeCount > 0 && (
+                    <motion.div
+                      key={badgeCount}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: [1.2, 1], opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      className="bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-md border border-white/20"
+                    >
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </Link>
             );
           })}
@@ -603,19 +638,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1.5 mb-6 overflow-y-auto max-h-[60vh] pr-1 scrollbar-none">
           {visibleMenuItems.map((item) => {
             const isActive = pathname === item.href;
+            const badgeCount = badges[item.name] || 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] tracking-wide transition-all ${
+                onClick={(e) => {
+                  if (item.name === 'Notifications') {
+                    e.preventDefault();
+                    setIsNotificationCenterOpen(true);
+                  }
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] tracking-wide transition-all relative ${
                   isActive
                     ? 'bg-gradient-to-r from-gold to-gold-light text-[#0a1f5c] font-bold shadow-md'
                     : 'text-slate-350 hover:text-white hover:bg-white/8'
                 }`}
               >
-                <GoogleIcon name={item.icon} size={20} />
-                {item.name}
+                <div className="flex items-center gap-3">
+                  <GoogleIcon name={item.icon} size={20} />
+                  {item.name}
+                </div>
+                <AnimatePresence mode="popLayout">
+                  {badgeCount > 0 && (
+                    <motion.div
+                      key={badgeCount}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: [1.2, 1], opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      className="bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-md border border-white/20"
+                    >
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </Link>
             );
           })}
@@ -746,6 +804,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">
           <GlobalNotificationManager />
+          <NotificationCenterModal 
+            isOpen={isNotificationCenterOpen} 
+            onClose={() => setIsNotificationCenterOpen(false)} 
+          />
           {children}
           <TaskNotificationPopup />
           <TaskDeadlineAlert />

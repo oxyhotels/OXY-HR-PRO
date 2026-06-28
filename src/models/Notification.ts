@@ -9,6 +9,8 @@ export interface INotification extends Document {
   type: 'info' | 'success' | 'warning' | 'alert' | 'ticket' | 'compliance' | 'performance' | 'chat' | 'call' | 'mention' | 'approval' | 'task' | 'system' | 'community';
   link?: string;
   actionRequired?: boolean;
+  priority?: 'High' | 'Medium' | 'Low';
+  moduleTag?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +29,8 @@ const NotificationSchema = new Schema<INotification>(
     },
     link: { type: String },
     actionRequired: { type: Boolean, default: false },
+    priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
+    moduleTag: { type: String }
   },
   { timestamps: true }
 );

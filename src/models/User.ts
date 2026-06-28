@@ -1,7 +1,7 @@
 import { Schema, model, models, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-import { DEPARTMENTS } from '@/constants/departments';
+
 
 export type UserRole = 'ROOT_ADMIN' | 'HOTEL_ADMIN' | 'HR_MANAGER' | 'DEPT_MANAGER' | 'EMPLOYEE';
 

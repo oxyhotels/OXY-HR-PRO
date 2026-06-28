@@ -6,6 +6,7 @@ import { ApiError } from '@/utils/ApiError';
 import { AuditLog } from '@/models/AuditLog';
 import { createNotification } from '@/services/notification.service';
 import { getIO } from '@/lib/socket'; // ✅ Socket import added
+import { incrementActivityForMany } from '@/utils/activityBadge';
 
 const normalizeAssignedToIds = (assignedTo: any): string[] => {
   if (!assignedTo) return [];
@@ -256,6 +257,10 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       }
     } catch (notifError) {
       console.error('Failed to send task notification:', notifError);
+    }
+
+    if (assigneeIds.length > 0) {
+      await incrementActivityForMany(assigneeIds, 'My Tasks', 1);
     }
 
     // ✅ Emit Real-time Task Created

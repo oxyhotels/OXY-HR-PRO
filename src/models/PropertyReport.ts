@@ -10,6 +10,8 @@ export interface IPropertyReport extends Document {
   department: string;
   category: string; // Used as reportType in frontend (DAILY_SALES_REPORT, CASHBOOK, etc)
   reportType: string;
+  reportDate: Date; // NEW: The actual date of the report
+  uploadedAt: Date; // NEW: The timestamp of upload
   taskId?: Schema.Types.ObjectId;
   files: {
     fileUrl: string;
@@ -18,6 +20,19 @@ export interface IPropertyReport extends Document {
   }[];
   remarks?: string;
   status: 'Uploaded' | 'Verified';
+  deleteStatus: 'ACTIVE' | 'PENDING_DELETE' | 'DELETED';
+  deleteRequest?: {
+    reason: string;
+    requestedBy: Schema.Types.ObjectId;
+    requestedAt: Date;
+  };
+  auditLogs: {
+    action: string;
+    by: Schema.Types.ObjectId;
+    byName: string;
+    at: Date;
+    reason?: string;
+  }[];
   uploadedBy: Schema.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +49,8 @@ const PropertyReportSchema = new Schema<IPropertyReport>(
     department: { type: String, required: true, index: true },
     category: { type: String, required: true, index: true },
     reportType: { type: String },
+    reportDate: { type: Date, required: true, index: true },
+    uploadedAt: { type: Date, default: Date.now, index: true },
     taskId: { type: Schema.Types.ObjectId, ref: 'Task' },
     files: [
       {
@@ -44,6 +61,21 @@ const PropertyReportSchema = new Schema<IPropertyReport>(
     ],
     remarks: { type: String },
     status: { type: String, enum: ['Uploaded', 'Verified'], default: 'Uploaded' },
+    deleteStatus: { type: String, enum: ['ACTIVE', 'PENDING_DELETE', 'DELETED'], default: 'ACTIVE', index: true },
+    deleteRequest: {
+      reason: { type: String },
+      requestedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      requestedAt: { type: Date },
+    },
+    auditLogs: [
+      {
+        action: { type: String },
+        by: { type: Schema.Types.ObjectId, ref: 'User' },
+        byName: { type: String },
+        at: { type: Date, default: Date.now },
+        reason: { type: String },
+      }
+    ],
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   {
@@ -52,7 +84,8 @@ const PropertyReportSchema = new Schema<IPropertyReport>(
 );
 
 // Indexes to optimize filters
-PropertyReportSchema.index({ hotelId: 1, category: 1 });
-PropertyReportSchema.index({ createdAt: -1 });
+PropertyReportSchema.index({ hotelId: 1, category: 1, reportDate: -1 });
+PropertyReportSchema.index({ uploadedAt: -1 });
+PropertyReportSchema.index({ deleteStatus: 1 });
 
 export default models.PropertyReport || model<IPropertyReport>('PropertyReport', PropertyReportSchema);

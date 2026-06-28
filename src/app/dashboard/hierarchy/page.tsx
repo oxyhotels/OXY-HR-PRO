@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import EnterpriseOrgTree from '@/components/hierarchy/EnterpriseOrgTree';
+import AccordionTreeMobile from '@/components/hierarchy/AccordionTreeMobile';
 import { api } from '@/lib/api';
 import {
   ShieldCheck,
@@ -356,13 +358,13 @@ export default function HierarchyPage() {
     setLoading(true);
     try {
       const query = new URLSearchParams();
-      if (params?.departmentId) query.set('departmentId', params.departmentId);
-      if (params?.hotelId) query.set('hotelId', params.hotelId);
-      if (params?.managerId) query.set('managerId', params.managerId);
-      if (params?.search) query.set('search', params.search);
+      if (params?.departmentId) query.set('departmentId', String(params.departmentId));
+      if (params?.hotelId) query.set('hotelId', String(params.hotelId));
+      if (params?.managerId) query.set('managerId', String(params.managerId));
+      if (params?.search) query.set('search', String(params.search));
       const qs = query.toString();
       const res = await api.get(`/hierarchy/tree${qs ? `?${qs}` : ''}`);
-      setTree(res.data.tree || []);
+      setTree(res?.data?.tree || []);
     } catch (err) {
       console.error('Error fetching tree:', err);
     } finally {
@@ -495,6 +497,31 @@ export default function HierarchyPage() {
     logsFilterEndDate,
     logsSearchQuery,
   ]);
+
+  // ✅ Auto-refresh hierarchy tree when changes happen backend
+  useEffect(() => {
+    const handleHierarchyUpdate = () => {
+      if (activeTab === 'tree') {
+        fetchHierarchyTree({
+          departmentId: filterDept || undefined,
+          hotelId: filterHotel || undefined,
+          managerId: filterManager || undefined,
+          search: searchQuery || undefined,
+        });
+      } else if (activeTab === 'my-team') {
+        if (user?.role === 'EMPLOYEE') {
+          fetchReportingPath();
+        } else {
+          fetchTeamStructure();
+        }
+      }
+    };
+
+    window.addEventListener('hierarchy_updated', handleHierarchyUpdate);
+    return () => {
+      window.removeEventListener('hierarchy_updated', handleHierarchyUpdate);
+    };
+  }, [activeTab, filterDept, filterHotel, filterManager, searchQuery, user]);
 
   useEffect(() => {
     if (activeTab === 'activity-logs') {
@@ -1344,212 +1371,18 @@ export default function HierarchyPage() {
         <div className="space-y-6">
           {/* TAB 1: TREE CHART VIEW */}
           {activeTab === 'tree' && user?.role !== 'EMPLOYEE' && (
-            <div className="space-y-4">
-              {/* Tree Filters */}
-              <div className="bg-card-dark border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row gap-3">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search node by name, ID, or designation..."
-                    className="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-lg pl-10 pr-3.5 py-2.5 outline-none focus:border-gold focus:ring-1 focus:ring-gold transition-all"
-                  />
+              <>
+                <div className="hidden lg:block w-full h-[80vh]">
+                  <EnterpriseOrgTree />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:w-[60%]">
-                  <select
-                    value={filterDept}
-                    onChange={(e) => setFilterDept(e.target.value)}
-                    className="bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3.5 py-2.5 outline-none focus:border-gold cursor-pointer"
-                  >
-                    <option value="">All Departments</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={filterHotel}
-                    onChange={(e) => setFilterHotel(e.target.value)}
-                    className="bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3.5 py-2.5 outline-none focus:border-gold"
-                  >
-                    <option value="">All Hotels</option>
-                    {allHotels.map((h) => (
-                      <option key={h._id} value={h._id}>{h.name} ({h.hotelCode})</option>
-                    ))}
-                  </select>
-                  <select
-                    value={filterManager}
-                    onChange={(e) => setFilterManager(e.target.value)}
-                    className="bg-slate-950 text-white text-xs border border-slate-800 rounded-lg px-3.5 py-2.5 outline-none focus:border-gold"
-                  >
-                    <option value="">All Managers</option>
-                    {allManagers.map((m) => (
-                      <option key={m._id} value={m._id}>{m.firstName} {m.lastName}</option>
-                    ))}
-                  </select>
+                <div className="block lg:hidden w-full h-auto">
+                  <AccordionTreeMobile />
                 </div>
-              </div>
-              <div className="relative bg-card-dark border border-slate-800/80 rounded-xl p-6 overflow-hidden min-h-[600px] flex flex-col">
-                <style>{`
-                  .tree-node-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    position: relative;
-                  }
-                  .tree-children-container {
-                    display: flex;
-                    flex-direction: row;
-                    justify-content: center;
-                    position: relative;
-                    padding-top: 24px;
-                  }
-                  .tree-children-container::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 50%;
-                    border-left: 2px solid #475569; /* slate-600 */
-                    height: 24px;
-                    width: 0;
-                  }
-                  .tree-child-node {
-                    padding: 24px 12px 0 12px;
-                    position: relative;
-                  }
-                  .tree-child-node::before, .tree-child-node::after {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    right: 50%;
-                    border-top: 2px solid #475569;
-                    width: 50%;
-                    height: 24px;
-                  }
-                  .tree-child-node::after {
-                    right: auto;
-                    left: 50%;
-                    border-left: 2px solid #475569;
-                  }
-                  .tree-child-node:only-child::after, .tree-child-node:only-child::before {
-                    display: none;
-                  }
-                  .tree-child-node:only-child {
-                    padding-top: 24px;
-                  }
-                  .tree-child-node:only-child::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 50%;
-                    border-left: 2px solid #475569;
-                    height: 24px;
-                  }
-                  .tree-child-node:first-child::before {
-                    border: 0 none;
-                  }
-                  .tree-child-node:last-child::after {
-                    border: 0 none;
-                  }
-                  .tree-child-node:first-child::after {
-                    border-left: 2px solid #475569;
-                    border-radius: 4px 0 0 0;
-                  }
-                  .tree-child-node:last-child::before {
-                    border-right: 2px solid #475569;
-                    border-radius: 0 4px 0 0;
-                  }
-                `}</style>
+              </>
+            )}
 
-                {/* Zoom Controls */}
-                <div className="absolute right-6 top-6 z-10 flex items-center gap-2 bg-slate-950/80 backdrop-blur border border-slate-800 p-1.5 rounded-lg shadow-lg">
-                  <button 
-                    onClick={() => setTreeScale(prev => Math.max(0.5, prev - 0.1))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-bold transition-all text-sm cursor-pointer select-none"
-                    title="Zoom Out"
-                  >
-                    -
-                  </button>
-                  <span className="px-2 text-slate-300 text-xs font-mono select-none w-12 text-center">
-                    {Math.round(treeScale * 100)}%
-                  </span>
-                  <button 
-                    onClick={() => setTreeScale(prev => Math.min(2, prev + 0.1))}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-bold transition-all text-sm cursor-pointer select-none"
-                    title="Zoom In"
-                  >
-                    +
-                  </button>
-                  <div className="w-px h-5 bg-slate-800 mx-1" />
-                  <button 
-                    onClick={() => setTreeScale(1)}
-                    className="px-2 py-1.5 text-[10px] bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 rounded text-slate-400 font-semibold transition-all cursor-pointer select-none"
-                    title="Reset Zoom"
-                  >
-                    Reset
-                  </button>
-                </div>
-
-                {tree.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 text-xs my-auto">
-                    No organizational nodes match the current criteria.
-                  </div>
-                ) : (
-                  <div className="flex-1 overflow-auto p-4" style={{ touchAction: 'pan-x pan-y' }}>
-                    <div 
-                      style={{ 
-                        transform: `scale(${treeScale})`, 
-                        transformOrigin: 'top center', 
-                        transition: 'transform 0.15s ease-out' 
-                      }} 
-                      className="space-y-12 min-w-max pb-8"
-                    >
-                      {tree.map((org) => (
-                        <div key={org.id} className="space-y-6 flex flex-col items-center">
-                          {/* Org Header */}
-                          <div className="flex items-center gap-2 border-b border-slate-800 pb-2 w-full justify-center">
-                            <Building className="text-gold shrink-0" size={16} />
-                            <h2 className="text-sm font-bold text-white uppercase tracking-wider">{org.name}</h2>
-                            {org.code && (
-                              <span className="bg-slate-800/80 text-slate-400 font-mono text-[9px] border border-slate-700 px-1.5 py-0.5 rounded">
-                                {org.code}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Dept Level */}
-                          <div className="space-y-12 w-full flex flex-col items-center">
-                            {org.departments.map((dept: any) => (
-                              <div key={dept.id} className="w-full flex flex-col items-center space-y-6">
-                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-900/30 py-1.5 px-3 rounded-lg border border-slate-850/60 justify-center">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-gold" />
-                                  <span>{dept.name} Department</span>
-                                  <span className="text-[10px] text-slate-500 font-normal">
-                                    ({dept.employeesCount} staff)
-                                  </span>
-                                </div>
-
-                                {/* Department Employee Tree Nodes */}
-                                <div className="flex flex-row justify-center gap-12 pt-4 w-full">
-                                  {dept.structure.map((node: any) => renderVisualTree(node))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: INVITES & APPROVALS (MANAGERS / ADMINS) */}
-          {activeTab === 'invites' && user?.role !== 'EMPLOYEE' && (
+            {/* TAB 2: INVITES & APPROVALS */}
+            {activeTab === 'invites' && user?.role !== 'EMPLOYEE' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Generate QR Box */}
               <div className="lg:col-span-1 bg-card-dark border border-slate-800/80 rounded-xl p-5 space-y-4 h-fit">

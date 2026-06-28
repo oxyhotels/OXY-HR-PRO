@@ -104,6 +104,21 @@ export const updateTaskStatus = async (req: Request, res: Response, next: NextFu
       task.progress = Math.max(task.progress, 25);
     }
 
+    // Auto-end active work session if task is being completed, held, or rejected
+    if (status === 'Completed' || status === 'On_Hold' || status === 'Rejected') {
+      const activeSessionIndex = task.taskWorkSessions?.findIndex((s: any) => !s.endedAt);
+      if (activeSessionIndex !== -1 && activeSessionIndex !== undefined) {
+        const activeSession = task.taskWorkSessions[activeSessionIndex];
+        const endedAt = new Date();
+        activeSession.endedAt = endedAt;
+        const diffMs = endedAt.getTime() - activeSession.startedAt.getTime();
+        const durationMins = Math.floor(diffMs / 60000);
+        activeSession.duration = durationMins;
+        activeSession.updatedAt = new Date();
+        task.totalWorkedMinutes = (task.totalWorkedMinutes || 0) + durationMins;
+      }
+    }
+
     // Add to taskUpdates array
     task.taskUpdates.push({
       status,

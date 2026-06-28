@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../../../lib/api';
 import { useAuthStore } from '../../../store/authStore';
 import GoogleIcon from '../../../components/GoogleIcon';
-import { DEPARTMENTS } from '@/constants/departments';
+
 import WorkLogDrawer from '../../../components/reports/WorkLogDrawer';
 import EmployeeReportModal from '../../../components/reports/EmployeeReportModal';
 import AttendanceAnalytics from '../../../components/reports/AttendanceAnalytics';
@@ -85,7 +85,7 @@ export default function AttendancePage() {
   const userRole = user?.role;
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {
@@ -269,6 +269,12 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchLogs();
+
+    const handleRBACUpdate = () => {
+      fetchLogs();
+    };
+    window.addEventListener('reporting_manager_updated', handleRBACUpdate);
+    return () => window.removeEventListener('reporting_manager_updated', handleRBACUpdate);
   }, [fetchLogs]);
 
   const handleCSVExport = () => {

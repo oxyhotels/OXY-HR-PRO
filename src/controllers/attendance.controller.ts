@@ -458,24 +458,41 @@ export const getMyAttendance = async (req: Request, res: Response, next: NextFun
 export const getHotelAttendance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const filter: any = {};
+    const currentUser = req.user;
 
-    if (req.user?.role !== 'ROOT_ADMIN') {
-      const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
-      const myEmployeeIds = myEmployees.map(e => e._id);
-      
-      if (myEmployeeIds.length > 0) {
-         filter.$or = [
-           { hotel: req.user?.hotel || null },
-           { employee: { $in: myEmployeeIds } }
-         ];
-      } else {
-         filter.hotel = req.user?.hotel;
+    if (!currentUser) throw new ApiError(401, 'Unauthorized');
+
+    const isRoot = currentUser.role === 'ROOT_ADMIN';
+    const isCentral = currentUser.department === 'Central Team';
+    const isHotelAdmin = currentUser.role === 'HOTEL_ADMIN' || currentUser.role === 'HR_MANAGER';
+
+    if (isRoot || isCentral) {
+      if (req.query.hotelId) {
+        filter.hotel = req.query.hotelId;
       }
-    } else if (req.query.hotelId) {
-      filter.hotel = req.query.hotelId;
+    } else {
+      filter.hotel = currentUser.hotel;
+
+      if (!isHotelAdmin) {
+        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean();
+        if (myEmployees.length > 0) {
+          const myEmployeeIds = myEmployees.map(e => e._id);
+          filter.employee = { $in: myEmployeeIds };
+        } else {
+          // Employee / Manager with no subordinates
+          return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+        }
+      }
     }
 
     if (req.query.employeeId) {
+      if (filter.employee && filter.employee.$in) {
+        const requestedId = req.query.employeeId as string;
+        const isAllowed = filter.employee.$in.some((id: any) => id.toString() === requestedId);
+        if (!isAllowed) {
+           return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+        }
+      }
       filter.employee = req.query.employeeId;
     }
 
@@ -533,23 +550,40 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
 export const getLiveAttendance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const filter: any = {};
-        if (req.user?.role !== 'ROOT_ADMIN') {
-        const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
-        const myEmployeeIds = myEmployees.map(e => e._id);
-        
-        if (myEmployeeIds.length > 0) {
-           filter.$or = [
-             { hotel: req.user?.hotel || null },
-             { employee: { $in: myEmployeeIds } }
-           ];
-        } else {
-           filter.hotel = req.user?.hotel;
-        }
-      } else if (req.query.hotelId) {
+    const currentUser = req.user;
+
+    if (!currentUser) throw new ApiError(401, 'Unauthorized');
+
+    const isRoot = currentUser.role === 'ROOT_ADMIN';
+    const isCentral = currentUser.department === 'Central Team';
+    const isHotelAdmin = currentUser.role === 'HOTEL_ADMIN' || currentUser.role === 'HR_MANAGER';
+
+    if (isRoot || isCentral) {
+      if (req.query.hotelId) {
         filter.hotel = req.query.hotelId;
       }
+    } else {
+      filter.hotel = currentUser.hotel;
+
+      if (!isHotelAdmin) {
+        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean();
+        if (myEmployees.length > 0) {
+          const myEmployeeIds = myEmployees.map(e => e._id);
+          filter.employee = { $in: myEmployeeIds };
+        } else {
+          return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+        }
+      }
+    }
 
     if (req.query.employeeId) {
+      if (filter.employee && filter.employee.$in) {
+        const requestedId = req.query.employeeId as string;
+        const isAllowed = filter.employee.$in.some((id: any) => id.toString() === requestedId);
+        if (!isAllowed) {
+           return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+        }
+      }
       filter.employee = req.query.employeeId;
     }
 

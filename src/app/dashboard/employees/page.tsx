@@ -6,7 +6,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { formatRole } from '../../../lib/utils';
 import GoogleIcon from '../../../components/GoogleIcon';
 import { useForm } from 'react-hook-form';
-import { DEPARTMENTS } from '../../../constants/departments';
+
 
 interface EmployeeProfile {
   _id: string;
@@ -224,7 +224,7 @@ export default function EmployeesPage() {
     }
   }, [watchedShift, watchedStartTime, watchedEndTime, setValue]);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {
@@ -263,6 +263,12 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     fetchEmployees();
+
+    const handleRBACUpdate = () => {
+      fetchEmployees();
+    };
+    window.addEventListener('reporting_manager_updated', handleRBACUpdate);
+    return () => window.removeEventListener('reporting_manager_updated', handleRBACUpdate);
   }, []);
 
   useEffect(() => {
@@ -704,7 +710,9 @@ export default function EmployeesPage() {
                 {filteredEmployees.length === 0 && (
                   <tr>
                     <td colSpan={canManage ? 7 : 6} className="text-center p-8 text-slate-500">
-                      No staff records found in this tenant directory.
+                      {user?.role === 'EMPLOYEE' || user?.role === 'DEPT_MANAGER'
+                        ? "No employees are currently assigned to you."
+                        : "No staff records found in this tenant directory."}
                     </td>
                   </tr>
                 )}

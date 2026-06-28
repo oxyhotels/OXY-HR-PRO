@@ -135,6 +135,10 @@ nextApp.prepare().then(async () => {
         socket.join(`HOTEL_${roomData.hotelId}`);
         console.log(`[Socket Room Joined] User: ${userDisplayName} joined HOTEL_${roomData.hotelId}`);
       }
+      if (roomData?.userId) {
+        socket.join(`USER_${roomData.userId}`);
+        console.log(`[Socket Room Joined] User: ${userDisplayName} joined USER_${roomData.userId}`);
+      }
     });
 
     // Handle joining chat rooms corresponding to specific community groups

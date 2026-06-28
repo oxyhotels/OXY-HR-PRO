@@ -24,6 +24,9 @@ export default function PropertyReportsTab() {
 
   // Filters for Admin
   const [filterHotelId, setFilterHotelId] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterReportDate, setFilterReportDate] = useState('');
   const [hotels, setHotels] = useState<any[]>([]);
 
   const fetchReports = async () => {
@@ -31,8 +34,14 @@ export default function PropertyReportsTab() {
     try {
       let url = '/property-reports?';
       if (filterHotelId) {
-        url += `hotelId=${filterHotelId}`;
+        url += `hotelId=${filterHotelId}&`;
       }
+      if (filterReportDate) {
+        url += `reportDate=${filterReportDate}&`;
+      } else if (filterStartDate && filterEndDate) {
+        url += `startDate=${filterStartDate}&endDate=${filterEndDate}&`;
+      }
+      
       const res = await api.get(url);
       setReports(res?.reports || []);
     } catch (err) {
@@ -66,7 +75,20 @@ export default function PropertyReportsTab() {
 
   useEffect(() => {
     fetchReports();
-  }, [filterHotelId]);
+  }, [filterHotelId, filterReportDate, filterStartDate, filterEndDate]);
+
+  // Listen to socket events for live delete updates
+  useEffect(() => {
+    const handleRefresh = () => fetchReports();
+    window.addEventListener('property_report_delete_requested', handleRefresh);
+    window.addEventListener('property_report_delete_approved', handleRefresh);
+    window.addEventListener('property_report_delete_rejected', handleRefresh);
+    return () => {
+      window.removeEventListener('property_report_delete_requested', handleRefresh);
+      window.removeEventListener('property_report_delete_approved', handleRefresh);
+      window.removeEventListener('property_report_delete_rejected', handleRefresh);
+    };
+  }, []);
 
   const handleUploadSubmit = async (payload: any) => {
     try {
@@ -108,7 +130,7 @@ export default function PropertyReportsTab() {
   // Group reports by category for counts
   const categoryStats = CATEGORIES.map(cat => {
     const catReports = reports.filter(r => r.category === cat.id);
-    const lastUpload = catReports.length > 0 ? catReports[0].createdAt : null;
+    const lastUpload = catReports.length > 0 ? catReports[0].uploadedAt || catReports[0].createdAt : null;
     return {
       ...cat,
       count: catReports.length,
@@ -132,19 +154,66 @@ export default function PropertyReportsTab() {
         </p>
       </div>
 
-      <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-4">
-        <label className="text-sm font-semibold text-slate-300">Filter by Property:</label>
-        <select
-          value={filterHotelId}
-          onChange={(e) => setFilterHotelId(e.target.value)}
-          className="bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-white focus:border-gold outline-none min-w-[250px]"
-        >
-          {user?.role === 'ROOT_ADMIN' && <option value="">All Properties</option>}
-          {hotels.map(h => (
-            <option key={h._id} value={h._id}>{h.name}</option>
-          ))}
-        </select>
-        <button onClick={fetchReports} className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-gold flex items-center justify-center transition-colors">
+      <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-wrap items-end gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Property</label>
+          <select
+            value={filterHotelId}
+            onChange={(e) => setFilterHotelId(e.target.value)}
+            className="bg-slate-950 border border-slate-700 rounded-lg py-2 px-3 text-sm text-white focus:border-gold outline-none min-w-[200px]"
+          >
+            {user?.role === 'ROOT_ADMIN' && <option value="">All Properties</option>}
+            {hotels.map(h => (
+              <option key={h._id} value={h._id}>{h.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Specific Date</label>
+          <input
+            type="date"
+            value={filterReportDate}
+            onChange={(e) => {
+              setFilterReportDate(e.target.value);
+              if (e.target.value) {
+                setFilterStartDate('');
+                setFilterEndDate('');
+              }
+            }}
+            className="bg-slate-950 border border-slate-700 rounded-lg py-1.5 px-3 text-sm text-white focus:border-gold outline-none"
+          />
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">From</label>
+            <input
+              type="date"
+              value={filterStartDate}
+              onChange={(e) => {
+                setFilterStartDate(e.target.value);
+                setFilterReportDate('');
+              }}
+              className="bg-slate-950 border border-slate-700 rounded-lg py-1.5 px-3 text-sm text-white focus:border-gold outline-none"
+            />
+          </div>
+          <span className="text-slate-500 mb-2">-</span>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">To</label>
+            <input
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => {
+                setFilterEndDate(e.target.value);
+                setFilterReportDate('');
+              }}
+              className="bg-slate-950 border border-slate-700 rounded-lg py-1.5 px-3 text-sm text-white focus:border-gold outline-none"
+            />
+          </div>
+        </div>
+
+        <button onClick={fetchReports} className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-gold flex items-center justify-center transition-colors">
           <GoogleIcon name="refresh" size={18} />
         </button>
       </div>

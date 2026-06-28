@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import GoogleIcon from '@/components/GoogleIcon';
-import { DEPARTMENTS } from '@/constants/departments';
+
 
 interface Task {
   _id: string;
@@ -92,7 +92,7 @@ export default function TasksPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const [departmentsList, setDepartmentsList] = useState<string[]>(Array.from(DEPARTMENTS));
+  const [departmentsList, setDepartmentsList] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDepts = async () => {

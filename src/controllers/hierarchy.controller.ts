@@ -153,17 +153,17 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
     // Scoping rule: If not ROOT_ADMIN, restrict to descendants of logged-in manager
     let managerRootId = '';
     if (req.user && req.user.role !== 'ROOT_ADMIN') {
-      managerRootId = req.user._id.toString();
+      managerRootId = req.user?._id?.toString() || '';
     } else if (managerId) {
       managerRootId = String(managerId);
     }
 
     const allowedUserIds = new Set<string>();
     if (managerRootId) {
-      const rootStruct = reportingStructures.find(s => s.userId.toString() === managerRootId);
+      const rootStruct = reportingStructures.find(s => s?.userId?.toString() === managerRootId);
       const rootPath = rootStruct ? rootStruct.path : `/${managerRootId}`;
       reportingStructures.forEach(struct => {
-        if (struct.path === rootPath || struct.path.startsWith(rootPath + '/')) {
+        if (struct?.userId && (struct.path === rootPath || struct.path?.startsWith(rootPath + '/'))) {
           allowedUserIds.add(struct.userId.toString());
         }
       });
@@ -173,23 +173,23 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
     // Filter structures based on parameters if provided
     let filteredUsers = [...users];
     if (managerRootId) {
-      filteredUsers = filteredUsers.filter(u => allowedUserIds.has(u._id.toString()));
+      filteredUsers = filteredUsers.filter(u => u?._id && allowedUserIds.has(u._id.toString()));
     }
 
     if (search) {
       const q = String(search).toLowerCase();
       filteredUsers = filteredUsers.filter(
         (u) =>
-          u.firstName.toLowerCase().includes(q) ||
-          u.lastName.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q) ||
-          (u.employeeId && u.employeeId.toLowerCase().includes(q)) ||
-          (u.designation && u.designation.toLowerCase().includes(q))
+          u?.firstName?.toLowerCase().includes(q) ||
+          u?.lastName?.toLowerCase().includes(q) ||
+          u?.email?.toLowerCase().includes(q) ||
+          (u?.employeeId && u.employeeId.toLowerCase().includes(q)) ||
+          (u?.designation && u.designation.toLowerCase().includes(q))
       );
     }
 
     if (departmentId) {
-      const targetDeptName = depts.find(d => d._id.toString() === String(departmentId) || d.name === String(departmentId))?.name || String(departmentId);
+      const targetDeptName = depts.find(d => d?._id?.toString() === String(departmentId) || d?.name === String(departmentId))?.name || String(departmentId);
       filteredUsers = filteredUsers.filter((u) => u.department === targetDeptName);
     }
 
@@ -197,14 +197,16 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
       filteredUsers = filteredUsers.filter((u) => u.hotel && (u.hotel as any)._id?.toString() === String(hotelId));
     }
 
-    const matchedUserIds = new Set(filteredUsers.map((u) => u._id.toString()));
+    const matchedUserIds = new Set(filteredUsers.map((u) => u?._id?.toString()).filter(Boolean));
 
     // Build user structure mapping helper
     const userMap = new Map<string, any>();
     users.forEach((u) => {
-      userMap.set(u._id.toString(), {
-        id: u._id.toString(),
-        name: `${u.firstName} ${u.lastName}`,
+      if (!u?._id) return;
+      const idStr = u._id.toString();
+      userMap.set(idStr, {
+        id: idStr,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown',
         email: u.email,
         role: u.role,
         departmentName: u.department,
@@ -221,17 +223,32 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
         hierarchyPath: u.hierarchyPath,
         parentManagerId: u.parentManagerId,
         children: [],
+        hasParent: false
       });
     });
 
-    // Establish child relationships using ReportingStructure
+    // Establish child relationships using ReportingStructure, preventing circular loops
+    const visitedChildren = new Set<string>();
     reportingStructures.forEach((struct) => {
-      const userNode = userMap.get(struct.userId.toString());
-      if (userNode && struct.managerId) {
-        const managerNode = userMap.get(struct.managerId.toString());
-        if (managerNode) {
+      if (!struct?.userId || !struct?.managerId) return;
+      
+      const userIdStr = struct.userId.toString();
+      const managerIdStr = struct.managerId.toString();
+      
+      if (userIdStr === managerIdStr) return; // Self-loop
+
+      const userNode = userMap.get(userIdStr);
+      const managerNode = userMap.get(managerIdStr);
+      
+      if (userNode && managerNode) {
+        if (!visitedChildren.has(userIdStr)) {
           managerNode.children.push(userNode);
           userNode.hasParent = true;
+          visitedChildren.add(userIdStr);
+        } else {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(`[OrganizationTree] Circular reference skipped for user: ${userIdStr}`);
+          }
         }
       }
     });
@@ -239,7 +256,7 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
     // Build Department-level managers mapping
     const orgTrees = orgs.map((org) => {
       const orgDepts = depts
-        .filter((d) => d.organization.toString() === org._id.toString())
+        .filter((d) => d?.organization?.toString() === org?._id?.toString())
         .map((d) => {
           const deptUsers = users.filter((u) => u.department === d.name);
           const deptRootNodes: any[] = [];
@@ -294,19 +311,18 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
           const finalNodes = deptRootNodes.map(filterTree).filter(Boolean);
 
           return {
-            id: d._id.toString(),
+            id: d?._id?.toString() || 'unknown',
             name: d.name,
             hotelCode: d.hotel ? (d.hotel as any).hotelCode : null,
-            employeesCount: deptUsers.filter(u => !managerRootId || allowedUserIds.has(u._id.toString())).length,
+            employeesCount: deptUsers.filter(u => !managerRootId || (u?._id && allowedUserIds.has(u._id.toString()))).length,
             structure: finalNodes,
           };
         })
         .filter((d) => d.structure.length > 0 || !search); // Remove empty depts if searching
 
       return {
-        id: org._id.toString(),
+        id: org?._id?.toString() || 'unknown',
         name: org.name,
-        code: org.code,
         departments: orgDepts,
       };
     }).filter(org => org.departments.length > 0);
@@ -1836,4 +1852,188 @@ export const getLatestUpdates = async (req: Request, res: Response, next: NextFu
   }
 };
 
+// ==========================================
+// ENTERPRISE HIERARCHY TREE (v2)
+// ==========================================
 
+export const getEnterpriseHierarchyTree = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    registerModels();
+    
+    // 1. Determine Scope
+    let rootUserId = null;
+    if (req.user && req.user.role !== 'ROOT_ADMIN' && req.user.role !== 'CENTRAL_TEAM') {
+      rootUserId = req.user._id?.toString();
+    }
+
+    // 2. Fetch all Active users & reporting structures
+    const users = await User.find({ status: { $ne: 'Terminated' } })
+      .populate('hotel', 'name hotelCode')
+      .select('firstName lastName email role department designation status phone employeeId joinedDate hotel enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentId reportingManagerId');
+      
+    const reportingStructures = await ReportingStructure.find();
+
+    // 3. Optional Subtree Scoping
+    const allowedUserIds = new Set<string>();
+    if (rootUserId) {
+      const rootStruct = reportingStructures.find(s => s?.userId?.toString() === rootUserId);
+      const rootPath = rootStruct ? rootStruct.path : `/${rootUserId}`;
+      reportingStructures.forEach(struct => {
+        if (struct?.userId && (struct.path === rootPath || struct.path?.startsWith(rootPath + '/'))) {
+          allowedUserIds.add(struct.userId.toString());
+        }
+      });
+      allowedUserIds.add(rootUserId);
+    }
+
+    const filteredUsers = rootUserId 
+      ? users.filter(u => u?._id && allowedUserIds.has(u._id.toString()))
+      : users;
+
+    // 4. Map users
+    const userMap = new Map();
+    filteredUsers.forEach(u => {
+      if (!u?._id) return;
+      userMap.set(u._id.toString(), {
+        id: u._id.toString(),
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown',
+        email: u.email || '',
+        role: u.role || 'EMPLOYEE',
+        departmentName: u.department || '',
+        designation: u.designation || '',
+        status: u.status || 'Active',
+        employeeId: u.employeeId || '',
+        hotelCode: (u.hotel as any)?.hotelCode || 'OTHER',
+        hotelName: (u.hotel as any)?.name || 'Central',
+        photoUrl: u.photoUrl || '',
+        children: [],
+        hasParent: false
+      });
+    });
+
+    // 5. Link users using ReportingStructure
+    const visitedChildren = new Set<string>();
+    reportingStructures.forEach((struct) => {
+      if (!struct?.userId || !struct?.managerId) return;
+      const userIdStr = struct.userId.toString();
+      const managerIdStr = struct.managerId.toString();
+      
+      if (userIdStr === managerIdStr) return; // Self-loop
+
+      const userNode = userMap.get(userIdStr);
+      const managerNode = userMap.get(managerIdStr);
+      
+      if (userNode && managerNode) {
+        if (!visitedChildren.has(userIdStr)) {
+          managerNode.children.push(userNode);
+          userNode.hasParent = true;
+          visitedChildren.add(userIdStr);
+        }
+      }
+    });
+
+    // 6. Return Root Nodes
+    const tree = Array.from(userMap.values()).filter(u => !u.hasParent);
+
+    res.status(200).json({
+      status: 'success',
+      data: { tree }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// AUTOMATIC HIERARCHY SYNC (REPORTING MANAGER CHANGE)
+// ==========================================
+
+export const syncHierarchyOnManagerChange = async (employeeId: string, oldManagerId: string | null, newManagerId: string, currentUserId: string) => {
+  try {
+    const { Task } = await import('@/models/Task');
+    const { Leave } = await import('@/models/Leave');
+    const { getIO } = await import('@/lib/socket');
+    
+    // 1. Update Tasks assigned by the old manager to the new manager
+    if (oldManagerId) {
+      await Task.updateMany(
+        { 
+          assignedTo: employeeId, 
+          assignedBy: oldManagerId 
+        },
+        { 
+          $set: { assignedBy: newManagerId } 
+        }
+      );
+    }
+    
+    // 2. We don't need to update Pending Leaves because leave queries are dynamic,
+    // but if there are specific manager references, they could be updated here.
+    
+    // 3. Update ReportingStructure & HierarchyNode if they exist for this employee
+    const newManager = await User.findById(newManagerId);
+    if (newManager) {
+      await HierarchyNode.updateOne(
+        { userId: employeeId },
+        { 
+          $set: { 
+            parentId: newManagerId,
+            hierarchyLevel: (newManager.hierarchyLevel || 0) + 1
+          } 
+        }
+      );
+      
+      const newManagerReportingNode = await ReportingStructure.findOne({ userId: newManagerId });
+      if (newManagerReportingNode) {
+        await ReportingStructure.updateOne(
+          { userId: employeeId },
+          { 
+            $set: { 
+              managerId: newManagerId,
+              path: `${newManagerReportingNode.path}/${employeeId}`
+            } 
+          }
+        );
+      }
+    }
+    
+    // 4. Send Notifications
+    const employee = await User.findById(employeeId);
+    const empName = employee ? `${employee.firstName} ${employee.lastName}` : 'An employee';
+    
+    // To New Manager
+    await createNotification({
+      title: 'Reporting Manager Update',
+      message: `A new employee (${empName}) has been assigned to your hierarchy.`,
+      type: 'info',
+      recipientId: newManagerId,
+      link: '/dashboard/team',
+      sender: currentUserId
+    });
+    
+    // To Old Manager
+    if (oldManagerId) {
+      await createNotification({
+        title: 'Reporting Manager Update',
+        message: `An employee (${empName}) has been reassigned from your hierarchy.`,
+        type: 'warning',
+        recipientId: oldManagerId,
+        sender: currentUserId
+      });
+    }
+    
+    // 5. Trigger Real-time WebSocket Event to refresh hierarchy tree
+    const io = getIO();
+    if (io) {
+      io.emit('hierarchy_updated', {
+        employeeId,
+        oldManagerId,
+        newManagerId,
+        message: 'Hierarchy tree updated'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error during automatic hierarchy sync:', error);
+  }
+};

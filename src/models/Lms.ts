@@ -1,5 +1,5 @@
 import { Schema, model, models, Document } from 'mongoose';
-import { DEPARTMENTS } from '@/constants/departments';
+
 
 // Course Schema
 export interface ICourse extends Document {

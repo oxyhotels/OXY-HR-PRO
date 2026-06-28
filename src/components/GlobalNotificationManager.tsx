@@ -5,6 +5,23 @@ import { useRouter } from 'next/navigation';
 import GoogleIcon from './GoogleIcon';
 import { api } from '../lib/api';
 
+import { AnimatePresence, motion } from 'framer-motion';
+
+const timeAgo = (date: string | Date) => {
+  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  return "Just now";
+};
+
 export default function GlobalNotificationManager() {
   const [queue, setQueue] = useState<any[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -65,7 +82,7 @@ export default function GlobalNotificationManager() {
     }
   };
 
-  const handleAction = async (action: 'approve' | 'reject' | 'open', link?: string) => {
+  const handleAction = async (action: 'open' | 'approve' | 'reject', link?: string) => {
     const current = queue[0];
     if (!current) return;
 
@@ -77,11 +94,8 @@ export default function GlobalNotificationManager() {
         try {
           // Add auth token if needed, but api wrapper should handle it
           await api.post(`/employees/pending/${senderId}/${action}`, {});
-          // Fallback UI alert
-          alert(`User successfully ${action}ed!`);
         } catch (err: any) {
-          console.error(`Failed to ${action} user:`, err);
-          alert(`Failed to ${action} user: ` + (err.response?.data?.message || err.message));
+          console.error(`Failed to ${action}:`, err);
           return; // don't dismiss if action failed
         }
       }
@@ -94,96 +108,105 @@ export default function GlobalNotificationManager() {
 
   const current = queue[0];
   const totalUnread = queue.length;
+  const modTag = current.moduleTag || current.type || 'Default';
+  const formattedModTag = modTag.charAt(0).toUpperCase() + modTag.slice(1);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-[#0a1631] border border-gold/50 shadow-[0_0_40px_rgba(255,215,0,0.2)] rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-        
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-            <GoogleIcon name="notifications_active" className="text-gold" size={20} />
-            Critical Alert
-          </h2>
-          {totalUnread > 1 && (
-            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
-              {totalUnread} Unread
-            </span>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          <div className="flex flex-col items-center text-center space-y-4">
-            
-            {/* Sender Image (if available) */}
-            {current.sender?.photoUrl ? (
-              <img src={current.sender.photoUrl} alt="Sender" className="w-16 h-16 rounded-full border-2 border-gold/50 shadow-lg object-cover" />
-            ) : (
-              <div className="w-16 h-16 rounded-full border-2 border-gold/50 bg-slate-800 flex items-center justify-center shadow-lg">
-                <GoogleIcon name="campaign" size={32} className="text-gold" />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: -20 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          className="bg-gradient-to-b from-[#0a1631] to-[#06143c] border border-gold shadow-[0_0_50px_rgba(255,215,0,0.3)] rounded-2xl w-full max-w-lg overflow-hidden flex flex-col"
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-[#112d8a] flex items-center justify-between bg-white/5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center border border-gold/50 animate-pulse">
+                <GoogleIcon name={formattedModTag === 'Community' ? 'chat' : 'notifications_active'} size={24} className="text-gold" />
               </div>
-            )}
-
-            <div>
-              <h3 className="text-lg font-black text-white">{current.title}</h3>
-              {current.sender && (
-                <p className="text-[11px] text-slate-400 font-semibold mt-1 uppercase tracking-wider">
-                  From: <span className="text-slate-200">{current.sender.firstName} {current.sender.lastName}</span>
-                </p>
-              )}
+              <div>
+                <h3 className="text-lg font-bold text-white tracking-wide">New Notification</h3>
+                {totalUnread > 1 && (
+                  <p className="text-xs font-semibold text-gold">{totalUnread - 1} more in queue</p>
+                )}
+              </div>
             </div>
-
-            <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 w-full">
-              <p className="text-slate-300 text-sm font-medium">{current.message}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-900/80 border-t border-slate-800 flex gap-3">
-          {current.actionRequired ? (
-            <>
-              <button 
-                onClick={() => handleAction('reject')}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-red-400 border border-slate-700 font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-xs uppercase"
-              >
-                Reject
-              </button>
-              <button 
-                onClick={() => handleAction('approve')}
-                className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-xs uppercase shadow-lg shadow-green-900/20"
-              >
-                Approve
-              </button>
-            </>
-          ) : current.link ? (
-            <>
-              <button 
-                onClick={dismissCurrent}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-xs uppercase"
-              >
-                Dismiss
-              </button>
-              <button 
-                onClick={() => handleAction('open', current.link)}
-                className="flex-[2] bg-[#0a1f5c] hover:bg-[#112d8a] text-gold border border-[#112d8a] font-bold py-2.5 rounded-xl transition-colors cursor-pointer text-xs uppercase shadow-lg shadow-blue-900/20"
-              >
-                Open Details
-              </button>
-            </>
-          ) : (
             <button 
               onClick={dismissCurrent}
-              className="w-full bg-[#0a1f5c] hover:bg-[#112d8a] text-white font-bold py-3 rounded-xl transition-colors cursor-pointer text-xs uppercase shadow-lg shadow-blue-900/20"
+              className="w-8 h-8 rounded-full bg-white/5 text-slate-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
             >
-              Acknowledge & Dismiss
+              <GoogleIcon name="close" size={20} />
             </button>
-          )}
-        </div>
+          </div>
 
+          {/* Body */}
+          <div className="p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-4">
+              {current.sender?.photoUrl ? (
+                <img src={current.sender.photoUrl} alt="Sender" className="w-14 h-14 rounded-full object-cover border-2 border-[#112d8a]" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-[#112d8a] flex items-center justify-center border-2 border-white/10 text-white font-bold text-2xl">
+                  {current.sender?.firstName ? current.sender.firstName[0] : <GoogleIcon name="person" size={28} />}
+                </div>
+              )}
+              
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 rounded bg-[#112d8a] text-slate-300 text-[10px] font-semibold tracking-wider uppercase">
+                    {formattedModTag}
+                  </span>
+                  <span className="text-xs text-slate-400">{timeAgo(current.createdAt)}</span>
+                </div>
+                <h4 className="text-xl font-bold text-white mb-2 leading-tight">{current.title}</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">{current.message}</p>
+                
+                {current.sender?.firstName && (
+                  <p className="mt-3 text-xs text-slate-400 font-medium">
+                    From: <span className="text-slate-200">{current.sender.firstName} {current.sender.lastName}</span>
+                    {current.sender.department && ` • ${current.sender.department}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="px-6 py-4 bg-[#051030] border-t border-[#112d8a] flex items-center justify-end gap-3">
+            <button 
+              onClick={dismissCurrent}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              Dismiss
+            </button>
+            {current.type === 'approval' ? (
+              <>
+                <button 
+                  onClick={() => handleAction('reject')}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                >
+                  Reject
+                </button>
+                <button 
+                  onClick={() => handleAction('approve')}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500 hover:text-white transition-all shadow-[0_0_15px_rgba(34,197,94,0.2)] hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                >
+                  Approve
+                </button>
+              </>
+            ) : current.link ? (
+              <button 
+                onClick={() => handleAction('open', current.link)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold bg-gold text-[#0a1f5c] hover:bg-gold-light transition-all shadow-[0_0_15px_rgba(255,215,0,0.4)] hover:shadow-[0_0_20px_rgba(255,215,0,0.6)] flex items-center gap-2"
+              >
+                View Details <GoogleIcon name="arrow_forward" size={16} />
+              </button>
+            ) : null}
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   );
 }

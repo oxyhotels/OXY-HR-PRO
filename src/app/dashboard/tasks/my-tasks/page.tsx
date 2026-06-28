@@ -148,6 +148,7 @@ export default function MyTasksPage() {
         };
 
         socketConn.on('task_status_updated', handleTaskUpdate);
+        socketConn.on('TASK_UPDATED', handleTaskUpdate);
       } catch (err) {
         console.error('Socket setup error:', err);
       }
@@ -234,6 +235,7 @@ export default function MyTasksPage() {
       setProgress(0);
       setPhoto(null);
       setUpdateStatus('');
+      fetchMyTasks();
     } catch (err: any) {
       alert(err.message || `Failed to ${actionType} task`);
     } finally {
@@ -483,7 +485,7 @@ export default function MyTasksPage() {
                 </div>
 
                 {/* Work Session Tracker */}
-                {task.status === 'In_Progress' && (
+                {(task.status === 'In_Progress' || task.status === 'Paused') && (
                   <div className="mt-3 pt-3 border-t border-slate-100">
                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex justify-between items-center">
                       Work Session Tracker
@@ -534,7 +536,7 @@ export default function MyTasksPage() {
 
                 {/* Quick Actions */}
                 <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2">
-                  {(task.status === 'To_Do' || task.status === 'Accepted' || task.status === 'In_Progress' || task.status === 'On_Hold') && (
+                  {(task.status === 'To_Do' || task.status === 'Accepted' || (task.status === 'In_Progress' || task.status === 'Paused') || task.status === 'On_Hold') && (
                     <button
                       onClick={(e) => { 
                         e.stopPropagation(); 
@@ -574,7 +576,7 @@ export default function MyTasksPage() {
                       Start
                     </button>
                   )}
-                  {(task.status === 'In_Progress' || task.status === 'To_Do') && (
+                  {((task.status === 'In_Progress' || task.status === 'Paused') || task.status === 'To_Do') && (
                     <button
                       onClick={(e) => { e.stopPropagation(); openActionModal(task, 'complete'); }}
                       className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 py-1.5 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"

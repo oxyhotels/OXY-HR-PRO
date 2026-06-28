@@ -21,6 +21,9 @@ export const initSocket = (server: NetServer) => {
         if (roomData.hotelId) {
           socket.join(`HOTEL_${roomData.hotelId}`);
         }
+        if (roomData.userId) {
+          socket.join(`USER_${roomData.userId}`);
+        }
       });
 
       socket.on('disconnect', () => {
