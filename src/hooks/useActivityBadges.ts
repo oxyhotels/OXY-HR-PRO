@@ -40,7 +40,7 @@ export const useActivityBadges = () => {
     });
 
     socketConn.on('connect', () => {
-      socketConn.emit('join_room', { userId: user._id || user.id });
+      socketConn.emit('join_room', { userId: (user as any)._id || user.id });
     });
 
     socketConn.on('ACTIVITY_BADGE_UPDATE', (data: { module: string; count: number }) => {

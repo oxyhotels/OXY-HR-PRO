@@ -1862,7 +1862,7 @@ export const getEnterpriseHierarchyTree = async (req: Request, res: Response, ne
     
     // 1. Determine Scope
     let rootUserId = null;
-    if (req.user && req.user.role !== 'ROOT_ADMIN' && req.user.role !== 'CENTRAL_TEAM') {
+    if (req.user && req.user.role !== 'ROOT_ADMIN' && req.user.department !== 'Central Team') {
       rootUserId = req.user._id?.toString();
     }
 

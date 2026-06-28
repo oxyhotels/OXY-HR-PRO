@@ -231,8 +231,8 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       details: `Task "${title}" created (SLA: ${slaDuration}m). Workload Warning: ${workloadWarning ? workloadWarning.message : 'None'}`,
     });
 
+    let assigneeIds: string[] = [];
     try {
-      const assigneeIds: string[] = [];
       if (Array.isArray(requestedAssignees) && requestedAssignees.length > 0) {
         assigneeIds.push(...requestedAssignees);
       } else if (targetAssignee) {

@@ -161,9 +161,9 @@ export const getOrgTree = async (req: Request, res: Response, next: NextFunction
       if (deptName === 'Property Team') {
         // Build Hotels
         hotels.forEach(hotel => {
-          const hotelUsers = users.filter(u => u.hotel && (u.hotel as any)._id?.toString() === hotel._id.toString());
+          const hotelUsers = users.filter(u => u.hotel && (u.hotel as any)._id?.toString() === (hotel as any)._id.toString());
           const hotelNode = {
-            id: `hotel-${hotel._id}`,
+            id: `hotel-${(hotel as any)._id}`,
             name: hotel.name,
             subtitle: hotel.hotelCode,
             type: 'HOTEL',
@@ -178,7 +178,7 @@ export const getOrgTree = async (req: Request, res: Response, next: NextFunction
           if (u.role === 'ROOT_ADMIN') return false; // Handled at top level
           const d = u.department || 'Other';
           if (isOther) {
-            return !['Central Team', 'Sales Office Team', 'Property Team', 'IT Team'].includes(d) && (!u.hotel || !hotels.some(h => h._id.toString() === (u.hotel as any)._id?.toString()));
+            return !['Central Team', 'Sales Office Team', 'Property Team', 'IT Team'].includes(d) && (!u.hotel || !hotels.some(h => (h as any)._id.toString() === (u.hotel as any)._id?.toString()));
           }
           return d === deptName;
         });

@@ -127,8 +127,8 @@ const nodeTypes = { custom: CustomOrgNode };
 // -----------------------------------------------------
 
 const EnterpriseOrgTreeInner = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [stats, setStats] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedNodeData, setSelectedNodeData] = useState<any>(null);

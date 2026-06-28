@@ -11,7 +11,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
       // Find the Root Admin
       const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN', status: 'Active' })
         .select('firstName lastName role designation profilePhoto')
-        .lean();
+        .lean() as any;
 
       if (!rootAdmin) {
         res.status(404).json({ success: false, message: 'Root Admin not found' });
@@ -56,7 +56,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
     if (type === 'DEPARTMENT' && parentId === 'dept-property') {
       const hotels = await Hotel.find({ status: 'Active' })
         .select('name hotelCode')
-        .lean();
+        .lean() as any[];
       
       const hotelNodes = hotels.map(h => ({
         id: h._id.toString(),
@@ -90,7 +90,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
         // Top level users (those without a reporting manager)
         query.$or = [{ reportingManagerId: null }, { reportingManagerId: { $exists: false } }];
 
-        const users = await User.find(query).select('firstName lastName role designation profilePhoto').lean();
+        const users = await User.find(query).select('firstName lastName role designation profilePhoto').lean() as any[];
         
         const userNodes = users.map(u => ({
           id: u._id.toString(),
@@ -108,7 +108,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
 
     // SCENARIO 5: Hotel clicked -> Show top-level users in that hotel (No reporting manager, or reporting to root admin)
     if (type === 'HOTEL') {
-      const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN' }).lean();
+      const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN' }).lean() as any;
       
       const query = {
         hotel: parentId,
@@ -120,7 +120,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
         ]
       };
 
-      const users = await User.find(query).select('firstName lastName role designation profilePhoto').lean();
+      const users = await User.find(query).select('firstName lastName role designation profilePhoto').lean() as any[];
       
       const userNodes = users.map(u => ({
         id: u._id.toString(),
@@ -137,7 +137,7 @@ export const getLazyHierarchy = async (req: Request, res: Response, next: NextFu
     // SCENARIO 6: User (Manager/Supervisor) clicked -> Show their direct reports
     const subordinates = await User.find({ reportingManagerId: parentId, status: 'Active' })
       .select('firstName lastName role designation profilePhoto')
-      .lean();
+      .lean() as any[];
     
     const userNodes = subordinates.map(u => ({
       id: u._id.toString(),

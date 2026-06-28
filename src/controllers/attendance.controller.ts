@@ -480,7 +480,8 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
           filter.employee = { $in: myEmployeeIds };
         } else {
           // Employee / Manager with no subordinates
-          return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+          res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+          return;
         }
       }
     }
@@ -490,7 +491,8 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
         const requestedId = req.query.employeeId as string;
         const isAllowed = filter.employee.$in.some((id: any) => id.toString() === requestedId);
         if (!isAllowed) {
-           return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+           res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+           return;
         }
       }
       filter.employee = req.query.employeeId;
@@ -571,7 +573,8 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
           const myEmployeeIds = myEmployees.map(e => e._id);
           filter.employee = { $in: myEmployeeIds };
         } else {
-          return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+          res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+          return;
         }
       }
     }
@@ -581,7 +584,8 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
         const requestedId = req.query.employeeId as string;
         const isAllowed = filter.employee.$in.some((id: any) => id.toString() === requestedId);
         if (!isAllowed) {
-           return res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+           res.status(200).json({ status: 'success', results: 0, data: { logs: [] } });
+           return;
         }
       }
       filter.employee = req.query.employeeId;

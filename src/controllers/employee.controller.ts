@@ -173,7 +173,8 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
           filter.reportingManagerId = currentUser._id;
         } else {
           // Employee / Manager with no subordinates -> Return empty list
-          return res.status(200).json({ status: 'success', results: 0, data: { employees: [] } });
+          res.status(200).json({ status: 'success', results: 0, data: { employees: [] } });
+          return;
         }
       }
     }
