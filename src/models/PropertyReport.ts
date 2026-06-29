@@ -61,7 +61,7 @@ const PropertyReportSchema = new Schema<IPropertyReport>(
     ],
     remarks: { type: String },
     status: { type: String, enum: ['Uploaded', 'Verified'], default: 'Uploaded' },
-    deleteStatus: { type: String, enum: ['ACTIVE', 'PENDING_DELETE', 'DELETED'], default: 'ACTIVE', index: true },
+    deleteStatus: { type: String, enum: ['ACTIVE', 'PENDING_DELETE', 'DELETED'], default: 'ACTIVE' },
     deleteRequest: {
       reason: { type: String },
       requestedBy: { type: Schema.Types.ObjectId, ref: 'User' },

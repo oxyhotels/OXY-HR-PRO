@@ -69,9 +69,9 @@ export const getLeaves = async (req: Request, res: Response, next: NextFunction)
     }
 
     const leaves = await Leave.find(filter)
-      .populate('employee', 'firstName lastName email department designation')
-      .populate('approvedBy', 'firstName lastName email')
-      .sort({ createdAt: -1 });
+          .populate('employee', 'firstName lastName email department designation')
+          .populate('approvedBy', 'firstName lastName email')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',

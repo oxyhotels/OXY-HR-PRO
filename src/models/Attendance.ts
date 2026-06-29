@@ -168,5 +168,7 @@ const AttendanceSchema = new Schema<IAttendance>(
 // Index to quickly search attendance by employee, hotel and date
 AttendanceSchema.index({ employee: 1, date: 1 }, { unique: true });
 AttendanceSchema.index({ hotel: 1, date: 1 });
+AttendanceSchema.index({ hotel: 1, employee: 1, date: 1 });
+AttendanceSchema.index({ date: 1, status: 1 });
 
 export const Attendance = models.Attendance || model<IAttendance>('Attendance', AttendanceSchema);

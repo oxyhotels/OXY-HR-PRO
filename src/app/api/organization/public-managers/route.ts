@@ -1,3 +1,4 @@
+export const revalidate = 3600;
 import { adaptRoute } from '@/lib/adaptRoute';
 import { User } from '@/models/User';
 import { Request, Response, NextFunction } from 'express';

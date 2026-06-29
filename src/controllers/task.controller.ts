@@ -75,7 +75,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       if (assignedTo) {
         const requestedAssignees = normalizeAssignedToIds(assignedTo);
         if (requestedAssignees.length > 0) {
-          const assignee = await User.findById(requestedAssignees[0]);
+          const assignee: any = await User.findById(requestedAssignees[0]).lean() as any;
           if (assignee && assignee.hotel) {
             hotelId = assignee.hotel;
           }
@@ -85,7 +85,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
     // If still not resolved, query for any existing hotel as safe default
     if (!hotelId) {
       const { Hotel } = await import('@/models/Hotel');
-      const defaultHotel = await Hotel.findOne();
+      const defaultHotel = await Hotel.findOne().lean() as any;
       if (defaultHotel) {
         hotelId = defaultHotel._id;
       }
@@ -130,7 +130,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
         status: { $in: ['Pending', 'To_Do', 'In_Progress'] }, // ✅ Updated statuses
         isDeleted: { $ne: true },
       });
-      const assigneeUser = await User.findById(targetAssignee);
+      const assigneeUser: any = await User.findById(targetAssignee).lean() as any;
       const capacity = assigneeUser?.capacityLimit || 5;
       if (activeCount >= capacity) {
         const alternatives = await User.find({
@@ -138,7 +138,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
           department: assigneeUser?.department,
           _id: { $ne: targetAssignee },
           status: 'Active',
-        });
+        }).lean() as any[];
         const altCandidates = [];
         for (const alt of alternatives) {
           const altCount = await Task.countDocuments({
@@ -238,10 +238,10 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       } else if (targetAssignee) {
         assigneeIds.push(targetAssignee.toString());
       } else if (req.body.assignedDepartments && req.body.assignedDepartments.length > 0) {
-        const deptUsers = await User.find({
+        const deptUsers: any[] = await User.find({
           department: { $in: req.body.assignedDepartments },
           status: 'Active'
-        }).select('_id');
+        }).select('_id').lean() as any;
         deptUsers.forEach(u => assigneeIds.push(u._id.toString()));
       }
 
@@ -294,7 +294,7 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction):
     }
 
     if (req.user?.role !== 'ROOT_ADMIN') {
-      const rootAdmins = await User.find({ role: 'ROOT_ADMIN' }).select('_id');
+      const rootAdmins: any[] = await User.find({ role: 'ROOT_ADMIN' }).select('_id').lean() as any;
       const rootAdminIds = rootAdmins.map((r) => r._id);
 
       const orConditions: any[] = [
@@ -316,12 +316,11 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction):
       }
     }
 
-    const tasks = await Task.find(filter)
+    const tasks: any[] = await Task.find(filter)
       .populate('assignedTo', 'firstName lastName email department designation xp level accountabilityIndex employeeId photoUrl')
       .populate('assignedBy', 'firstName lastName email role')
       .sort({ createdAt: -1 })
-      .lean()
-      .limit(300);
+      .limit(300).lean() as any[];
 
     const safeTasks = tasks.map((t: any) => ({
       ...t,
@@ -440,7 +439,7 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
       const fraudFlags: string[] = [];
 
       if (completionLat && completionLng) {
-        const hotel = await Hotel.findById(task.hotel);
+        const hotel = await Hotel.findById(task.hotel).lean() as any;
         if (hotel && hotel.latitude && hotel.longitude) {
           const dist = getDistance(completionLat, completionLng, hotel.latitude, hotel.longitude);
           if (dist > (hotel.geofenceRadius || 200)) {
@@ -486,7 +485,7 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
       // 6. Gamification Rewards
       if (task.assignedTo && Array.isArray(task.assignedTo)) {
         for (const assigneeId of task.assignedTo) {
-          const assignee = await User.findById(assigneeId);
+          const assignee = await User.findById(assigneeId).lean() as any;
           if (assignee) {
             const xpGained = task.priority === 'High' ? 30 : task.priority === 'Medium' ? 20 : 10;
             assignee.xp = (assignee.xp || 0) + (isSuspicious ? 0 : xpGained);

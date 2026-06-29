@@ -4,7 +4,7 @@ import { ApiError } from '@/utils/ApiError';
 
 export const getPolicies = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const policies = await Policy.find();
+    const policies = await Policy.find().lean() as any;
     res.status(200).json({
       status: 'success',
       data: { policies },

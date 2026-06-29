@@ -63,7 +63,7 @@ export const getGamificationProfile = async (req: Request, res: Response, next: 
     }
 
     const profile = await GamificationProfile.findOne({ employee: targetId })
-      .populate({ path: 'employee', select: 'firstName lastName email department designation photoUrl' });
+          .populate({ path: 'employee', select: 'firstName lastName email department designation photoUrl' }).lean() as any;
 
     if (!profile) {
       // Return empty profile object rather than 404
@@ -128,9 +128,9 @@ export const getActivityFeed = async (req: Request, res: Response, next: NextFun
     }
 
     const events = await XpEvent.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .populate({ path: 'employee', select: 'firstName lastName photoUrl department' });
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .populate({ path: 'employee', select: 'firstName lastName photoUrl department' }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -161,7 +161,7 @@ export const appreciateEmployee = async (req: Request, res: Response, next: Next
     const { employeeId } = req.body;
     if (!employeeId) throw new ApiError(400, 'employeeId is required');
 
-    const profile = await GamificationProfile.findOne({ employee: employeeId });
+    const profile = await GamificationProfile.findOne({ employee: employeeId }).lean() as any;
     const hotelId = profile?.hotel || req.user?.hotel;
 
     if (!hotelId) throw new ApiError(400, 'Cannot determine hotel for this employee');
@@ -232,8 +232,8 @@ export const getRedemptions = async (req: Request, res: Response, next: NextFunc
     if (req.user?.role === 'EMPLOYEE') query.employee = req.user?.id;
 
     const redemptions = await RewardRedemption.find(query)
-      .sort({ createdAt: -1 })
-      .populate({ path: 'employee', select: 'firstName lastName department designation' });
+          .sort({ createdAt: -1 })
+          .populate({ path: 'employee', select: 'firstName lastName department designation' }).lean() as any;
 
     res.status(200).json({
       status: 'success',

@@ -12,7 +12,7 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
 
     if (!hotelCode || hotelCode.trim() === '') {
       // Auto-generate next hotel code
-      const lastHotel = await Hotel.findOne({ hotelCode: /^OXY\d+$/i }).sort({ createdAt: -1 });
+      const lastHotel = await Hotel.findOne({ hotelCode: /^OXY\d+$/i }).sort({ createdAt: -1 }).lean() as any;
       if (lastHotel && lastHotel.hotelCode) {
         const match = lastHotel.hotelCode.match(/^OXY(\d+)$/i);
         if (match) {
@@ -35,7 +35,7 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
       throw new ApiError(400, 'Hotel Code must only contain letters, numbers, and hyphens');
     }
 
-    const existingHotel = await Hotel.findOne({ hotelCode: new RegExp(`^${trimmedCode}$`, 'i') });
+    const existingHotel = await Hotel.findOne({ hotelCode: new RegExp(`^${trimmedCode}$`, 'i') }).lean() as any;
     if (existingHotel) {
       throw new ApiError(400, 'Hotel Code already exists. Please use a unique code.');
     }
@@ -70,7 +70,7 @@ export const createHotel = async (req: Request, res: Response, next: NextFunctio
 
 export const getHotels = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const hotels = await Hotel.find().sort({ createdAt: 1 });
+    const hotels = await Hotel.find().sort({ createdAt: 1 }).lean() as any;
     res.status(200).json({
       status: 'success',
       results: hotels.length,
@@ -83,7 +83,7 @@ export const getHotels = async (req: Request, res: Response, next: NextFunction)
 
 export const getHotelById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const hotel = await Hotel.findById(req.params.id);
+    const hotel = await Hotel.findById(req.params.id).lean() as any;
     if (!hotel) {
       throw new ApiError(404, 'Hotel not found');
     }
@@ -98,7 +98,7 @@ export const getHotelById = async (req: Request, res: Response, next: NextFuncti
 
 export const updateHotel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const existingHotel = await Hotel.findById(req.params.id);
+    const existingHotel = await Hotel.findById(req.params.id).lean() as any;
     if (!existingHotel) {
       throw new ApiError(404, 'Hotel not found');
     }
@@ -117,9 +117,9 @@ export const updateHotel = async (req: Request, res: Response, next: NextFunctio
       }
 
       const duplicateHotel = await Hotel.findOne({
-        hotelCode: new RegExp(`^${trimmedCode}$`, 'i'),
-        _id: { $ne: req.params.id }
-      });
+              hotelCode: new RegExp(`^${trimmedCode}$`, 'i'),
+              _id: { $ne: req.params.id }
+            }).lean() as any;
       if (duplicateHotel) {
         throw new ApiError(400, 'Hotel Code already exists. Please use a unique code.');
       }

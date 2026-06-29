@@ -106,8 +106,8 @@ export const addLocationUpdate = async (req: Request, res: Response, next: NextF
     
     // Calculate distance from last location (simple Haversine approximation)
     const lastLocation = await TrackingLocation.findOne({ session: sessionId })
-      .sort({ timestamp: -1 })
-      .skip(1);
+          .sort({ timestamp: -1 })
+          .skip(1);
     
     if (lastLocation) {
       const distance = calculateDistance(lastLocation.latitude, lastLocation.longitude, latitude, longitude);
@@ -207,9 +207,9 @@ export const getActiveSessions = async (req: Request, res: Response, next: NextF
     }
 
     const sessions = await TrackingSession.find(filter)
-      .populate('employee', 'firstName lastName email department designation photoUrl role')
-      .populate('hotel', 'name hotelCode')
-      .sort({ startTime: -1 });
+          .populate('employee', 'firstName lastName email department designation photoUrl role')
+          .populate('hotel', 'name hotelCode')
+          .sort({ startTime: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -251,10 +251,10 @@ export const getEmployeeTrackingHistory = async (req: Request, res: Response, ne
     }
 
     const sessions = await TrackingSession.find(filter)
-      .populate('employee', 'firstName lastName email department designation')
-      .populate('hotel', 'name hotelCode')
-      .sort({ startTime: -1 })
-      .limit(30);
+          .populate('employee', 'firstName lastName email department designation')
+          .populate('hotel', 'name hotelCode')
+          .sort({ startTime: -1 })
+          .limit(30);
 
     res.status(200).json({
       status: 'success',
@@ -283,7 +283,7 @@ export const getSessionLocations = async (req: Request, res: Response, next: Nex
     }
 
     const locations = await TrackingLocation.find({ session: sessionId })
-      .sort({ timestamp: 1 });
+          .sort({ timestamp: 1 });
 
     res.status(200).json({
       status: 'success',

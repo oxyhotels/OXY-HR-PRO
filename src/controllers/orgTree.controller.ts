@@ -7,12 +7,12 @@ import mongoose from 'mongoose';
 export const getOrgTree = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // 1. Fetch active hotels
-    const hotels = await Hotel.find({ status: 'Active' }).lean();
+    const hotels = await Hotel.find({ status: 'Active' }).lean() as any;
 
     // 2. Fetch active users
     const users = await User.find({ status: { $ne: 'Terminated' } })
       .populate('hotel', 'name hotelCode')
-      .lean();
+      .lean() as any;
 
     // Group users by department natively, but map anything not in the exact 4 to 'Other'
     const defaultDepts = ['Central Team', 'Sales Office Team', 'Property Team', 'IT Team', 'Other'];

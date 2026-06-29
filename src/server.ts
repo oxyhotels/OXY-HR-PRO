@@ -9,12 +9,13 @@ import { config } from './config/config';
 import { User } from './models/User';
 import { CommunityMessage } from './models/CommunityMessage';
 import { CommunityGroup } from './models/CommunityGroup';
+import { startCronJobs } from './utils/cronManager';
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '5000', 10);
 
 // Initialize Next.js programmatic application
-const nextApp = next({ dev });
+const nextApp = next({ dev, turbo: false });
 const nextHandler = nextApp.getRequestHandler();
 
 // Memory store for online users: maps userId -> Set of socketIds
@@ -63,29 +64,43 @@ const authenticateSocket = async (socket: Socket, nextFn: (err?: any) => void) =
   }
 };
 
-nextApp.prepare().then(async () => {
-  const app = express();
-  app.use(compression());
-  const server = http.createServer(app);
+// Load environment variables automatically since we use `tsx` or standard Node.js loading, 
+// but wait for database before launching the server.
+const startServer = async () => {
+  try {
+    // 1. Connect MongoDB
+    console.log('[Server] Initializing database connection...');
+    await connectDB();
 
-  // Setup Socket.IO with CORS settings
-  const io = new Server(server, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
-    },
-    pingInterval: 10000,
-    pingTimeout: 5000
-  });
+    // 2. Launch Express
+    console.log('[Server] Database connected. Launching Express...');
+    const app = express();
+    app.use(compression());
+    const server = http.createServer(app);
 
-  // Assign globally for API Route access
-  (global as any).io = io;
+    // 3. Setup Socket.IO
+    console.log('[Server] Setting up Socket.IO...');
+    const io = new Server(server, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+      },
+      pingInterval: 10000,
+      pingTimeout: 5000
+    });
+    
+    // Assign globally for API Route access
+    (global as any).io = io;
 
-  // Ensure database connection is online
-  await connectDB();
+    // 4. Launch Next.js
+    console.log('[Server] Preparing Next.js application...');
+    await nextApp.prepare();
 
-  // Socket authentication middleware
-  io.use(authenticateSocket);
+    // Start Background Cron Jobs
+    startCronJobs();
+
+    // Socket authentication middleware
+    io.use(authenticateSocket);
 
   // Socket Connection Handlers
   io.on('connection', (socket: Socket) => {
@@ -274,7 +289,45 @@ nextApp.prepare().then(async () => {
     console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`====================================================`);
   });
-}).catch((err) => {
+
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`\n[Server] Received ${signal}, starting graceful shutdown...`);
+    
+    server.close(() => {
+      console.log('[Server] HTTP Server closed.');
+    });
+
+    if (io) {
+      io.close(() => {
+        console.log('[Socket] Socket.IO Server closed.');
+      });
+    }
+
+    try {
+      const mongoose = await import('mongoose');
+      if (mongoose.connection.readyState === 1) {
+        await mongoose.disconnect();
+        console.log('[MongoDB] Connection successfully closed.');
+      }
+    } catch (err) {
+      console.error('[MongoDB] Error during disconnection:', err);
+    }
+    
+    console.log('[Server] Graceful shutdown complete. Exiting process.');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+  } catch (error) {
+    console.error('[Server] Fatal error during startup:', error);
+    process.exit(1);
+  }
+}; // End of startServer
+
+// Execute the server startup
+startServer().catch((err) => {
   console.error('Programmatic Next.js launch error:', err);
   process.exit(1);
 });

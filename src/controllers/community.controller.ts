@@ -20,7 +20,7 @@ import { createNotification } from '@/services/notification.service';
 // Add a single user to the OXY Global Community group (idempotent)
 export const addUserToGlobalGroup = async (userId: any): Promise<void> => {
   try {
-    let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' });
+    let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' }) as any;
     if (!globalGroup) {
       // Create global group if missing
       globalGroup = await CommunityGroup.create({
@@ -47,10 +47,10 @@ export const addUserToGlobalGroup = async (userId: any): Promise<void> => {
 
 // Sync Global Group so everyone is a member
 const ensureGlobalGroup = async (): Promise<any> => {
-  let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' });
+  let globalGroup = await CommunityGroup.findOne({ type: 'GlobalGroup' }) as any;
   
   // Find all active users
-  const allUsers = await User.find({ status: { $ne: 'Terminated' } }, '_id');
+  const allUsers = await User.find({ status: { $ne: 'Terminated' } }, '_id') as any[];
   const membersList = allUsers.map((u) => ({
     user: u._id,
     role: 'member' as const,
@@ -127,9 +127,9 @@ export const getGroups = async (req: Request, res: Response, next: NextFunction)
     }
 
     const groups = await CommunityGroup.find(finalQuery)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status')
-      .sort({ updatedAt: -1 });
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status')
+          .sort({ updatedAt: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -166,20 +166,20 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
     // 2. Department-based query
     if (selectionMode === 'department' && Array.isArray(selectionValues)) {
       const usersInDepts = await User.find({
-        status: { $ne: 'Terminated' },
-        department: { $in: selectionValues },
-        ...(hotelId ? { hotel: hotelId } : {})
-      }, '_id');
+              status: { $ne: 'Terminated' },
+              department: { $in: selectionValues },
+              ...(hotelId ? { hotel: hotelId } : {})
+            }, '_id') as any[];
       usersInDepts.forEach((u) => finalMemberIds.add(u._id.toString()));
     }
 
     // 3. Manager-based query
     if (selectionMode === 'manager' && Array.isArray(selectionValues)) {
       const usersUnderManagers = await User.find({
-        status: { $ne: 'Terminated' },
-        reportingManager: { $in: selectionValues },
-        ...(hotelId ? { hotel: hotelId } : {})
-      }, '_id');
+              status: { $ne: 'Terminated' },
+              reportingManager: { $in: selectionValues },
+              ...(hotelId ? { hotel: hotelId } : {})
+            }, '_id') as any[];
       usersUnderManagers.forEach((u) => finalMemberIds.add(u._id.toString()));
     }
 
@@ -216,8 +216,8 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
     });
 
     const populatedGroup = await CommunityGroup.findById(group._id)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status');
 
     const io = getIO();
 
@@ -284,7 +284,7 @@ export const getGroupMessages = async (req: Request, res: Response, next: NextFu
       .sort({ createdAt: -1 }) // Newest first for pagination
       .skip(skip)
       .limit(limit)
-      .lean();
+      ;
 
     messages.reverse(); // Reverse back to chronological order for UI
 
@@ -350,9 +350,9 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
 
     // Populate sender details for socket or json return
     const populatedMessage = await CommunityMessage.findById(message._id)
-      .populate('sender', 'firstName lastName photoUrl role department')
-      .populate('parentMessage')
-      .populate('appreciation.recipient', 'firstName lastName photoUrl role department');
+          .populate('sender', 'firstName lastName photoUrl role department')
+          .populate('parentMessage')
+          .populate('appreciation.recipient', 'firstName lastName photoUrl role department');
 
     // Update group timestamp
     await CommunityGroup.findByIdAndUpdate(groupId, { updatedAt: new Date() });
@@ -381,9 +381,9 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       req.body.mentionedUserIds.forEach((id: string) => mentionedUserIds.add(id));
     } else if (content && typeof content === 'string') {
       const users = await User.find({
-        _id: { $in: group.members.map((m: any) => m.user) },
-        status: { $ne: 'Terminated' }
-      });
+              _id: { $in: group.members.map((m: any) => m.user) },
+              status: { $ne: 'Terminated' }
+            });
       for (const u of users) {
         const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
         if (content.toLowerCase().includes(`@${fullName}`) || content.toLowerCase().includes(`@${u.firstName.toLowerCase()}`)) {
@@ -485,8 +485,8 @@ export const editMessage = async (req: Request, res: Response, next: NextFunctio
     await message.save();
 
     const populatedMessage = await CommunityMessage.findById(messageId)
-      .populate('sender', 'firstName lastName photoUrl role department')
-      .populate('parentMessage');
+          .populate('sender', 'firstName lastName photoUrl role department')
+          .populate('parentMessage');
 
     // Realtime Socket Broadcast
     if ((global as any).io && populatedMessage) {
@@ -572,8 +572,8 @@ export const reactToMessage = async (req: Request, res: Response, next: NextFunc
     await message.save();
 
     const populated = await CommunityMessage.findById(messageId)
-      .populate('sender', 'firstName lastName photoUrl role department')
-      .populate('parentMessage');
+          .populate('sender', 'firstName lastName photoUrl role department')
+          .populate('parentMessage');
 
     // Realtime Socket Broadcast
     if ((global as any).io && populated) {
@@ -610,7 +610,7 @@ export const votePollOption = async (req: Request, res: Response, next: NextFunc
     await message.save();
 
     const populated = await CommunityMessage.findById(messageId)
-      .populate('sender', 'firstName lastName photoUrl role department');
+          .populate('sender', 'firstName lastName photoUrl role department');
 
     // Realtime Socket Broadcast
     if ((global as any).io && populated) {
@@ -708,8 +708,8 @@ export const startCallSession = async (req: Request, res: Response, next: NextFu
     });
 
     const populatedCall = await CallSession.findById(callSession._id)
-      .populate('caller', 'firstName lastName photoUrl')
-      .populate('participants', 'firstName lastName photoUrl role department');
+          .populate('caller', 'firstName lastName photoUrl')
+          .populate('participants', 'firstName lastName photoUrl role department');
 
     // Create notifications for all other group members
     const otherMembers = group.members
@@ -810,8 +810,8 @@ export const joinCallSession = async (req: Request, res: Response, next: NextFun
     }
 
     const populatedCall = await CallSession.findById(callId)
-      .populate('caller', 'firstName lastName photoUrl')
-      .populate('participants', 'firstName lastName photoUrl role department');
+          .populate('caller', 'firstName lastName photoUrl')
+          .populate('participants', 'firstName lastName photoUrl role department');
 
     // Notify other participants via Socket
     const io = getIO();
@@ -868,8 +868,8 @@ export const leaveCallSession = async (req: Request, res: Response, next: NextFu
     await callSession.save();
 
     const populatedCall = await CallSession.findById(callId)
-      .populate('caller', 'firstName lastName photoUrl')
-      .populate('participants', 'firstName lastName photoUrl role department');
+          .populate('caller', 'firstName lastName photoUrl')
+          .populate('participants', 'firstName lastName photoUrl role department');
 
     const io = getIO();
     if (io) {
@@ -896,22 +896,22 @@ export const getActiveCalls = async (req: Request, res: Response, next: NextFunc
 
     // Find all groups user belongs to (or are global/public)
     const userGroups = await CommunityGroup.find({
-      $or: [
-        { type: 'GlobalGroup' },
-        { type: 'PublicGroup' },
-        { 'members.user': userId }
-      ]
-    }, '_id');
+          $or: [
+            { type: 'GlobalGroup' },
+            { type: 'PublicGroup' },
+            { 'members.user': userId }
+          ]
+        }, '_id');
 
     const groupIds = userGroups.map(g => g._id);
 
     const activeCalls = await CallSession.find({
-      group: { $in: groupIds },
-      status: 'ongoing'
-    })
-      .populate('caller', 'firstName lastName photoUrl')
-      .populate('participants', 'firstName lastName photoUrl role department')
-      .populate('group', 'name type');
+          group: { $in: groupIds },
+          status: 'ongoing'
+        })
+          .populate('caller', 'firstName lastName photoUrl')
+          .populate('participants', 'firstName lastName photoUrl role department')
+          .populate('group', 'name type');
 
     res.status(200).json({
       status: 'success',
@@ -954,8 +954,8 @@ export const syncUserDepartmentGroups = async (user: any): Promise<void> => {
         const io = getIO();
         if (io) {
           const populatedGroup = await CommunityGroup.findById(group._id)
-            .populate('createdBy', 'firstName lastName role')
-            .populate('members.user', 'firstName lastName photoUrl role department status');
+                      .populate('createdBy', 'firstName lastName role')
+                      .populate('members.user', 'firstName lastName photoUrl role department status');
           io.to(`user_${user._id.toString()}`).emit('user_added_to_group', populatedGroup);
         }
       }
@@ -1011,8 +1011,8 @@ export const getGroupById = async (req: Request, res: Response, next: NextFuncti
   try {
     const { id: groupId } = req.params;
     const group = await CommunityGroup.findById(groupId)
-      .populate('createdBy', 'firstName lastName photoUrl role department')
-      .populate('members.user', 'firstName lastName photoUrl role department designation status employeeId reportingManager');
+          .populate('createdBy', 'firstName lastName photoUrl role department')
+          .populate('members.user', 'firstName lastName photoUrl role department designation status employeeId reportingManager');
 
     if (!group) throw new ApiError(404, 'Community group not found');
 
@@ -1057,8 +1057,8 @@ export const updateGroup = async (req: Request, res: Response, next: NextFunctio
     await group.save();
 
     const populatedGroup = await CommunityGroup.findById(groupId)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status');
 
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
@@ -1111,8 +1111,8 @@ export const addGroupMember = async (req: Request, res: Response, next: NextFunc
     await group.save();
 
     const populatedGroup = await CommunityGroup.findById(groupId)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status');
 
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
@@ -1169,8 +1169,8 @@ export const removeGroupMember = async (req: Request, res: Response, next: NextF
     await group.save();
 
     const populatedGroup = await CommunityGroup.findById(groupId)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status');
 
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);
@@ -1222,8 +1222,8 @@ export const updateGroupMemberRole = async (req: Request, res: Response, next: N
     await group.save();
 
     const populatedGroup = await CommunityGroup.findById(groupId)
-      .populate('createdBy', 'firstName lastName role')
-      .populate('members.user', 'firstName lastName photoUrl role department status');
+          .populate('createdBy', 'firstName lastName role')
+          .populate('members.user', 'firstName lastName photoUrl role department status');
 
     if ((global as any).io) {
       (global as any).io.to(`group_${groupId}`).emit('group_updated', populatedGroup);

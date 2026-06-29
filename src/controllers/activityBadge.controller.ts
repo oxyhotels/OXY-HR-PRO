@@ -8,9 +8,9 @@ export const getActivityBadges = async (req: Request, res: Response, next: NextF
     const userId = req.user?._id;
     if (!userId) throw new ApiError(401, 'Unauthorized');
 
-    const activities = await NotificationActivity.find({ userId, count: { $gt: 0 } });
+    const activities = await NotificationActivity.find({ userId, count: { $gt: 0 } }).lean() as any;
     
-    const badges = activities.reduce((acc, curr) => {
+    const badges = activities.reduce((acc: Record<string, number>, curr: any) => {
       acc[curr.module] = curr.count;
       return acc;
     }, {} as Record<string, number>);

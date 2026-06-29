@@ -58,9 +58,9 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
 
     // Check if already checked in today
     const existing = await Attendance.findOne({
-      employee: req.user._id,
-      date: todayStr,
-    });
+          employee: req.user._id,
+          date: todayStr,
+        }).lean() as any;
 
     if (existing) {
       throw new ApiError(400, 'You have already checked in for today');
@@ -89,7 +89,7 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
     // ✅ UPGRADED: Smart Hotel Validation for IT/HR
     let finalHotelId = resolvedHotelId;
     if (resolvedHotelId) {
-      const hotelExists = await Hotel.findOne({ _id: resolvedHotelId, status: 'Active' });
+      const hotelExists = await Hotel.findOne({ _id: resolvedHotelId, status: 'Active' }).lean() as any;
       if (!hotelExists) {
         if (!exempt) {
           // Normal employees must be assigned to an active hotel
@@ -163,7 +163,7 @@ export const checkIn = async (req: Request, res: Response, next: NextFunction): 
     // Resolve property name for notification description
     let propertyName = 'Global IT/HR Operations';
     if (finalHotelId) {
-      const hotelDoc = await Hotel.findById(finalHotelId);
+      const hotelDoc = await Hotel.findById(finalHotelId).lean() as any;
       if (hotelDoc) {
         propertyName = hotelDoc.name;
       }
@@ -232,9 +232,9 @@ export const checkOut = async (req: Request, res: Response, next: NextFunction):
     const todayStr = getLocalDateString();
 
     const attendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: todayStr,
-    });
+              employee: req.user._id,
+              date: todayStr,
+            });
 
     if (!attendance) {
       throw new ApiError(400, 'No check-in record found for today');
@@ -359,9 +359,9 @@ export const startBreak = async (req: Request, res: Response, next: NextFunction
 
     const todayStr = getLocalDateString();
     const attendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: todayStr,
-    });
+              employee: req.user._id,
+              date: todayStr,
+            });
 
     if (!attendance) {
       throw new ApiError(400, 'Please check in first before starting a break');
@@ -399,9 +399,9 @@ export const endBreak = async (req: Request, res: Response, next: NextFunction):
 
     const todayStr = getLocalDateString();
     const attendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: todayStr,
-    });
+              employee: req.user._id,
+              date: todayStr,
+            });
 
     if (!attendance) {
       throw new ApiError(400, 'No attendance record found');
@@ -443,7 +443,7 @@ export const getMyAttendance = async (req: Request, res: Response, next: NextFun
       filter.date = new RegExp(`^${req.query.month}`);
     }
 
-    const logs = await Attendance.find(filter).sort({ date: -1 });
+    const logs = await Attendance.find(filter).sort({ date: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -474,7 +474,7 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
       filter.hotel = currentUser.hotel;
 
       if (!isHotelAdmin) {
-        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean();
+        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean() as any;
         if (myEmployees.length > 0) {
           const myEmployeeIds = myEmployees.map(e => e._id);
           filter.employee = { $in: myEmployeeIds };
@@ -510,7 +510,7 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
       .populate('employee', 'firstName lastName email department designation aadhaarNumber panNumber shift photoUrl role')
       .populate('hotel', 'name hotelCode')
       .sort({ date: -1 })
-      .lean();
+      .lean() as any;
 
     if (req.query.all === 'true' && !req.query.employeeId) {
       queryBuilder.limit(100);
@@ -519,7 +519,7 @@ export const getHotelAttendance = async (req: Request, res: Response, next: Next
     const logs = await queryBuilder;
     console.log(`[DEBUG] getHotelAttendance returning ${logs.length} logs for url all=${req.query.all}`);
 
-    const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel').lean();
+    const managers = await User.find({ role: 'HOTEL_ADMIN' }).select('firstName lastName email phone hotel').lean() as any;
     const managerMap: any = {};
     managers.forEach((m) => {
       if (m.hotel) {
@@ -568,7 +568,7 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
       filter.hotel = currentUser.hotel;
 
       if (!isHotelAdmin) {
-        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean();
+        const myEmployees = await User.find({ reportingManagerId: currentUser._id }).select('_id').lean() as any;
         if (myEmployees.length > 0) {
           const myEmployeeIds = myEmployees.map(e => e._id);
           filter.employee = { $in: myEmployeeIds };
@@ -601,8 +601,7 @@ export const getLiveAttendance = async (req: Request, res: Response, next: NextF
       .populate('employee', 'firstName lastName email department designation role photoUrl')
       .populate('hotel', 'name hotelCode')
       .sort({ checkIn: -1 })
-      .lean()
-      .limit(200);
+      .limit(200).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -624,7 +623,7 @@ export const getLocationHistory = async (req: Request, res: Response, next: Next
     };
 
     if (req.user?.role !== 'ROOT_ADMIN') {
-      const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean();
+      const myEmployees = await User.find({ reportingManagerId: req.user?._id }).select('_id').lean() as any;
       const myEmployeeIds = myEmployees.map(e => e._id);
       
       if (myEmployeeIds.length > 0) {
@@ -651,8 +650,7 @@ export const getLocationHistory = async (req: Request, res: Response, next: Next
       .populate('employee', 'firstName lastName email department designation role photoUrl')
       .populate('hotel', 'name hotelCode')
       .sort({ date: -1, checkIn: -1 })
-      .lean()
-      .limit(300);
+      .limit(300).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -695,9 +693,9 @@ export const requestOvertime = async (req: Request, res: Response, next: NextFun
     const todayStr = getLocalDateString();
 
     const attendance = await Attendance.findOne({
-      employee: req.user._id,
-      date: todayStr,
-    });
+              employee: req.user._id,
+              date: todayStr,
+            });
 
     if (!attendance) {
       throw new ApiError(404, 'No attendance record found for today.');
@@ -735,6 +733,8 @@ export const requestOvertime = async (req: Request, res: Response, next: NextFun
 
     await attendance.save();
 
+    const isOvertimeAlert = (attendance.totalWorkingHours || 0) > 12;
+
     // Notify Root Admin
     await createNotification({
       recipientRole: 'ROOT_ADMIN',
@@ -743,6 +743,7 @@ export const requestOvertime = async (req: Request, res: Response, next: NextFun
       type: 'approval',
       actionRequired: true,
       sender: req.user?._id?.toString(),
+      moduleTag: isOvertimeAlert ? 'overtime_alert' : undefined,
     });
 
     res.status(200).json({

@@ -21,7 +21,7 @@ export const createPropertyReport = async (req: any, res: Response) => {
     return res.status(400).json({ success: false, error: 'No files provided' });
   }
 
-  const fullUser = await User.findById(user.id).populate('hotel').populate('reportingManager');
+  const fullUser = await User.findById(user.id).populate('hotel').populate('reportingManager').lean() as any;
   if (!fullUser) {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
@@ -111,7 +111,7 @@ export const getPropertyReports = async (req: any, res: Response) => {
   const reports = await PropertyReport.find(query)
     .sort({ reportDate: -1, uploadedAt: -1 })
     .allowDiskUse(true)
-    .lean();
+    .lean() as any;
 
   res.status(200).json({ success: true, reports });
 };
@@ -125,7 +125,7 @@ export const requestDeleteReport = async (req: any, res: Response) => {
     return res.status(400).json({ success: false, error: 'Reason is required to request delete.' });
   }
 
-  const fullUser = await User.findById(user.id);
+  const fullUser = await User.findById(user.id).lean() as any;
   const report = await PropertyReport.findById(id);
 
   if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
@@ -167,7 +167,7 @@ export const approveDeleteReport = async (req: any, res: Response) => {
     return res.status(403).json({ success: false, error: 'Only Central Team or Root Admin can approve deletions.' });
   }
 
-  const fullUser = await User.findById(user.id);
+  const fullUser = await User.findById(user.id).lean() as any;
   const report = await PropertyReport.findById(id);
 
   if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
@@ -203,7 +203,7 @@ export const rejectDeleteReport = async (req: any, res: Response) => {
     return res.status(400).json({ success: false, error: 'Reason is required to reject a delete request.' });
   }
 
-  const fullUser = await User.findById(user.id);
+  const fullUser = await User.findById(user.id).lean() as any;
   const report = await PropertyReport.findById(id);
 
   if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
@@ -241,7 +241,7 @@ export const deletePropertyReport = async (req: any, res: Response) => {
      return res.status(403).json({ success: false, error: 'Unauthorized to permanently delete this report' });
   }
 
-  const report = await PropertyReport.findById(id);
+  const report = await PropertyReport.findById(id).lean() as any;
   if (!report) {
     return res.status(404).json({ success: false, error: 'Report not found' });
   }

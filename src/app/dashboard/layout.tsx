@@ -28,8 +28,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const hydrationDone = useRef(false);
 
-  // Call session states
-  const { incomingCall, setIncomingCall, joinCall, setCallUpdated, setCallEnded } = useCommunityStore();
+  // Call session states (Atomic Selectors)
+  const incomingCall = useCommunityStore(state => state.incomingCall);
+  const setIncomingCall = useCommunityStore(state => state.setIncomingCall);
+  const joinCall = useCommunityStore(state => state.joinCall);
+  const setCallUpdated = useCommunityStore(state => state.setCallUpdated);
+  const setCallEnded = useCommunityStore(state => state.setCallEnded);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
   // Notifications states
@@ -560,6 +564,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
+                data-notification-bell={item.name === 'Notifications' ? "true" : undefined}
                 onClick={(e) => {
                   if (item.name === 'Notifications') {
                     e.preventDefault();
@@ -643,6 +649,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 onClick={(e) => {
                   if (item.name === 'Notifications') {
                     e.preventDefault();
@@ -722,7 +729,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <div className="relative" ref={dropdownRef}>
-              <button onClick={() => setShowNotifications(!showNotifications)} className="relative text-slate-300 hover:text-white p-1">
+              <button onClick={() => setShowNotifications(!showNotifications)} className="relative text-slate-300 hover:text-white p-1" data-notification-bell="true">
                 <GoogleIcon name="notifications" size={20} />
                 {notifications.filter(n => !n.read).length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">

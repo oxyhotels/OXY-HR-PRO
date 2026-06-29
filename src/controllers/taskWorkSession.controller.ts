@@ -24,7 +24,7 @@ export const handleWorkSession = async (req: Request, res: Response, next: NextF
     const { action, updateMessage, evidenceImage } = req.body;
     const userId = (req as any).user._id.toString();
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findById(taskId).lean() as any;
     if (!task) {
       throw new ApiError(404, 'Task not found');
     }

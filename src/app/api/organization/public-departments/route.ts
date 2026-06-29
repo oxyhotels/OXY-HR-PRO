@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 import { adaptRoute } from '@/lib/adaptRoute';
 import { Department } from '@/models/Department';

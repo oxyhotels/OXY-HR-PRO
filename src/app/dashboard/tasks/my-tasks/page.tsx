@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import GoogleIcon from '@/components/GoogleIcon';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { useRouter } from 'next/navigation';
 import PropertyReportsTab from '@/components/property/PropertyReportsTab';
 
@@ -373,15 +374,17 @@ export default function MyTasksPage() {
             <p className="text-slate-500 text-sm mt-3">No tasks in this column</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {getTasksByColumn(activeColumn).map(task => (
+          <VirtuosoGrid
+            style={{ height: '70vh', minHeight: '500px' }}
+            data={getTasksByColumn(activeColumn)}
+            listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            itemContent={(index, task) => (
               <div
-                key={task._id}
                 onClick={() => {
                   setSelectedTask(task);
                   setShowActionModal(true);
                 }}
-                className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group h-full"
               >
                 <div className="flex items-start justify-between mb-3">
                   <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${getPriorityColor(task.priority)}`}>
@@ -594,8 +597,8 @@ export default function MyTasksPage() {
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </div>
 

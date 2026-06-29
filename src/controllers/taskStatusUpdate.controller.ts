@@ -43,7 +43,7 @@ export const updateTaskStatus = async (req: Request, res: Response, next: NextFu
     const taskId = req.params.id;
     const { status, description, reason, photoUrl } = req.body;
     const userId = (req as any).user._id.toString();
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean() as any;
     
     if (!user) throw new ApiError(404, 'User not found');
 

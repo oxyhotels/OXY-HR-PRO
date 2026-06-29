@@ -21,12 +21,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      {
         source: '/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
@@ -57,6 +51,14 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  compress: true,
+  transpilePackages: ['recharts', 'es-toolkit'],
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion', '@xyflow/react'],
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 

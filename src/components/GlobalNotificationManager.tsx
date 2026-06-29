@@ -41,7 +41,7 @@ export default function GlobalNotificationManager() {
     
     // Initialize audio object once
     if (!audioRef.current) {
-      audioRef.current = new Audio('/alerm sound.mp3');
+      audioRef.current = new Audio();
       audioRef.current.loop = true;
     }
 
@@ -53,6 +53,20 @@ export default function GlobalNotificationManager() {
   // Manage audio play/pause based on queue length
   useEffect(() => {
     if (queue.length > 0) {
+      const isOvertimeAlert = queue.some(n => n.moduleTag === 'overtime_alert');
+      
+      if (isOvertimeAlert) {
+        document.body.classList.add('has-overtime-alert');
+        if (audioRef.current && !audioRef.current.src.includes('work-out')) {
+          audioRef.current.src = '/work-out song.mp3';
+        }
+      } else {
+        document.body.classList.remove('has-overtime-alert');
+        if (audioRef.current && !audioRef.current.src.includes('alerm')) {
+          audioRef.current.src = '/alerm sound.mp3';
+        }
+      }
+
       if (audioRef.current && audioRef.current.paused) {
         // Play and handle auto-play restrictions
         audioRef.current.play().catch((err) => {
@@ -60,6 +74,7 @@ export default function GlobalNotificationManager() {
         });
       }
     } else {
+      document.body.classList.remove('has-overtime-alert');
       if (audioRef.current && !audioRef.current.paused) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;

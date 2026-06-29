@@ -202,5 +202,6 @@ TaskSchema.index({ assignedBy: 1, createdAt: -1 });
 TaskSchema.index({ dueDate: 1 });
 TaskSchema.index({ assignedTo: 1 });
 TaskSchema.index({ status: 1 });
+TaskSchema.index({ hotel: 1, assignedTo: 1, status: 1 });
 
 export const Task = models.Task || model<ITask>('Task', TaskSchema);

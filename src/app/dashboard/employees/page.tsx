@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { formatRole } from '../../../lib/utils';
 import GoogleIcon from '../../../components/GoogleIcon';
 import { useForm } from 'react-hook-form';
+import { TableVirtuoso } from 'react-virtuoso';
 
 
 interface EmployeeProfile {
@@ -589,26 +590,30 @@ export default function EmployeesPage() {
       ) : (
         <div className="bg-card-dark border border-slate-800/80 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950/40 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                  <th className="p-4">Name & Contact</th>
-                  <th className="p-4">Department</th>
-                  <th className="p-4">Role / Title</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Base Salary</th>
-                  <th className="p-4">DOCS</th>
-                  {(canManage || employees.some(emp => emp._id === user?.id)) && <th className="p-4 text-right">Actions</th>}
+            <TableVirtuoso
+              style={{ height: '70vh', minHeight: '400px' }}
+              data={filteredEmployees}
+              fixedHeaderContent={() => (
+                <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                  <th className="p-4 bg-slate-950">Name & Contact</th>
+                  <th className="p-4 bg-slate-950">Department</th>
+                  <th className="p-4 bg-slate-950">Role / Title</th>
+                  <th className="p-4 bg-slate-950">Status</th>
+                  <th className="p-4 bg-slate-950">Base Salary</th>
+                  <th className="p-4 bg-slate-950">DOCS</th>
+                  {(canManage || employees.some(emp => emp._id === user?.id)) && <th className="p-4 bg-slate-950 text-right">Actions</th>}
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {filteredEmployees.map((emp) => (
-                  <tr key={emp._id} className="hover:bg-slate-900/20 transition-colors">
-                    <td className="p-4">
+              )}
+              components={{
+                Table: (props) => <table {...props} className="w-full text-left text-xs border-collapse" />
+              }}
+              itemContent={(index, emp) => (
+                <React.Fragment>
+                    <td className="p-4 border-b border-slate-800/60">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-gold font-bold uppercase overflow-hidden">
                           {emp.photoUrl ? (
-                            <img src={emp.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                            <img src={emp.photoUrl} alt="Avatar" className="w-full h-full object-cover" loading="lazy" />
                           ) : (
                             <span>{emp.firstName?.[0] || ''}{emp.lastName?.[0] || ''}</span>
                           )}
@@ -617,32 +622,22 @@ export default function EmployeesPage() {
                           <div className="font-semibold text-white">{emp.firstName} {emp.lastName}</div>
                           <div className="text-slate-500 mt-0.5 font-mono">{emp.email}</div>
                           {emp.phone && <div className="text-slate-500 text-[10px]">{emp.phone}</div>}
-                          {user?.role === 'ROOT_ADMIN' && emp.password && (
-                            <div className="text-amber-400 font-mono mt-1 text-[10px] bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-900/40 w-fit">
-                              🔑 Pass: {emp.password}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 border-b border-slate-800/60">
                       <div className="flex items-center gap-1.5">
                         <GoogleIcon name="work" size={12} className="text-slate-400" />
                         <span>{emp.department || 'Operations'}</span>
                       </div>
                       <div className="text-slate-500 text-[10px] mt-0.5">{emp.designation || 'Staff Member'}</div>
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 border-b border-slate-800/60">
                       <span className="bg-blue-600 text-white border border-blue-500 px-2 py-0.5 rounded text-[9px] uppercase font-semibold">
                         {formatRole(emp.role)}
                       </span>
-                      {emp.shift && (
-                        <div className="text-[9px] font-mono text-gold mt-1.5 uppercase font-semibold">
-                          ⏱ {emp.shift.split(' (')[0]}
-                        </div>
-                      )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 border-b border-slate-800/60">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
                         emp.status === 'Active' ? 'bg-green-50/10 text-green-400' : 'bg-red-50/10 text-red-400'
                       }`}>
@@ -650,74 +645,40 @@ export default function EmployeesPage() {
                         {emp.status}
                       </span>
                     </td>
-                    <td className="p-4 font-bold text-slate-200">
+                    <td className="p-4 font-bold text-slate-200 border-b border-slate-800/60">
                       ₹{emp.salaryDetails?.baseSalary?.toLocaleString() || '0'}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 border-b border-slate-800/60">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleOpenViewDocsModal(emp)}
-                          className="bg-slate-800 hover:bg-slate-700 text-gold hover:text-gold-light border border-gold/30 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors whitespace-nowrap"
+                          className="bg-slate-800 hover:bg-slate-700 text-gold border border-gold/30 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase"
                         >
                           [ View Docs ]
                         </button>
-                        {canManage && (
-                          <button
-                            onClick={() => handleOpenDocModal(emp)}
-                            className="p-1 hover:bg-slate-800 text-gold hover:text-gold-light rounded transition-colors cursor-pointer ml-2"
-                            title="Add Document"
-                          >
-                            <GoogleIcon name="note_add" size={14} />
-                          </button>
-                        )}
                       </div>
                     </td>
                     {(canManage || emp._id === user?.id) && (
-                      <td className="p-4 text-right space-x-2">
-                        {(user?.role === 'ROOT_ADMIN' || user?.role === 'HR_MANAGER') && emp.homeLocation && (
-                          <button
-                            onClick={() => {
-                              setHomeLocationEmployee(emp);
-                              setHomeLocationModalOpen(true);
-                            }}
-                            className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-gold transition-colors cursor-pointer"
-                            title="View Home Location"
-                          >
-                            <GoogleIcon name="home_pin" size={14} />
-                          </button>
-                        )}
+                      <td className="p-4 text-right space-x-2 border-b border-slate-800/60">
                         <button
                           onClick={() => handleOpenEdit(emp)}
-                          className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
-                          title="Edit Profile"
+                          className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
                         >
                           <GoogleIcon name="edit" size={14} />
                         </button>
                         {canManage && (
                           <button
                             onClick={() => handleDeactivate(emp._id)}
-                            className="p-1.5 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
-                            title="Terminate Staff"
+                            className="p-1.5 hover:bg-red-950/40 rounded text-slate-400 hover:text-red-400"
                           >
                             <GoogleIcon name="person_remove" size={14} />
                           </button>
                         )}
                       </td>
                     )}
-                  </tr>
-                ))}
-
-                {filteredEmployees.length === 0 && (
-                  <tr>
-                    <td colSpan={canManage ? 7 : 6} className="text-center p-8 text-slate-500">
-                      {user?.role === 'EMPLOYEE' || user?.role === 'DEPT_MANAGER'
-                        ? "No employees are currently assigned to you."
-                        : "No staff records found in this tenant directory."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </React.Fragment>
+              )}
+            />
           </div>
         </div>
       )}

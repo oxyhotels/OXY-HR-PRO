@@ -11,7 +11,7 @@ export const calculatePerformanceIndex = async (req: Request, res: Response, nex
   try {
     const { employeeId, month, year } = req.body;
     
-    const employee = await User.findById(employeeId);
+    const employee = await User.findById(employeeId).lean() as any;
     if (!employee) {
       throw new ApiError(404, 'Employee profile not found');
     }
@@ -20,9 +20,9 @@ export const calculatePerformanceIndex = async (req: Request, res: Response, nex
     const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
     const endStr = `${year}-${String(month).padStart(2, '0')}-31`;
     const attendanceRecords = await Attendance.find({
-      employee: employeeId,
-      date: { $gte: startStr, $lte: endStr }
-    });
+          employee: employeeId,
+          date: { $gte: startStr, $lte: endStr }
+        }).lean() as any;
 
     let attendanceScore = 100;
     if (attendanceRecords.length > 0) {
@@ -35,12 +35,12 @@ export const calculatePerformanceIndex = async (req: Request, res: Response, nex
 
     // 2. Calculate Productivity / Task Score (Completed tasks / Assigned tasks)
     const tasks = await Task.find({
-      assignedTo: employeeId,
-      createdAt: { 
-        $gte: new Date(year, month - 1, 1), 
-        $lte: new Date(year, month, 0, 23, 59, 59)
-      }
-    });
+          assignedTo: employeeId,
+          createdAt: { 
+            $gte: new Date(year, month - 1, 1), 
+            $lte: new Date(year, month, 0, 23, 59, 59)
+          }
+        }).lean() as any;
 
     let productivityScore = 80; // baseline default
     if (tasks.length > 0) {
@@ -49,7 +49,7 @@ export const calculatePerformanceIndex = async (req: Request, res: Response, nex
     }
 
     // 3. Training Score (LMS Certifications and passing counts)
-    const certifications = await Certification.find({ employee: employeeId });
+    const certifications = await Certification.find({ employee: employeeId }).lean() as any;
     const trainingScore = certifications.length > 0 
       ? Math.min(100, 70 + (certifications.length * 10)) // Base 70% + 10% per certificate
       : 60; // 60 if no certifications
@@ -122,8 +122,8 @@ export const getOpiMetrics = async (req: Request, res: Response, next: NextFunct
     const employeeId = req.params.userId;
     // Fetch latest monthly performance logs
     const logs = await AIPerformance.find({ employee: employeeId })
-      .sort({ year: -1, month: -1 })
-      .limit(6); // return last 6 months metrics
+          .sort({ year: -1, month: -1 })
+          .limit(6).lean() as any; // return last 6 months metrics
 
     res.status(200).json({
       status: 'success',
@@ -141,13 +141,13 @@ export const getLeaderboard = async (req: Request, res: Response, next: NextFunc
 
     // Query latest calculations grouped by users
     const records = await AIPerformance.find({ month: currentMonth, year: currentYear })
-      .populate({
-        path: 'employee',
-        select: 'firstName lastName email department designation photoUrl hotel',
-        populate: { path: 'hotel', select: 'name hotelCode' }
-      })
-      .sort({ opiScore: -1 })
-      .limit(50); // Top 50
+          .populate({
+            path: 'employee',
+            select: 'firstName lastName email department designation photoUrl hotel',
+            populate: { path: 'hotel', select: 'name hotelCode' }
+          })
+          .sort({ opiScore: -1 })
+          .limit(50).lean() as any; // Top 50
 
     // Filter by user tenant if not root admin
     let filteredRecords = records;

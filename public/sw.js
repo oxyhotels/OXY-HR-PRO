@@ -48,9 +48,9 @@ self.addEventListener('fetch', (event) => {
   // Cache stable compiled Next.js build chunks (styles, scripts)
   const isNextStatic = url.pathname.startsWith('/_next/static/') && !url.pathname.includes('.hot-update.');
 
-  // Exclude API routes, other dynamic next routes (HMR, next-dev), socket, and extensions
+  // Exclude auth routes, dynamic next routes (HMR, next-dev), socket, and extensions
   if (!isNextStatic && (
-    url.pathname.startsWith('/api') || 
+    url.pathname.startsWith('/api/auth') || 
     url.pathname.startsWith('/_next') ||
     url.pathname.includes('/socket.io') ||
     event.request.url.startsWith('chrome-extension:')

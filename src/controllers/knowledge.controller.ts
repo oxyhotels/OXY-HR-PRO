@@ -30,8 +30,8 @@ export const getKnowledgeItems = async (req: Request, res: Response, next: NextF
     }
 
     const items = await KnowledgeItem.find(filter)
-      .populate('author', 'firstName lastName role department')
-      .sort({ createdAt: -1 });
+          .populate('author', 'firstName lastName role department')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -69,7 +69,7 @@ export const createKnowledgeItem = async (req: Request, res: Response, next: Nex
     });
 
     const populatedItem = await KnowledgeItem.findById(item._id)
-      .populate('author', 'firstName lastName role department');
+          .populate('author', 'firstName lastName role department').lean() as any;
 
     // Logging Audit Trail
     await AuditLog.create({

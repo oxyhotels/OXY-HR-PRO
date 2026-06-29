@@ -9,6 +9,7 @@ import { HierarchyAuditLog } from '@/models/HierarchyAuditLog';
 import { User } from '@/models/User';
 import { Hotel } from '@/models/Hotel';
 import { ApiError } from '@/utils/ApiError';
+import { getOrSetCache, clearCachePrefix } from '@/utils/cache';
 import { createNotification } from '@/services/notification.service';
 import { sendPushNotification } from '@/services/fcm.service';
 import { addUserToGlobalGroup } from './community.controller';
@@ -36,7 +37,7 @@ export const createOrganization = async (req: Request, res: Response, next: Next
       throw new ApiError(400, 'Organization name is required');
     }
 
-    const existing = await Organization.findOne({ name });
+    const existing = await Organization.findOne({ name }).lean() as any;
     if (existing) {
       throw new ApiError(400, 'An organization with this name already exists');
     }
@@ -70,7 +71,7 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
       throw new ApiError(400, 'Department name and Organization ID are required');
     }
 
-    const org = await Organization.findById(organizationId);
+    const org = await Organization.findById(organizationId).lean() as any;
     if (!org) {
       throw new ApiError(404, 'Organization not found');
     }
@@ -116,8 +117,8 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
 export const getOrganizations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     registerModels();
-    const orgs = await Organization.find().sort({ name: 1 }).lean();
-    const departments = await Department.find().populate('manager', 'firstName lastName email').sort({ name: 1 }).lean();
+    const orgs = await Organization.find().sort({ name: 1 }).lean() as any;
+    const departments = await Department.find().populate('manager', 'firstName lastName email').sort({ name: 1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -140,15 +141,16 @@ export const getOrganizationTree = async (req: Request, res: Response, next: Nex
     registerModels();
     const { departmentId, hotelId, managerId, search } = req.query;
 
-    // Fetch all structure documents
-    const orgs = await Organization.find();
-    const depts = await Department.find().populate('hotel', 'name hotelCode');
-    const reportingStructures = await ReportingStructure.find();
+    // Fetch all structure documents with caching
+    const orgs: any[] = await getOrSetCache('hierarchy_orgs', async () => await Organization.find().lean() as any);
+    const depts: any[] = await getOrSetCache('hierarchy_depts', async () => await Department.find().populate('hotel', 'name hotelCode').lean() as any);
+    const reportingStructures: any[] = await getOrSetCache('hierarchy_structures', async () => await ReportingStructure.find().lean() as any);
     
     // Fetch all users with status = 'Active' or 'Pending' or 'OnLeave'
-    const users = await User.find({ status: { $ne: 'Terminated' } }).select(
+    // Caching users for 5 mins to prevent heavy loads
+    const users: any[] = await getOrSetCache('hierarchy_users', async () => await User.find({ status: { $ne: 'Terminated' } }).select(
       'firstName lastName email role department designation status phone employeeId joinedDate hotel enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentManagerId'
-    ).populate('hotel', 'name hotelCode');
+    ).populate('hotel', 'name hotelCode').lean() as any);
 
     // Scoping rule: If not ROOT_ADMIN, restrict to descendants of logged-in manager
     let managerRootId = '';
@@ -358,22 +360,22 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
       throw new ApiError(400, 'Organization ID and Department ID are required');
     }
 
-    const org = await Organization.findById(organizationId);
+    const org = await Organization.findById(organizationId).lean() as any;
     if (!org) {
       throw new ApiError(404, 'Organization not found');
     }
 
     let dept;
     if (mongoose.Types.ObjectId.isValid(departmentId)) {
-      dept = await Department.findById(departmentId);
+      dept = await Department.findById(departmentId).lean() as any;
     }
     
     if (!dept) {
       // Find by name and hotel if not a valid ID or not found
       dept = await Department.findOne({ 
-        name: new RegExp(`^${departmentId}$`, 'i'), 
-        organization: organizationId 
-      });
+              name: new RegExp(`^${departmentId}$`, 'i'), 
+              organization: organizationId 
+            }).lean() as any;
       
       if (!dept) {
         // Create the department on the fly
@@ -402,7 +404,7 @@ export const generateInvite = async (req: Request, res: Response, next: NextFunc
     expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 7));
 
     // Find inviter's hierarchy node
-    const userNode = await HierarchyNode.findOne({ userId: req.user._id });
+    const userNode = await HierarchyNode.findOne({ userId: req.user._id }).lean() as any;
 
     // Generate unique qrId
     const qrId = `QR-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
@@ -451,9 +453,9 @@ export const getInviteDetails = async (req: Request, res: Response, next: NextFu
     registerModels();
     const { code } = req.params;
     const invite = await InviteLink.findOne({ inviteCode: code })
-      .populate('organizationId', 'name code')
-      .populate('departmentId', 'name')
-      .populate('managerId', 'firstName lastName email designation');
+          .populate('organizationId', 'name code')
+          .populate('departmentId', 'name')
+          .populate('managerId', 'firstName lastName email designation').lean() as any;
 
     if (!invite) {
       throw new ApiError(404, 'Invalid or Expired Invite Code');
@@ -494,7 +496,7 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
       throw new ApiError(400, 'All fields (Invite Code, Name, Email, Mobile, Employee ID, Designation, Password, State, District) are required');
     }
 
-    const invite = await InviteLink.findOne({ inviteCode, status: { $in: ['Active', 'ACTIVE'] } });
+    const invite = await InviteLink.findOne({ inviteCode, status: { $in: ['Active', 'ACTIVE'] } }).lean() as any;
     if (!invite) {
       throw new ApiError(400, 'Invalid or disabled invite link');
     }
@@ -508,19 +510,19 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
     }
 
     // Check unique credentials
-    const existingUser = await User.findOne({ $or: [{ email: email.toLowerCase() }, { employeeId }] });
+    const existingUser = await User.findOne({ $or: [{ email: email.toLowerCase() }, { employeeId }] }).lean() as any;
     if (existingUser) {
       throw new ApiError(400, 'User with this email or Employee ID already exists');
     }
 
     // Get department details
-    const dept = await Department.findById(invite.departmentId);
+    const dept = await Department.findById(invite.departmentId).lean() as any;
     if (!dept) {
       throw new ApiError(404, 'Department associated with invite not found');
     }
 
     // Get manager details
-    const manager = await User.findById(invite.managerId);
+    const manager = await User.findById(invite.managerId).lean() as any;
     if (!manager) {
       throw new ApiError(404, 'Manager not found');
     }
@@ -532,7 +534,7 @@ export const joinHierarchy = async (req: Request, res: Response, next: NextFunct
 
     // Split name
     // Check if duplicate request exists
-    const existingReq = await JoinRequest.findOne({ email: email.toLowerCase(), status: 'Pending' });
+    const existingReq = await JoinRequest.findOne({ email: email.toLowerCase(), status: 'Pending' }).lean() as any;
     if (existingReq) {
       throw new ApiError(400, 'You have already submitted a join request that is pending approval');
     }
@@ -624,7 +626,7 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     }
 
     // Get department details
-    const dept = await Department.findById(joinReq.departmentId);
+    const dept = await Department.findById(joinReq.departmentId).lean() as any;
     if (!dept) {
       throw new ApiError(404, 'Department associated with request not found');
     }
@@ -639,12 +641,12 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     const lastName = nameParts.slice(1).join(' ') || 'Staff';
 
     // Fetch approving manager's details
-    const managerUser = await User.findById(req.user._id);
+    const managerUser = await User.findById(req.user._id).lean() as any;
     let managerLevel = 0;
     if (managerUser && typeof managerUser.hierarchyLevel === 'number') {
       managerLevel = managerUser.hierarchyLevel;
     } else {
-      const managerStruct = await ReportingStructure.findOne({ userId: req.user._id });
+      const managerStruct = await ReportingStructure.findOne({ userId: req.user._id }).lean() as any;
       if (managerStruct && managerStruct.path) {
         managerLevel = managerStruct.path.split('/').filter(Boolean).length - 1;
       }
@@ -656,7 +658,7 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
 
     // Construct reporting path prefix
     let parentPath = '';
-    const managerStruct = await ReportingStructure.findOne({ userId: req.user._id });
+    const managerStruct = await ReportingStructure.findOne({ userId: req.user._id }).lean() as any;
     if (managerStruct) {
       parentPath = managerStruct.path;
     } else {
@@ -668,7 +670,7 @@ export const approveRequest = async (req: Request, res: Response, next: NextFunc
     const currentPath = `${parentPath}/${newUserId}`;
 
     // Fetch Root Admin to link their ID
-    const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN' });
+    const rootAdmin = await User.findOne({ role: 'ROOT_ADMIN' }).lean() as any;
 
     // Create active user
     const newUser = await User.create({
@@ -861,7 +863,7 @@ export const getPendingRequests = async (req: Request, res: Response, next: Next
       ? { status: 'Pending' }
       : { managerId: req.user._id, status: 'Pending' };
 
-    const requests = await JoinRequest.find(query).populate('departmentId', 'name').sort({ createdAt: -1 });
+    const requests = await JoinRequest.find(query).populate('departmentId', 'name').sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -884,10 +886,10 @@ export const getActiveInvites = async (req: Request, res: Response, next: NextFu
       : { managerId: req.user._id };
 
     const invites = await InviteLink.find(query)
-      .populate('organizationId', 'name')
-      .populate('departmentId', 'name')
-      .populate('managerId', 'firstName lastName')
-      .sort({ createdAt: -1 });
+          .populate('organizationId', 'name')
+          .populate('departmentId', 'name')
+          .populate('managerId', 'firstName lastName')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -912,9 +914,9 @@ export const getTeamStructure = async (req: Request, res: Response, next: NextFu
     // Fetch team reports (materialized path includes managerId)
     const regex = new RegExp(`/${req.user._id}`);
     const reports = await ReportingStructure.find({ path: regex })
-      .populate('userId', 'firstName lastName email role department designation phone employeeId status enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentManagerId')
-      .populate('departmentId', 'name')
-      .sort({ path: 1 });
+          .populate('userId', 'firstName lastName email role department designation phone employeeId status enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentManagerId')
+          .populate('departmentId', 'name')
+          .sort({ path: 1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -931,7 +933,7 @@ export const getReportingPath = async (req: Request, res: Response, next: NextFu
       throw new ApiError(401, 'Please authenticate');
     }
 
-    const struct = await ReportingStructure.findOne({ userId: req.user._id });
+    const struct = await ReportingStructure.findOne({ userId: req.user._id }).lean() as any;
     if (!struct) {
       res.status(200).json({ status: 'success', data: { path: [] } });
       return;
@@ -942,7 +944,7 @@ export const getReportingPath = async (req: Request, res: Response, next: NextFu
     
     // Find all users in path (except current user)
     const managers = await User.find({ _id: { $in: pathIds, $ne: req.user._id } })
-      .select('firstName lastName email role department designation phone');
+          .select('firstName lastName email role department designation phone').lean() as any;
 
     // Sort managers by their order in pathIds
     const sortedManagers = pathIds
@@ -979,7 +981,7 @@ export const transferEmployee = async (req: Request, res: Response, next: NextFu
       throw new ApiError(404, 'Employee not found');
     }
 
-    const newDept = await Department.findById(newDepartmentId);
+    const newDept = await Department.findById(newDepartmentId).lean() as any;
     if (!newDept) {
       throw new ApiError(404, 'New Department not found');
     }
@@ -988,13 +990,13 @@ export const transferEmployee = async (req: Request, res: Response, next: NextFu
     let newManagerPath = '';
 
     if (newManagerId) {
-      const newManager = await User.findById(newManagerId);
+      const newManager = await User.findById(newManagerId).lean() as any;
       if (!newManager) {
         throw new ApiError(404, 'New Manager not found');
       }
       managerName = `${newManager.firstName} ${newManager.lastName}`;
 
-      const managerStruct = await ReportingStructure.findOne({ userId: newManagerId });
+      const managerStruct = await ReportingStructure.findOne({ userId: newManagerId }).lean() as any;
       newManagerPath = managerStruct ? managerStruct.path : `/${newManagerId}`;
     }
 
@@ -1009,7 +1011,7 @@ export const transferEmployee = async (req: Request, res: Response, next: NextFu
     // Update ReportingStructure
     const newPath = newManagerId ? `${newManagerPath}/${employeeId}` : `/${employeeId}`;
     
-    const struct = await ReportingStructure.findOne({ userId: employeeId });
+    const struct = await ReportingStructure.findOne({ userId: employeeId }).lean() as any;
     const oldPath = struct ? struct.path : '';
 
     if (struct) {
@@ -1029,7 +1031,7 @@ export const transferEmployee = async (req: Request, res: Response, next: NextFu
 
     // If path changed, recursively update all descendant paths
     if (oldPath) {
-      const descendants = await ReportingStructure.find({ path: new RegExp(`^${oldPath}/`) });
+      const descendants = await ReportingStructure.find({ path: new RegExp(`^${oldPath}/`) }).lean() as any;
       for (const desc of descendants) {
         desc.path = desc.path.replace(oldPath, newPath);
         await desc.save();
@@ -1122,9 +1124,9 @@ export const getAnalytics = async (req: Request, res: Response, next: NextFuncti
 
     // Fetch hierarchy audit logs
     const auditLogs = await HierarchyAuditLog.find()
-      .populate('userId', 'firstName lastName email role')
-      .sort({ createdAt: -1 })
-      .limit(10);
+          .populate('userId', 'firstName lastName email role')
+          .sort({ createdAt: -1 })
+          .limit(10).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -1158,7 +1160,7 @@ export const deleteInvite = async (req: Request, res: Response, next: NextFuncti
       throw new ApiError(400, 'Invite code is required');
     }
 
-    const invite = await InviteLink.findOne({ inviteCode });
+    const invite = await InviteLink.findOne({ inviteCode }).lean() as any;
     if (!invite) {
       throw new ApiError(404, 'Invite link not found');
     }
@@ -1248,7 +1250,7 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
 
     // Tenancy/Hierarchy Check: Is the logged-in user the Root Admin, or a parent manager of targetUserId?
     if (req.user.role !== 'ROOT_ADMIN') {
-      const targetStruct = await ReportingStructure.findOne({ userId: targetUserId });
+      const targetStruct = await ReportingStructure.findOne({ userId: targetUserId }).lean() as any;
       if (!targetStruct) {
         throw new ApiError(403, 'Target user is not in your hierarchy reporting structure');
       }
@@ -1286,7 +1288,7 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
 
     // Also update HierarchyNode and ReportingStructure if department or role changed
     if (department) {
-      const deptDoc = await Department.findOne({ name: department });
+      const deptDoc = await Department.findOne({ name: department }).lean() as any;
       if (deptDoc) {
         await HierarchyNode.findOneAndUpdate(
           { userId: targetUserId },
@@ -1362,8 +1364,8 @@ export const updateHierarchyNode = async (req: Request, res: Response, next: Nex
           let oldProperty = originalUser.hotel;
           let newProperty = targetUser.hotel;
           if (changedFields.includes('hotel')) {
-            const oldH = oldProperty ? await Hotel.findById(oldProperty) : null;
-            const newH = newProperty ? await Hotel.findById(newProperty) : null;
+            const oldH = oldProperty ? await Hotel.findById(oldProperty).lean() as any : null;
+            const newH = newProperty ? await Hotel.findById(newProperty).lean() as any : null;
             oldProperty = oldH ? oldH.name : 'None';
             newProperty = newH ? newH.name : 'None';
           }
@@ -1451,7 +1453,7 @@ export const regenerateInvite = async (req: Request, res: Response, next: NextFu
     const newQrId = `QR-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
     // Find inviter's hierarchy node
-    const userNode = await HierarchyNode.findOne({ userId: req.user._id });
+    const userNode = await HierarchyNode.findOne({ userId: req.user._id }).lean() as any;
 
     const newInvite = await InviteLink.create({
       inviteCode: newInviteCode,
@@ -1517,10 +1519,10 @@ export const updateDepartment = async (req: Request, res: Response, next: NextFu
 
     if (name && name.trim().toLowerCase() !== oldName.toLowerCase()) {
       const existing = await Department.findOne({
-        organization: dept.organization,
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
-        _id: { $ne: dept._id }
-      });
+              organization: dept.organization,
+              name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+              _id: { $ne: dept._id }
+            }).lean() as any;
       if (existing) {
         throw new ApiError(400, 'A department with this name already exists in this organization');
       }
@@ -1591,33 +1593,33 @@ export const deleteDepartment = async (req: Request, res: Response, next: NextFu
 
     const { id } = req.params;
 
-    const dept = await Department.findById(id);
+    const dept = await Department.findById(id).lean() as any;
     if (!dept) {
       throw new ApiError(404, 'Department not found');
     }
 
     // Check references
-    const userLinked = await User.findOne({ department: dept.name });
+    const userLinked = await User.findOne({ department: dept.name }).lean() as any;
     if (userLinked) {
       throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
     }
 
-    const nodeLinked = await HierarchyNode.findOne({ departmentId: dept._id });
+    const nodeLinked = await HierarchyNode.findOne({ departmentId: dept._id }).lean() as any;
     if (nodeLinked) {
       throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
     }
 
-    const structLinked = await ReportingStructure.findOne({ departmentId: dept._id });
+    const structLinked = await ReportingStructure.findOne({ departmentId: dept._id }).lean() as any;
     if (structLinked) {
       throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
     }
 
-    const requestLinked = await JoinRequest.findOne({ departmentId: dept._id });
+    const requestLinked = await JoinRequest.findOne({ departmentId: dept._id }).lean() as any;
     if (requestLinked) {
       throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
     }
 
-    const inviteLinked = await InviteLink.findOne({ departmentId: dept._id });
+    const inviteLinked = await InviteLink.findOne({ departmentId: dept._id }).lean() as any;
     if (inviteLinked) {
       throw new ApiError(400, 'Department is currently in use and cannot be deleted.');
     }
@@ -1664,8 +1666,8 @@ export const getHierarchyAuditLogs = async (req: Request, res: Response, next: N
     // 1. Role-based scoping: Managers can only see self and descendants
     if (req.user.role !== 'ROOT_ADMIN') {
       const subordinates = await ReportingStructure.find({
-        path: new RegExp(`/${req.user._id}(/|$)`)
-      });
+              path: new RegExp(`/${req.user._id}(/|$)`)
+            }).lean() as any;
       const subordinateUserIds = subordinates.map(s => s.userId);
       const hierarchyUserIds = [req.user._id, ...subordinateUserIds];
 
@@ -1702,12 +1704,12 @@ export const getHierarchyAuditLogs = async (req: Request, res: Response, next: N
     if (search) {
       const searchRegex = new RegExp(search as string, 'i');
       const matchedUsers = await User.find({
-        $or: [
-          { firstName: searchRegex },
-          { lastName: searchRegex },
-          { email: searchRegex },
-        ]
-      }).select('_id');
+              $or: [
+                { firstName: searchRegex },
+                { lastName: searchRegex },
+                { email: searchRegex },
+              ]
+            }).select('_id').lean() as any;
       const matchedUserIds = matchedUsers.map(u => u._id);
 
       const searchConditions = [
@@ -1737,9 +1739,9 @@ export const getHierarchyAuditLogs = async (req: Request, res: Response, next: N
       }
 
       const logs = await HierarchyAuditLog.find(filter)
-        .populate('userId', 'firstName lastName email role')
-        .populate('targetUserId', 'firstName lastName email role')
-        .sort({ createdAt: -1 });
+              .populate('userId', 'firstName lastName email role')
+              .populate('targetUserId', 'firstName lastName email role')
+              .sort({ createdAt: -1 }).lean() as any;
 
       let csv = 'Date,Time,Module,Action,Old Value,New Value,Edited By,Role,IP Address\r\n';
       logs.forEach(log => {
@@ -1772,11 +1774,11 @@ export const getHierarchyAuditLogs = async (req: Request, res: Response, next: N
 
     const total = await HierarchyAuditLog.countDocuments(filter);
     const logs = await HierarchyAuditLog.find(filter)
-      .populate('userId', 'firstName lastName email role')
-      .populate('targetUserId', 'firstName lastName email role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(l);
+          .populate('userId', 'firstName lastName email role')
+          .populate('targetUserId', 'firstName lastName email role')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(l).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -1868,10 +1870,10 @@ export const getEnterpriseHierarchyTree = async (req: Request, res: Response, ne
 
     // 2. Fetch all Active users & reporting structures
     const users = await User.find({ status: { $ne: 'Terminated' } })
-      .populate('hotel', 'name hotelCode')
-      .select('firstName lastName email role department designation status phone employeeId joinedDate hotel enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentId reportingManagerId');
+          .populate('hotel', 'name hotelCode')
+          .select('firstName lastName email role department designation status phone employeeId joinedDate hotel enabledFeatures salaryDetails photoUrl hierarchyLevel hierarchyPath parentId reportingManagerId').lean() as any;
       
-    const reportingStructures = await ReportingStructure.find();
+    const reportingStructures = await ReportingStructure.find().lean() as any;
 
     // 3. Optional Subtree Scoping
     const allowedUserIds = new Set<string>();
@@ -1971,7 +1973,7 @@ export const syncHierarchyOnManagerChange = async (employeeId: string, oldManage
     // but if there are specific manager references, they could be updated here.
     
     // 3. Update ReportingStructure & HierarchyNode if they exist for this employee
-    const newManager = await User.findById(newManagerId);
+    const newManager = await User.findById(newManagerId).lean() as any;
     if (newManager) {
       await HierarchyNode.updateOne(
         { userId: employeeId },
@@ -1983,7 +1985,7 @@ export const syncHierarchyOnManagerChange = async (employeeId: string, oldManage
         }
       );
       
-      const newManagerReportingNode = await ReportingStructure.findOne({ userId: newManagerId });
+      const newManagerReportingNode = await ReportingStructure.findOne({ userId: newManagerId }).lean() as any;
       if (newManagerReportingNode) {
         await ReportingStructure.updateOne(
           { userId: employeeId },
@@ -1998,7 +2000,7 @@ export const syncHierarchyOnManagerChange = async (employeeId: string, oldManage
     }
     
     // 4. Send Notifications
-    const employee = await User.findById(employeeId);
+    const employee = await User.findById(employeeId).lean() as any;
     const empName = employee ? `${employee.firstName} ${employee.lastName}` : 'An employee';
     
     // To New Manager

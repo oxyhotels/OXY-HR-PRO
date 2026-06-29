@@ -14,6 +14,19 @@ export default function PwaRegister() {
     const registerServiceWorker = () => {
       if (swRegistered.current) return;
       if ('serviceWorker' in navigator) {
+        if (process.env.NODE_ENV === 'development') {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister().then((success) => {
+                if (success) {
+                  console.log('[PWA] Unregistered active service worker to prevent Turbopack chunk caching bugs in development.');
+                }
+              });
+            }
+          });
+          return;
+        }
+
         swRegistered.current = true;
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {

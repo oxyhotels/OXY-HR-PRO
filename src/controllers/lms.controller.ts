@@ -104,7 +104,7 @@ export const editCourse = async (req: Request, res: Response, next: NextFunction
   try {
     const { questions, ...courseData } = req.body;
     
-    const courseObj = await Course.findById(req.params.id);
+    const courseObj = await Course.findById(req.params.id).lean() as any;
     if (!courseObj) throw new ApiError(404, 'Course not found');
     
     // Auth Check: ROOT_ADMIN or uploader owner
@@ -136,7 +136,7 @@ export const editCourse = async (req: Request, res: Response, next: NextFunction
 // 4. Delete Course
 export const deleteCourse = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const courseObj = await Course.findById(req.params.id);
+    const courseObj = await Course.findById(req.params.id).lean() as any;
     if (!courseObj) throw new ApiError(404, 'Course not found');
 
     // Auth Check: ROOT_ADMIN or uploader owner
@@ -163,7 +163,7 @@ export const submitAssessment = async (req: Request, res: Response, next: NextFu
     const { answers } = req.body;
     const courseId = req.params.id;
 
-    const assessment = await Assessment.findOne({ course: courseId });
+    const assessment = await Assessment.findOne({ course: courseId }).lean() as any;
     if (!assessment) {
       throw new ApiError(404, 'No assessment found for this course');
     }
@@ -210,7 +210,7 @@ export const submitAssessment = async (req: Request, res: Response, next: NextFu
 export const getCourseAssessment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const courseId = req.params.id;
-    const assessment = await Assessment.findOne({ course: courseId });
+    const assessment = await Assessment.findOne({ course: courseId }).lean() as any;
     if (!assessment) {
       res.status(200).json({
         status: 'success',
@@ -271,7 +271,7 @@ export const saveWatchProgress = async (req: Request, res: Response, next: NextF
     }
 
     // Check completion state
-    const course = await Course.findById(courseId);
+    const course = await Course.findById(courseId).lean() as any;
     if (course && history.completedModules.length >= course.modules.length) {
       history.status = 'Completed';
     }
@@ -289,7 +289,7 @@ export const saveWatchProgress = async (req: Request, res: Response, next: NextF
 
 export const getWatchProgress = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const history = await LmsWatchHistory.find({ employee: req.user?._id });
+    const history = await LmsWatchHistory.find({ employee: req.user?._id }).lean() as any;
     res.status(200).json({
       status: 'success',
       data: { history }
@@ -338,9 +338,9 @@ export const getAssignments = async (req: Request, res: Response, next: NextFunc
     }
 
     const assignments = await LmsAssignment.find(filter)
-      .populate('course', 'title category description thumbnailUrl bannerUrl modules')
-      .populate('targetEmployee', 'firstName lastName')
-      .sort({ createdAt: -1 });
+          .populate('course', 'title category description thumbnailUrl bannerUrl modules')
+          .populate('targetEmployee', 'firstName lastName')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -400,9 +400,9 @@ export const getComments = async (req: Request, res: Response, next: NextFunctio
     if (!courseId) throw new ApiError(400, 'courseId is required');
 
     const comments = await LmsComment.find({ course: courseId, moduleIndex: Number(moduleIndex || 0) })
-      .populate('user', 'firstName lastName role designation photoUrl')
-      .populate('replies.user', 'firstName lastName role designation photoUrl')
-      .sort({ createdAt: -1 });
+          .populate('user', 'firstName lastName role designation photoUrl')
+          .populate('replies.user', 'firstName lastName role designation photoUrl')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -426,7 +426,7 @@ export const getLmsAnalytics = async (req: Request, res: Response, next: NextFun
         { $group: { _id: null, total: { $sum: "$numberOfVideos" } } }
       ]);
       const totalCertifications = await Certification.countDocuments();
-      const trending = await Course.find().sort({ viewsCount: -1 }).limit(1).select('title viewsCount');
+      const trending = await Course.find().sort({ viewsCount: -1 }).limit(1).select('title viewsCount').lean() as any;
 
       res.status(200).json({
         status: 'success',

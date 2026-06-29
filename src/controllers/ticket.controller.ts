@@ -27,9 +27,9 @@ export const getTickets = async (req: Request, res: Response, next: NextFunction
     }
 
     const tickets = await Ticket.find(filter)
-      .populate('employee', 'firstName lastName email department')
-      .populate('assignedTo', 'firstName lastName email')
-      .sort({ createdAt: -1 });
+          .populate('employee', 'firstName lastName email department')
+          .populate('assignedTo', 'firstName lastName email')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',

@@ -18,7 +18,7 @@ export const calculatePayroll = async (req: Request, res: Response, next: NextFu
       if (req.body.hotelId) {
         hotelsToCalculate = [req.body.hotelId];
       } else {
-        const allHotels = await Hotel.find({ status: 'Active' });
+        const allHotels = await Hotel.find({ status: 'Active' }).lean() as any;
         hotelsToCalculate = allHotels.map(h => h._id);
       }
     } else {
@@ -41,14 +41,14 @@ export const calculatePayroll = async (req: Request, res: Response, next: NextFu
         query._id = employeeId;
       }
 
-      const employees = await User.find(query);
+      const employees = await User.find(query).lean() as any;
 
       for (const emp of employees) {
         // Clean duplicate draft records
         await Payroll.findOneAndDelete({ employee: emp._id, month, status: 'Draft' });
 
         // Check if already paid
-        const existingPaid = await Payroll.findOne({ employee: emp._id, month, status: 'Paid' });
+        const existingPaid = await Payroll.findOne({ employee: emp._id, month, status: 'Paid' }).lean() as any;
         if (existingPaid) {
           continue; // Skip already finalized payroll
         }
@@ -60,9 +60,9 @@ export const calculatePayroll = async (req: Request, res: Response, next: NextFu
 
         // 1. Fetch attendance records to compute Overtime
         const attendanceLogs = await Attendance.find({
-          employee: emp._id,
-          date: new RegExp(`^${month}`),
-        });
+                  employee: emp._id,
+                  date: new RegExp(`^${month}`),
+                }).lean() as any;
 
         let totalWorkingHours = 0;
         attendanceLogs.forEach((log) => {
@@ -122,8 +122,8 @@ export const calculatePayroll = async (req: Request, res: Response, next: NextFu
 export const paySalary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const payroll = await Payroll.findById(req.params.id)
-      .populate('employee')
-      .populate('hotel');
+              .populate('employee')
+              .populate('hotel');
 
     if (!payroll) throw new ApiError(404, 'Payroll record not found');
     if (payroll.status === 'Paid') throw new ApiError(400, 'This payroll is already processed and paid');
@@ -203,8 +203,8 @@ export const getPayrollHistory = async (req: Request, res: Response, next: NextF
     }
 
     const payrolls = await Payroll.find(filter)
-      .populate('employee', 'firstName lastName email department designation')
-      .sort({ month: -1 });
+          .populate('employee', 'firstName lastName email department designation')
+          .sort({ month: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',

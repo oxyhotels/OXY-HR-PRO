@@ -38,15 +38,15 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
     // A. "Which tasks are at risk today?"
     if (normalizedQuery.includes('at risk') || normalizedQuery.includes('risk today')) {
       const riskTasks = await Task.find({
-        hotel: hotelId,
-        isDeleted: { $ne: true },
-        status: { $in: ['Pending', 'In_Progress'] },
-        $or: [
-          { priority: 'High' },
-          { slaBreached: true },
-          { dueDate: { $lte: new Date() } }
-        ]
-      }).populate('assignedTo', 'firstName lastName');
+              hotel: hotelId,
+              isDeleted: { $ne: true },
+              status: { $in: ['Pending', 'In_Progress'] },
+              $or: [
+                { priority: 'High' },
+                { slaBreached: true },
+                { dueDate: { $lte: new Date() } }
+              ]
+            }).populate('assignedTo', 'firstName lastName').lean() as any;
 
       reply = `I found ${riskTasks.length} tasks that are currently marked high priority, have breached their SLA, or are past their due date. Urgent attention is recommended.`;
       dataContext = riskTasks.map(t => ({
@@ -61,7 +61,7 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
 
     // B. "Which employee is overloaded?"
     else if (normalizedQuery.includes('overloaded') || normalizedQuery.includes('workload')) {
-      const employees = await User.find({ hotel: hotelId, status: 'Active' });
+      const employees = await User.find({ hotel: hotelId, status: 'Active' }).lean() as any;
       const overloadedList = [];
 
       for (const emp of employees) {
@@ -91,7 +91,7 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
 
     // C. "Which hotel has most overdue tasks?"
     else if (normalizedQuery.includes('most overdue') || normalizedQuery.includes('hotel overdue')) {
-      const hotels = await Hotel.find();
+      const hotels = await Hotel.find().lean() as any;
       const stats = [];
 
       for (const h of hotels) {
@@ -118,10 +118,10 @@ export const handleAICopilotQuery = async (req: Request, res: Response, next: Ne
     // D. "Which department causes maximum delays?"
     else if (normalizedQuery.includes('maximum delays') || normalizedQuery.includes('department delay')) {
       const delayedTasks = await Task.find({
-        hotel: hotelId,
-        isDeleted: { $ne: true },
-        $or: [{ slaBreached: true }, { dueDate: { $lt: new Date() } }]
-      });
+              hotel: hotelId,
+              isDeleted: { $ne: true },
+              $or: [{ slaBreached: true }, { dueDate: { $lt: new Date() } }]
+            }).lean() as any;
 
       const delayMap: Record<string, number> = {};
       delayedTasks.forEach(task => {
@@ -204,8 +204,8 @@ export const getIncidents = async (req: Request, res: Response, next: NextFuncti
     }
 
     const incidents = await Incident.find(filter)
-      .populate('loggedBy', 'firstName lastName email')
-      .sort({ createdAt: -1 });
+          .populate('loggedBy', 'firstName lastName email')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -328,10 +328,10 @@ export const getHandovers = async (req: Request, res: Response, next: NextFuncti
     }
 
     const handovers = await ShiftHandover.find(filter)
-      .populate('outgoingStaff', 'firstName lastName email department')
-      .populate('incomingStaff', 'firstName lastName email department')
-      .populate('tasks', 'title status priority')
-      .sort({ createdAt: -1 });
+          .populate('outgoingStaff', 'firstName lastName email department')
+          .populate('incomingStaff', 'firstName lastName email department')
+          .populate('tasks', 'title status priority')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -349,12 +349,12 @@ export const getOpsMetrics = async (req: Request, res: Response, next: NextFunct
 
     // A. Employee Accountability index
     const employees = await User.find({ hotel: hotelId, role: 'EMPLOYEE', status: 'Active' })
-      .select('firstName lastName department designation accountabilityIndex xp level badges')
-      .sort({ accountabilityIndex: -1 });
+          .select('firstName lastName department designation accountabilityIndex xp level badges')
+          .sort({ accountabilityIndex: -1 }).lean() as any;
 
     // B. Manager Effectiveness Score
     // Formula: (Team completed tasks / Team total tasks) * 100 - (Escalations * 5) + (SLA Compliance Ratio * 20)
-    const managers = await User.find({ hotel: hotelId, role: { $in: ['DEPT_MANAGER', 'HR_MANAGER', 'HOTEL_ADMIN'] } });
+    const managers = await User.find({ hotel: hotelId, role: { $in: ['DEPT_MANAGER', 'HR_MANAGER', 'HOTEL_ADMIN'] } }).lean() as any;
     const managerRankings = [];
 
     for (const mgr of managers) {
@@ -396,7 +396,7 @@ export const getOpsMetrics = async (req: Request, res: Response, next: NextFunct
     managerRankings.sort((a, b) => b.effectivenessScore - a.effectivenessScore);
 
     // C. Hotel Operations score
-    const hotels = await Hotel.find();
+    const hotels = await Hotel.find().lean() as any;
     const hotelRankings = [];
 
     for (const h of hotels) {
@@ -447,7 +447,7 @@ export const offlineSync = async (req: Request, res: Response, next: NextFunctio
     for (const update of updates) {
       const { taskId, status, progress, lat, lng, selfieUrl, rcaReason, rcaCategory } = update;
       try {
-        const task = await Task.findById(taskId);
+        const task = await Task.findById(taskId).lean() as any;
         if (task) {
           const prevStatus = task.status;
           task.status = status;
@@ -466,7 +466,7 @@ export const offlineSync = async (req: Request, res: Response, next: NextFunctio
             const fraudFlags = [];
 
             if (lat && lng) {
-              const hotel = await Hotel.findById(task.hotel);
+              const hotel = await Hotel.findById(task.hotel).lean() as any;
               if (hotel) {
                 const dist = getDistance(lat, lng, hotel.latitude, hotel.longitude);
                 if (dist > (hotel.geofenceRadius || 200)) {

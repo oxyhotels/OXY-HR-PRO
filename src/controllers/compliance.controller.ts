@@ -16,9 +16,9 @@ export const getComplianceLogs = async (req: Request, res: Response, next: NextF
     }
 
     const logs = await ComplianceLog.find(filter)
-      .populate('verifiedBy', 'firstName lastName email')
-      .populate('hotel', 'name hotelCode')
-      .sort({ date: -1 });
+          .populate('verifiedBy', 'firstName lastName email')
+          .populate('hotel', 'name hotelCode')
+          .sort({ date: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',

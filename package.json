@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production tsx src/server.ts",
+    "start": "cross-env NODE_ENV=production tsx src/server.ts",
     "lint": "eslint src",
     "seed": "tsx src/scripts/seed.ts"
   },
@@ -28,6 +28,7 @@
     "jspdf-autotable": "^5.0.8",
     "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
+    "lru-cache": "^11.5.1",
     "lucide-react": "^1.17.0",
     "mongoose": "^8.10.0",
     "next": "16.2.7",
@@ -37,6 +38,7 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.78.0",
     "react-organizational-chart": "^2.2.1",
+    "react-virtuoso": "^4.18.10",
     "recharts": "^3.8.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
@@ -56,6 +58,7 @@
     "@types/pdfkit": "^0.13.9",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",

@@ -607,7 +607,7 @@ export const getTaskResponses = async (req: Request, res: Response, next: NextFu
 export const getTaskAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user._id;
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean() as any;
     
     if (!user) throw new ApiError(404, 'User not found');
 
@@ -668,7 +668,7 @@ export const getTaskAnalytics = async (req: Request, res: Response, next: NextFu
 export const getMyTasks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user._id.toString();
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean() as any;
     
     if (!user) throw new ApiError(404, 'User not found');
 
@@ -691,10 +691,10 @@ export const getMyTasks = async (req: Request, res: Response, next: NextFunction
     }
 
     const tasks = await Task.find(filter)
-      .populate('hotel', 'name')
-      .populate('assignedTo', 'firstName lastName email department designation')
-      .populate('assignedBy', 'firstName lastName email role')
-      .sort({ createdAt: -1 });
+          .populate('hotel', 'name')
+          .populate('assignedTo', 'firstName lastName email department designation')
+          .populate('assignedBy', 'firstName lastName email role')
+          .sort({ createdAt: -1 }).lean() as any;
 
     // Group tasks by status
     const groupedTasks = {
@@ -742,9 +742,9 @@ export const getTaskMonitoringDashboard = async (req: Request, res: Response, ne
     }
 
      const tasks = await Task.find(filter)
-       .populate('assignedTo', 'firstName lastName email department designation photoUrl employeeId')
-       .populate('assignedBy', 'firstName lastName email role')
-      .sort({ updatedAt: -1 });
+            .populate('assignedTo', 'firstName lastName email department designation photoUrl employeeId')
+            .populate('assignedBy', 'firstName lastName email role')
+           .sort({ updatedAt: -1 }).lean() as any;
 
     // Get latest update for each task
     const tasksWithLatestUpdate = tasks.map(task => {

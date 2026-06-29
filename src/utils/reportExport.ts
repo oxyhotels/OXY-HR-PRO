@@ -1,7 +1,6 @@
 'use client';
 
-import ExcelJS from 'exceljs';
-
+// Removed static exceljs import
 // Helper to determine if checkout was early (before 16:45 / 4:45 PM)
 export const checkEarlyCheckout = (checkOutStr?: string | Date): boolean => {
   if (!checkOutStr) return false;
@@ -96,6 +95,7 @@ export const exportToCSV = (logs: any[], fileName: string = 'attendance_report.c
 
 // Export to Excel using ExcelJS
 export const exportToExcel = async (logs: any[], title: string, fileName: string = 'attendance_report.xlsx') => {
+  const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Attendance');
 

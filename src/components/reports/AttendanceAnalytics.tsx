@@ -82,7 +82,12 @@ export default function AttendanceAnalytics({ isOpen, onClose, user, hotels }: A
       if (selectedHotelId) params.append('hotelId', selectedHotelId);
       if (selectedDept) params.append('department', selectedDept);
 
-      const res = await fetch(`/api/reports/analytics?${params.toString()}`);
+      const token = localStorage.getItem('oxy_access_token');
+      const res = await fetch(`/api/reports/analytics?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }

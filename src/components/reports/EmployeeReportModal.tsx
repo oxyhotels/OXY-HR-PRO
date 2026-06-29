@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import GoogleIcon from '../GoogleIcon';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/reportExport';
+import { api } from '../../lib/api';
 
 interface EmployeeReportModalProps {
   isOpen: boolean;
@@ -21,15 +22,11 @@ export default function EmployeeReportModal({ isOpen, onClose, employeeId }: Emp
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/employee/${employeeId}`);
-      if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
-      }
-      const result = await res.json();
-      if (result.status === 'success') {
-        setData(result.data);
+      const res = await api.get(`/reports/employee/${employeeId}`);
+      if (res.status === 'success') {
+        setData(res.data);
       } else {
-        throw new Error(result.message || 'Failed to fetch metrics data');
+        throw new Error(res.message || 'Failed to fetch metrics data');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load employee metrics report');

@@ -271,16 +271,9 @@ UserSchema.methods.comparePassword = async function (password: string): Promise<
   }
 };
 
-UserSchema.index({ hotel: 1 });
-UserSchema.index({ role: 1 });
-UserSchema.index({ status: 1 });
-
 // Add Indexes for Performance Optimization
-UserSchema.index({ email: 1 });
 UserSchema.index({ phone: 1 });
-UserSchema.index({ role: 1 });
-UserSchema.index({ department: 1 });
-UserSchema.index({ hotel: 1 });
+UserSchema.index({ hotel: 1, role: 1, department: 1, status: 1 });
 UserSchema.index({ employeeCode: 1 });
 
 export const User = models.User || model<IUser>('User', UserSchema);

@@ -10,6 +10,7 @@ export interface CreateNotificationPayload {
   recipientId?: string;
   sender?: string;
   actionRequired?: boolean;
+  moduleTag?: string;
 }
 
 export const createNotification = async (payload: CreateNotificationPayload) => {
@@ -35,6 +36,7 @@ export const createNotification = async (payload: CreateNotificationPayload) => 
           type: payload.type,
           link: payload.link,
           actionRequired: payload.actionRequired,
+          moduleTag: payload.moduleTag,
           read: false
         });
 

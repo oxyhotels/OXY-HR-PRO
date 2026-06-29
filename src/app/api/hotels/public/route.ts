@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // Cache for 1 hour
 
 import { adaptRoute } from '@/lib/adaptRoute';
 import { Hotel } from '@/models/Hotel';

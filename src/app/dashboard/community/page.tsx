@@ -912,7 +912,13 @@ export default function CommunityHubPage() {
                             {unread > 0 && <span className="bg-gold text-slate-dark text-[9px] font-extrabold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unread > 99 ? '99+' : unread}</span>}
                           </div>
                         </div>
-                        <p className={`text-[10px] truncate mt-0.5 ${unread > 0 ? 'text-slate-300 font-semibold' : 'text-slate-500'}`}>{getLastMsgPreview(g)}</p>
+                        {isGlobal ? (
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            {g.members?.length || 0} members
+                          </p>
+                        ) : (
+                          <p className={`text-[10px] truncate mt-0.5 ${unread > 0 ? 'text-slate-300 font-semibold' : 'text-slate-500'}`}>{getLastMsgPreview(g)}</p>
+                        )}
                       </div>
                     </button>
                   );
@@ -937,8 +943,9 @@ export default function CommunityHubPage() {
                           <h3 className="text-xs font-bold text-white truncate">{store.activeGroup.name}</h3>
                           <span className="text-[8px] bg-slate-800 px-1 py-0.5 rounded text-gold font-bold uppercase hidden sm:inline-block">{store.activeGroup.type.replace('Group', '')}</span>
                         </div>
-                        <p className="text-[9px] truncate">
-                          {activeGroupTypingStr() ? <span className="text-gold animate-pulse">{activeGroupTypingStr()}</span> : <span className="text-slate-500">{store.activeGroup.members?.length || 0} members</span>}
+                        <p className="text-[9px] truncate flex items-center gap-1.5">
+                          <span className="text-slate-500">{store.activeGroup.members?.length || 0} members</span>
+                          {activeGroupTypingStr() && <span className="text-gold animate-pulse">• {activeGroupTypingStr()}</span>}
                         </p>
                       </div>
                     </div>

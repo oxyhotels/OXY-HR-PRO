@@ -6,6 +6,7 @@ import { AuditLog } from '@/models/AuditLog';
 import { syncUserDepartmentGroups, addUserToGlobalGroup } from './community.controller';
 import { Attendance } from '@/models/Attendance';
 import { diffFields, logAuditTrail } from '@/utils/audit';
+import { clearCachePrefix } from '@/utils/cache';
 const validateShiftDetails = (body: any) => {
   if (body.isCustom) {
     if (!body.startTime) {
@@ -61,7 +62,7 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
     } = req.body;
 
     // Check if email taken
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email }).lean() as any;
     if (existing) {
       throw new ApiError(400, 'Email is already registered');
     }
@@ -123,6 +124,9 @@ export const createEmployee = async (req: Request, res: Response, next: NextFunc
         `Employee ${firstName} ${lastName} (${email}) created as ${role}`
       );
     }
+    
+    // Clear cache
+    clearCachePrefix('hierarchy_users');
 
     res.status(201).json({
       status: 'success',
@@ -187,15 +191,19 @@ export const getEmployees = async (req: Request, res: Response, next: NextFuncti
       filter.status = req.query.status;
     }
 
-    let query = User.find(filter).populate('hotel', 'name hotelCode');
+    // Heavily optimized projection for bulk retrieval
+    const baseSelection = '_id firstName lastName email role department designation phone status photoUrl hotel reportingManagerId employeeCode joinedDate shift shiftType';
+    let query = User.find(filter).select(baseSelection).populate('hotel', 'name hotelCode');
+
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
     }
+    
     // Only ROOT_ADMIN and HR_MANAGER can see homeLocation
-    if (req.user?.role !== 'ROOT_ADMIN' && req.user?.role !== 'HR_MANAGER') {
-      query = query.select('-homeLocation');
+    if (req.user?.role === 'ROOT_ADMIN' || req.user?.role === 'HR_MANAGER') {
+      query = query.select('+homeLocation');
     }
-    const employees = await query;
+    const employees = await query.lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -217,7 +225,7 @@ export const getEmployeeById = async (req: Request, res: Response, next: NextFun
     if (req.user?.role !== 'ROOT_ADMIN' && req.user?.role !== 'HR_MANAGER') {
       query = query.select('-homeLocation');
     }
-    const employee = await query;
+    const employee: any = await query.lean() as any;
     if (!employee) {
       throw new ApiError(404, 'Employee not found');
     }
@@ -258,7 +266,7 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
 
     // Email change safeguard
     if (updates.email && updates.email.toLowerCase() !== employee.email.toLowerCase()) {
-      const existing = await User.findOne({ email: updates.email.toLowerCase() });
+      const existing = await User.findOne({ email: updates.email.toLowerCase() }).lean() as any;
       if (existing) {
         throw new ApiError(400, 'Email is already registered');
       }
@@ -303,6 +311,9 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
 
     await employee.save();
     await syncUserDepartmentGroups(employee);
+    
+    // Clear cache
+    clearCachePrefix('hierarchy_users');
 
     if (req.user && originalUser) {
       // ✅ Trigger Automatic Hierarchy Synchronization if manager changed
@@ -383,8 +394,8 @@ export const updateEmployee = async (req: Request, res: Response, next: NextFunc
           let oldProperty = originalUser.hotel;
           let newProperty = employee.hotel;
           if (changedFields.includes('hotel')) {
-            const oldH = oldProperty ? await Hotel.findById(oldProperty) : null;
-            const newH = newProperty ? await Hotel.findById(newProperty) : null;
+            const oldH = oldProperty ? await Hotel.findById(oldProperty).lean() as any : null;
+            const newH = newProperty ? await Hotel.findById(newProperty).lean() as any : null;
             oldProperty = oldH ? oldH.name : 'None';
             newProperty = newH ? newH.name : 'None';
           }
@@ -444,6 +455,9 @@ export const deleteEmployee = async (req: Request, res: Response, next: NextFunc
 
     employee.status = 'Terminated';
     await employee.save();
+    
+    // Clear cache
+    clearCachePrefix('hierarchy_users');
 
     if (req.user) {
       await logAudit(
@@ -483,6 +497,9 @@ export const uploadDocument = async (req: Request, res: Response, next: NextFunc
     });
 
     await employee.save();
+    
+    // Clear cache
+    clearCachePrefix('hierarchy_users');
 
     res.status(200).json({
       status: 'success',
@@ -508,7 +525,7 @@ export const getPendingSignups = async (req: Request, res: Response, next: NextF
     if (req.user?.role === 'ROOT_ADMIN') {
       query = query.select('+password');
     }
-    const pendingUsers = await query;
+    const pendingUsers = await query.lean() as any;
     res.status(200).json({
       status: 'success',
       results: pendingUsers.length,
@@ -585,7 +602,7 @@ export const approveSignup = async (req: Request, res: Response, next: NextFunct
 
     // Activate the associated hotel
     if (employee.hotel) {
-      const hotel = await Hotel.findById(employee.hotel);
+      const hotel = await Hotel.findById(employee.hotel).lean() as any;
       if (hotel && hotel.status === 'Suspended') {
         hotel.status = 'Active';
         await hotel.save();
@@ -622,7 +639,7 @@ export const getStaffOverview = async (req: Request, res: Response, next: NextFu
     const allUsers = await User.find({
       role: { $in: ['EMPLOYEE', 'HR_MANAGER', 'DEPT_MANAGER', 'HOTEL_ADMIN'] },
       status: 'Active'
-    }).select('_id role status');
+    }).select('_id role status').lean() as any[];
 
     const totalEmployeesCount = allUsers.filter(u => u.role === 'EMPLOYEE').length;
     const totalManagersCount = allUsers.filter(u => u.role !== 'EMPLOYEE').length;
@@ -632,7 +649,7 @@ export const getStaffOverview = async (req: Request, res: Response, next: NextFu
     const todayAttendances = await Attendance.find({
       date: todayDateStr,
       employee: { $in: allUsers.map(u => u._id) }
-    }).select('employee checkOut status');
+    }).select('employee checkOut status').lean() as any;
 
     let activeEmployees = 0;
     let activeManagers = 0;
@@ -655,6 +672,9 @@ export const getStaffOverview = async (req: Request, res: Response, next: NextFu
         else dutyOffManagers++;
       }
     });
+
+    // Clear cache
+    clearCachePrefix('hierarchy_users');
 
     res.status(200).json({
       status: 'success',

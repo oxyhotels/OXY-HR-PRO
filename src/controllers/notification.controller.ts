@@ -38,10 +38,10 @@ export const getNotifications = async (req: Request, res: Response, next: NextFu
     }
 
     const notifications = await Notification.find(query)
-      .populate('sender', 'firstName lastName photoUrl role department')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+          .populate('sender', 'firstName lastName photoUrl role department')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit).lean() as any;
 
     const total = await Notification.countDocuments(query);
     const unreadCount = await Notification.countDocuments({ recipient: req.user._id, read: false });

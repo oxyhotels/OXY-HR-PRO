@@ -1,0 +1,224 @@
+{
+  "timestamp": "2026-06-29T14:42:58.625Z",
+  "databases": {
+    "source": "test",
+    "target": "oxyhr"
+  },
+  "collections": [
+    {
+      "collectionName": "invitelinks",
+      "sourceCount": 14,
+      "targetCountBefore": 14
+    },
+    {
+      "collectionName": "attendances",
+      "sourceCount": 155,
+      "targetCountBefore": 69
+    },
+    {
+      "collectionName": "tasks",
+      "sourceCount": 48,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "rewardredemptions",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "knowledgeitems",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "pushtokens",
+      "sourceCount": 12,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "hierarchyauditlogs",
+      "sourceCount": 127,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "payrolls",
+      "sourceCount": 8,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "tickets",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "communitygroups",
+      "sourceCount": 8,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "lmscomments",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "leaves",
+      "sourceCount": 11,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "calllogs",
+      "sourceCount": 1,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "gamificationprofiles",
+      "sourceCount": 35,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "trackinglocations",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "hotels",
+      "sourceCount": 16,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "communitymessages",
+      "sourceCount": 82,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "aiperformances",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "assessments",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "incidents",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "trackingsessions",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "users",
+      "sourceCount": 30,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "compliancelogs",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "notificationactivities",
+      "sourceCount": 51,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "shifthandovers",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "notifications",
+      "sourceCount": 1138,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "certifications",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "socialposts",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "departments",
+      "sourceCount": 5,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "videocalllogs",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "propertyreports",
+      "sourceCount": 19,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "callsessions",
+      "sourceCount": 4,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "joinrequests",
+      "sourceCount": 3,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "courses",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "xpevents",
+      "sourceCount": 292,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "lmsassignments",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "deliverystatuses",
+      "sourceCount": 796,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "hierarchynodes",
+      "sourceCount": 4,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "reportingstructures",
+      "sourceCount": 4,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "organizations",
+      "sourceCount": 1,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "lmswatchhistories",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "policies",
+      "sourceCount": 0,
+      "targetCountBefore": 0
+    },
+    {
+      "collectionName": "auditlogs",
+      "sourceCount": 1570,
+      "targetCountBefore": 0
+    }
+  ]
+}

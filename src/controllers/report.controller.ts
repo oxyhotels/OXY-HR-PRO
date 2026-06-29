@@ -152,7 +152,7 @@ export const getHotelPerformance = async (req: Request, res: Response, next: Nex
       throw new ApiError(403, 'Permission denied');
     }
 
-    const hotels = await Hotel.find({ status: 'Active' });
+    const hotels = await Hotel.find({ status: 'Active' }).lean() as any;
     const performanceData = [];
 
     for (const hotel of hotels) {
@@ -226,7 +226,7 @@ export const getAttendanceReportLogs = async (req: Request, res: Response, next:
       ];
     }
 
-    const matchingUsers = await User.find(userQuery).select('_id');
+    const matchingUsers = await User.find(userQuery).select('_id').lean() as any;
     const employeeIds = matchingUsers.map(u => u._id);
 
     if (employeeIds.length === 0) {
@@ -256,7 +256,8 @@ export const getAttendanceReportLogs = async (req: Request, res: Response, next:
       .populate('hotel', 'name hotelCode')
       .sort({ date: -1, checkIn: -1 })
       .skip((page - 1) * limit)
-      .limit(limit);
+      .limit(limit)
+      .lean() as any;
 
     const total = await Attendance.countDocuments(attendanceQuery);
 
@@ -307,7 +308,7 @@ export const getAttendanceExportData = async (req: Request, res: Response, next:
       ];
     }
 
-    const matchingUsers = await User.find(userQuery).select('_id');
+    const matchingUsers = await User.find(userQuery).select('_id').lean() as any;
     const employeeIds = matchingUsers.map(u => u._id);
 
     if (employeeIds.length === 0) {
@@ -335,7 +336,8 @@ export const getAttendanceExportData = async (req: Request, res: Response, next:
     const logs = await Attendance.find(attendanceQuery)
       .populate('employee', 'firstName lastName email employeeId department designation role shift photoUrl phone joinedDate status personalDetails')
       .populate('hotel', 'name hotelCode')
-      .sort({ date: -1, checkIn: -1 });
+      .sort({ date: -1, checkIn: -1 })
+      .lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -384,7 +386,7 @@ export const getWorkLogsExportData = async (req: Request, res: Response, next: N
       ];
     }
 
-    const matchingUsers = await User.find(userQuery).select('_id');
+    const matchingUsers = await User.find(userQuery).select('_id').lean() as any;
     const employeeIds = matchingUsers.map(u => u._id);
 
     if (employeeIds.length === 0) {
@@ -416,7 +418,8 @@ export const getWorkLogsExportData = async (req: Request, res: Response, next: N
     const logs = await Attendance.find(worklogsQuery)
       .populate('employee', 'firstName lastName email employeeId department designation role shift photoUrl phone joinedDate status personalDetails')
       .populate('hotel', 'name hotelCode')
-      .sort({ date: -1, checkIn: -1 });
+      .sort({ date: -1, checkIn: -1 })
+      .lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -437,7 +440,7 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
     // Tenancy authorization check
     if (currentUser.role !== 'ROOT_ADMIN') {
       if (['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(currentUser.role || '')) {
-        const targetUser = await User.findById(targetEmployeeId);
+        const targetUser: any = await User.findById(targetEmployeeId).lean() as any;
         if (!targetUser || targetUser.hotel?.toString() !== currentUser.hotel?.toString()) {
           throw new ApiError(403, 'Permission denied to view this employee report');
         }
@@ -448,8 +451,9 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
       }
     }
 
-    const targetUser = await User.findById(targetEmployeeId)
-      .populate('hotel', 'name hotelCode');
+    const targetUser: any = await User.findById(targetEmployeeId)
+      .populate('hotel', 'name hotelCode')
+      .lean() as any;
     if (!targetUser) throw new ApiError(404, 'Employee not found');
 
     // 30 days range check
@@ -460,7 +464,7 @@ export const getEmployeeReport = async (req: Request, res: Response, next: NextF
     const logs = await Attendance.find({
       employee: targetEmployeeId,
       date: { $gte: dateLimitStr }
-    }).populate('hotel', 'name hotelCode').sort({ date: -1 });
+    }).populate('hotel', 'name hotelCode').sort({ date: -1 }).lean() as any;
 
     // Compute stats
     const presentDays = logs.filter(l => ['Present', 'Late'].includes(l.status)).length;
@@ -532,7 +536,7 @@ export const getAnalyticsData = async (req: Request, res: Response, next: NextFu
     }
 
     if (department) {
-      const usersInDept = await User.find({ department: department as string }).select('_id');
+      const usersInDept = await User.find({ department: department as string }).select('_id').lean() as any;
       const userIds = usersInDept.map(u => u._id);
       filter.employee = { $in: userIds };
     }

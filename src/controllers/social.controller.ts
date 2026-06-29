@@ -17,9 +17,9 @@ export const getSocialPosts = async (req: Request, res: Response, next: NextFunc
     }
 
     const posts = await SocialPost.find(filter)
-      .populate('author', 'firstName lastName photoUrl role department designation')
-      .populate('comments.user', 'firstName lastName photoUrl role department')
-      .sort({ createdAt: -1 });
+          .populate('author', 'firstName lastName photoUrl role department designation')
+          .populate('comments.user', 'firstName lastName photoUrl role department')
+          .sort({ createdAt: -1 }).lean() as any;
 
     res.status(200).json({
       status: 'success',
@@ -52,7 +52,7 @@ export const createSocialPost = async (req: Request, res: Response, next: NextFu
     });
 
     const populatedPost = await SocialPost.findById(post._id)
-      .populate('author', 'firstName lastName photoUrl role department designation');
+          .populate('author', 'firstName lastName photoUrl role department designation').lean() as any;
 
     // Logging Audit Trail
     await AuditLog.create({
@@ -100,8 +100,8 @@ export const reactSocialPost = async (req: Request, res: Response, next: NextFun
     await post.save();
 
     const populatedPost = await SocialPost.findById(postId)
-      .populate('author', 'firstName lastName photoUrl role department designation')
-      .populate('comments.user', 'firstName lastName photoUrl role department');
+          .populate('author', 'firstName lastName photoUrl role department designation')
+          .populate('comments.user', 'firstName lastName photoUrl role department').lean() as any;
 
     res.status(200).json({
       status: 'success',

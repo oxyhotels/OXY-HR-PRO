@@ -19,6 +19,7 @@ export default function ReportViewer({ category, reports, userRole, onRefresh, o
   // Delete Request Modal state
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const handleRequestDelete = async () => {
     if (!requestingId || !deleteReason) return;
@@ -256,7 +257,7 @@ export default function ReportViewer({ category, reports, userRole, onRefresh, o
                     {report.files.map((file: any, idx: number) => (
                       <div key={idx} className="flex flex-col gap-2">
                         <div className="group relative aspect-square rounded-lg border border-slate-700 overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
-                          {file.fileUrl.startsWith('data:image/') || file.fileUrl.includes('.jpg') || file.fileUrl.includes('.png') ? (
+                          {file.fileUrl.startsWith('data:image/') || file.fileUrl.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif|avif|heic|heif)(\?.*)?$/) ? (
                             <img src={file.fileUrl} alt={file.fileName} className="w-full h-full object-cover" />
                           ) : (
                             <div className="flex flex-col items-center p-3 text-center">
@@ -266,15 +267,25 @@ export default function ReportViewer({ category, reports, userRole, onRefresh, o
                           )}
                           
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <a 
-                              href={file.fileUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-400 transition-colors"
-                              title="View / Download"
-                            >
-                              <GoogleIcon name="visibility" size={16} />
-                            </a>
+                            {file.fileUrl.startsWith('data:image/') || file.fileUrl.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif|avif|heic|heif)(\?.*)?$/) ? (
+                              <button 
+                                onClick={() => setLightboxImage(file.fileUrl)} 
+                                className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-400 transition-colors"
+                                title="View Image"
+                              >
+                                <GoogleIcon name="visibility" size={16} />
+                              </button>
+                            ) : (
+                              <a 
+                                href={file.fileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-400 transition-colors"
+                                title="View / Download"
+                              >
+                                <GoogleIcon name="visibility" size={16} />
+                              </a>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-center text-center">
@@ -326,6 +337,19 @@ export default function ReportViewer({ category, reports, userRole, onRefresh, o
                 {processingId === requestingId ? 'Sending...' : 'Send Request'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex items-center justify-center p-4" 
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[85vh] w-auto h-auto flex flex-col items-center">
+            <button className="absolute top-[-35px] right-0 text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded cursor-pointer transition-colors">✕ Close</button>
+            <img src={lightboxImage} alt="Preview" className="max-w-full max-h-[80vh] rounded shadow-2xl object-contain border border-gold/20" />
           </div>
         </div>
       )}
