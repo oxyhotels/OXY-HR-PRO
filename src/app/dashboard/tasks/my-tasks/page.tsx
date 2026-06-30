@@ -169,7 +169,7 @@ export default function MyTasksPage() {
       case 'todo':
         return tasks.filter(t => t.status === 'To_Do' || t.status === 'Accepted' || t.status === 'Pending');
       case 'inProgress':
-        return tasks.filter(t => t.status === 'In_Progress');
+        return tasks.filter(t => t.status === 'In_Progress' || t.status === 'Paused');
       case 'hold':
         return tasks.filter(t => t.status === 'On_Hold');
       case 'completed':
@@ -187,6 +187,7 @@ export default function MyTasksPage() {
   const startWorkSession = async (taskId: string) => {
     try {
       await api.post(`/tasks/${taskId}/work-session`, { action: 'start' });
+      alert('Task started successfully!');
       fetchMyTasks();
     } catch (error) {
       console.error('Failed to start session', error);
@@ -270,6 +271,8 @@ export default function MyTasksPage() {
         return <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">To Do</span>;
       case 'In_Progress':
         return <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">In Progress</span>;
+      case 'Paused':
+        return <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">Paused</span>;
       case 'On_Hold':
         return <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">On Hold</span>;
       case 'Completed':

@@ -67,17 +67,23 @@ export const createPropertyReport = async (req: any, res: Response) => {
 
 export const getPropertyReports = async (req: any, res: Response) => {
   const user = req.user;
-  const { hotelId, category, startDate, endDate, reportDate, employeeId, uploadedBy, deleteStatus } = req.query;
+  const { id, hotelId, category, startDate, endDate, reportDate, employeeId, uploadedBy, deleteStatus, includeFileUrl } = req.query;
 
   let query: any = {};
 
   if (user.role === 'ROOT_ADMIN' || user.department === 'Central Team') {
-    if (hotelId) query.hotelId = hotelId;
+    if (id) query._id = id;
+    else if (hotelId) query.hotelId = hotelId;
   } else {
     if (hotelId && user.hotel && hotelId !== user.hotel.toString()) {
       return res.status(403).json({ success: false, error: 'Unauthorized property access.' });
     }
-    query.hotelId = user.hotel;
+    if (id) {
+      query._id = id;
+      query.hotelId = user.hotel;
+    } else {
+      query.hotelId = user.hotel;
+    }
     
     // Non-managers only see their own reports
     if (!['HOTEL_ADMIN', 'HR_MANAGER', 'DEPT_MANAGER'].includes(user.role)) {
@@ -108,7 +114,13 @@ export const getPropertyReports = async (req: any, res: Response) => {
     query.deleteStatus = { $ne: 'DELETED' };
   }
 
+  let selectFields = '';
+  if (includeFileUrl !== 'true') {
+    selectFields = '-files.fileUrl';
+  }
+
   const reports = await PropertyReport.find(query)
+    .select(selectFields)
     .sort({ reportDate: -1, uploadedAt: -1 })
     .allowDiskUse(true)
     .lean() as any;

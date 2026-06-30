@@ -2,7 +2,7 @@ import { Schema, model, models, Document } from 'mongoose';
 
 
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type TaskStatus = 'Pending' | 'To_Do' | 'Accepted' | 'In_Progress' | 'Completed' | 'On_Hold' | 'Rejected'; // ✅ Added To_Do
+export type TaskStatus = 'Pending' | 'To_Do' | 'Accepted' | 'In_Progress' | 'Completed' | 'On_Hold' | 'Rejected' | 'Paused'; // ✅ Added To_Do and Paused
 export type AssignmentType = 'all_departments' | 'individual' | 'department_wise' | 'name_wise' | 'designation_wise';
 export type EvidenceRequirement = 'optional' | 'mandatory';
 
@@ -99,6 +99,7 @@ function normalizeStatus(status: any): string {
     'Completed': 'Completed', 'completed': 'Completed',
     'On_Hold': 'On_Hold', 'on_hold': 'On_Hold', 'onhold': 'On_Hold', 'OnHold': 'On_Hold',
     'Rejected': 'Rejected', 'rejected': 'Rejected',
+    'Paused': 'Paused', 'paused': 'Paused',
   };
   return statusMap[normalized] || 'Pending';
 }
@@ -114,7 +115,7 @@ const TaskSchema = new Schema<ITask>(
     assignedDepartments: [{ type: String, trim: true }],
     assignmentType: { type: String, enum: ['all_departments', 'individual', 'department_wise', 'name_wise', 'designation_wise'], default: 'individual' },
     priority: { type: String, enum: ['Low', 'Medium', 'High', 'Urgent'], default: 'Medium' },
-    status: { type: String, enum: ['Pending', 'To_Do', 'Accepted', 'In_Progress', 'Completed', 'On_Hold', 'Rejected'], default: 'Pending' },
+    status: { type: String, enum: ['Pending', 'To_Do', 'Accepted', 'In_Progress', 'Completed', 'On_Hold', 'Rejected', 'Paused'], default: 'Pending' },
     progress: { type: Number, min: 0, max: 100, default: 0 },
     dueDate: { type: Date, required: true },
     dueTime: { type: String },

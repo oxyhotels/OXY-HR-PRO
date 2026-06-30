@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import { config } from '@/config/config';
 import dns from 'dns';
 
+// Force DNS lookup to prefer IPv4 globally to prevent [64:ff9b::...] IPv6/NAT64 timeouts
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 let MONGODB_URI = config.mongoose.url || process.env.MONGODB_URI || process.env.MONGODB_URL;
 
 if (!MONGODB_URI) {
@@ -94,7 +99,8 @@ const connectWithRetry = async (retries = 5, delay = 5000): Promise<typeof mongo
     maxPoolSize: 20,
     minPoolSize: 5,
     retryWrites: true,
-    autoIndex: true
+    autoIndex: true,
+    family: 4
   };
 
   let start = Date.now();
